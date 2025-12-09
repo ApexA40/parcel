@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, InboxIcon, ClipboardListIcon, TruckIcon, DollarSignIcon, ClockIcon, LogOut } from "lucide-react";
+import { X, InboxIcon, ClipboardListIcon, TruckIcon, DollarSignIcon, ClockIcon, LogOut, LayoutDashboard, Layers, PhoneIcon, SearchIcon } from "lucide-react";
+import { useStation } from "../contexts/StationContext";
 
 interface SidebarProps {
     isOpen: boolean;
@@ -8,15 +9,25 @@ interface SidebarProps {
 }
 
 const navItems = [
-    { label: "Parcel Intake", path: "/parcel-intake", icon: InboxIcon },
-    { label: "Package Assignments", path: "/package-assignments", icon: ClipboardListIcon },
-    { label: "Active Deliveries", path: "/active-deliveries", icon: TruckIcon },
-    { label: "Reconciliation", path: "/reconciliation", icon: DollarSignIcon },
-    { label: "History", path: "/history", icon: ClockIcon },
+    { label: "Parcel Intake", path: "/parcel-intake", icon: InboxIcon, roles: ["front-desk", "station-manager", "admin"] },
+    { label: "Parcel Search", path: "/parcel-search", icon: SearchIcon, roles: ["front-desk", "station-manager", "admin", "call-center"] },
+    { label: "Package Assignments", path: "/package-assignments", icon: ClipboardListIcon, roles: ["station-manager", "admin", "front-desk"] },
+    { label: "Call Center", path: "/call-center", icon: PhoneIcon, roles: ["call-center", "station-manager", "admin", "front-desk"] },
+    { label: "Active Deliveries", path: "/active-deliveries", icon: TruckIcon, roles: ["rider", "station-manager", "admin", "front-desk"] },
+    { label: "Reconciliation", path: "/reconciliation", icon: DollarSignIcon, roles: ["call-center", "station-manager", "admin", "front-desk"] },
+    { label: "Financial Dashboard", path: "/financial-dashboard", icon: LayoutDashboard, roles: ["station-manager", "admin", "front-desk"] },
+    { label: "Shelf Management", path: "/shelf-management", icon: Layers, roles: ["station-manager", "admin", "front-desk"] },
+    { label: "History", path: "/history", icon: ClockIcon, roles: ["station-manager", "admin", "front-desk"] },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
     const location = useLocation();
+    const { userRole } = useStation();
+
+    // Filter nav items based on user role
+    const filteredNavItems = navItems.filter(item =>
+        userRole && item.roles.includes(userRole)
+    );
 
     return (
         <>
@@ -64,8 +75,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
                 </div>
 
                 {/* Navigation */}
-                <nav className="space-y-2 px-4 py-6">
-                    {navItems.map((item) => {
+                <nav className="space-y-2 px-2 py-6">
+                    {filteredNavItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = location.pathname === item.path;
 
@@ -88,10 +99,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 
                 {/* Logout Button */}
                 <div className="border-t border-[#d1d1d1] p-4">
-                    <button className="flex w-full items-center gap-3 rounded-xl bg-red-50 px-4 py-3 font-medium text-[#e22420] transition-colors hover:bg-red-100">
+                    {/* <button className="flex w-full items-center gap-3 rounded-xl bg-red-50 px-4 py-3 font-medium text-[#e22420] transition-colors hover:bg-red-100">
                         <LogOut size={20} />
                         <span>Logout</span>
-                    </button>
+                    </button> */}
                 </div>
             </aside>
         </>

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { StationProvider } from "./contexts/StationContext";
 import { MainLayout } from "./layouts/MainLayout";
 import { Login } from "./screens/Login";
 import { ForgotPassword } from "./screens/ForgotPassword";
@@ -12,98 +13,136 @@ import { ParcelRiderSelection } from "./screens/ParcelRiderSelection";
 import { ActiveDeliveries } from "./screens/ActiveDeliveries";
 import { Reconciliation } from "./screens/Reconciliation";
 import { ReconciliationConfirmation } from "./screens/ReconciliationConfirmation";
+import { FinancialDashboard } from "./screens/FinancialDashboard/FinancialDashboard";
+import { ShelfManagement } from "./screens/ShelfManagement/ShelfManagement";
+import { CallCenter } from "./screens/CallCenter/CallCenter";
+import { ParcelSearch } from "./screens/ParcelSearch/ParcelSearch";
 
 export const App = (): JSX.Element => {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/password-request-sent" element={<PasswordRequestSent />} />
+    <StationProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/password-request-sent" element={<PasswordRequestSent />} />
 
-        <Route
-          path="/"
-          element={
-            <MainLayout>
-              <Navigate to="/parcel-intake" replace />
-            </MainLayout>
-          }
-        />
+          <Route
+            path="/"
+            element={
+              <MainLayout>
+                <Navigate to="/parcel-intake" replace />
+              </MainLayout>
+            }
+          />
 
-        <Route
-          path="/parcel-intake"
-          element={
-            <MainLayout>
-              <ParcelRegistration />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/parcel-costs-pod"
-          element={
-            <MainLayout>
-              <ParcelCostsAndPOD />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/parcel-review"
-          element={
-            <MainLayout>
-              <ParcelReview />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/parcel-sms-success"
-          element={
-            <MainLayout>
-              <ParcelSMSSuccess />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/package-assignments"
-          element={
-            <MainLayout>
-              <ParcelSelection />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/rider-selection"
-          element={
-            <MainLayout>
-              <ParcelRiderSelection />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/active-deliveries"
-          element={
-            <MainLayout>
-              <ActiveDeliveries />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/reconciliation"
-          element={
-            <MainLayout>
-              <Reconciliation />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/reconciliation-confirmation"
-          element={
-            <MainLayout>
-              <ReconciliationConfirmation />
-            </MainLayout>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
+          <Route
+            path="/parcel-intake"
+            element={
+              <MainLayout>
+                <ParcelRegistration />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/parcel-search"
+            element={
+              <MainLayout>
+                <ParcelSearch />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/call-center"
+            element={
+              <MainLayout>
+                <CallCenter />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/parcel-costs-pod"
+            element={
+              <MainLayout>
+                <ParcelCostsAndPOD />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/parcel-review"
+            element={
+              <MainLayout>
+                <ParcelReview />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/parcel-sms-success"
+            element={
+              <MainLayout>
+                <ParcelSMSSuccess />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/package-assignments"
+            element={
+              <MainLayout>
+                <ParcelSelection />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/rider-selection"
+            element={
+              <MainLayout>
+                <ParcelRiderSelection />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/active-deliveries"
+            element={
+              <MainLayout>
+                <ActiveDeliveries />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/reconciliation"
+            element={
+              <MainLayout>
+                <Reconciliation />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/reconciliation-confirmation"
+            element={
+              <MainLayout>
+                <ReconciliationConfirmation />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/financial-dashboard"
+            element={
+              <MainLayout>
+                <FinancialDashboard />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/shelf-management"
+            element={
+              <MainLayout>
+                <ShelfManagement />
+              </MainLayout>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </StationProvider>
   );
 };
 
