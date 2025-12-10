@@ -54,6 +54,14 @@ const routeTitles: Record<string, { title: string; description: string }> = {
         title: "Reconciliation Confirmation",
         description: "Confirm reconciliation details",
     },
+    "/admin/financial-reports": {
+        title: "Financial Reports",
+        description: "Comprehensive financial analytics and insights",
+    },
+    "/admin/driver-payments": {
+        title: "Driver Payments Overview",
+        description: "Track rider earnings and payment status",
+    },
 };
 
 const accountMenuItems = [

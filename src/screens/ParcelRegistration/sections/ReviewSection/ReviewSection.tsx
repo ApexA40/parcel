@@ -1,19 +1,52 @@
 import React from "react";
-import { ArrowLeftIcon, CheckCircleIcon, FileCheckIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ArrowLeftIcon, CheckCircleIcon, FileCheckIcon, PlusIcon } from "lucide-react";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Separator } from "../../../../components/ui/separator";
 
-interface ReviewSectionProps {
-  onPrevious: () => void;
+interface FormData {
+  senderName: string;
+  senderPhone: string;
+  receiverName: string;
+  receiverPhone: string;
+  receiverAddress: string;
+  additionalInfo?: string;
+  packageFee?: number;
+  transportationFee?: number;
 }
 
-export const ReviewSection = ({ onPrevious }: ReviewSectionProps): JSX.Element => {
-  const navigate = useNavigate();
+interface SessionInfo {
+  driverName: string;
+  vehicleNumber: string;
+}
 
-  const handleFinish = () => {
-    navigate("/parcel-sms-success");
+interface ReviewSectionProps {
+  onPrevious: () => void;
+  onAddAnother: (sameDriver: boolean) => void;
+  onFinish: () => void;
+  parcelCount: number;
+  sessionInfo: SessionInfo;
+  formData: FormData;
+}
+
+export const ReviewSection = ({
+  onPrevious,
+  onAddAnother,
+  onFinish,
+  parcelCount,
+  sessionInfo,
+  formData,
+}: ReviewSectionProps): JSX.Element => {
+  const packageFee = formData.packageFee || 100.0;
+  const transportationFee = formData.transportationFee || 30.0;
+  const totalAmount = packageFee + transportationFee;
+
+  const handleSaveAndAddAnother = () => {
+    onAddAnother(true);
+  };
+
+  const handleSaveAndAddDifferentDriver = () => {
+    onAddAnother(false);
   };
 
   return (
@@ -22,7 +55,7 @@ export const ReviewSection = ({ onPrevious }: ReviewSectionProps): JSX.Element =
         <header className="inline-flex items-center gap-2">
           <FileCheckIcon className="w-6 h-6 text-[#ea690c]" />
           <h1 className="font-body-lg-semibold font-[number:var(--body-lg-semibold-font-weight)] text-[#ea690c] text-[length:var(--body-lg-semibold-font-size)] tracking-[var(--body-lg-semibold-letter-spacing)] leading-[var(--body-lg-semibold-line-height)] [font-style:var(--body-lg-semibold-font-style)]">
-            Review Parcel Registered
+            Review Parcel #{parcelCount}
           </h1>
         </header>
 
@@ -36,19 +69,19 @@ export const ReviewSection = ({ onPrevious }: ReviewSectionProps): JSX.Element =
               <div>
                 <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-sm">Name:</span>
                 <p className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm mt-1">
-                  John Kofitse Amekudzi
+                  {formData.receiverName}
                 </p>
               </div>
               <div>
                 <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-sm">Phone Number:</span>
                 <p className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm mt-1">
-                  +233 24 245 8248
+                  {formData.receiverPhone}
                 </p>
               </div>
               <div className="sm:col-span-2">
                 <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-sm">Address:</span>
                 <p className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm mt-1">
-                  UCC Campus
+                  {formData.receiverAddress}
                 </p>
               </div>
             </div>
@@ -65,19 +98,13 @@ export const ReviewSection = ({ onPrevious }: ReviewSectionProps): JSX.Element =
               <div>
                 <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-sm">Name:</span>
                 <p className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm mt-1">
-                  John Doe
+                  {formData.senderName}
                 </p>
               </div>
               <div>
                 <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-sm">Phone Number:</span>
                 <p className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm mt-1">
-                  +233 24 245 8248
-                </p>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-sm">Address:</span>
-                <p className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm mt-1">
-                  Accra
+                  {formData.senderPhone}
                 </p>
               </div>
             </div>
@@ -96,7 +123,7 @@ export const ReviewSection = ({ onPrevious }: ReviewSectionProps): JSX.Element =
                   Package fee
                 </span>
                 <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                  100.00
+                  {packageFee.toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -104,7 +131,7 @@ export const ReviewSection = ({ onPrevious }: ReviewSectionProps): JSX.Element =
                   Transportation Fee
                 </span>
                 <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                  30.00
+                  {transportationFee.toFixed(2)}
                 </span>
               </div>
               <Separator className="bg-[#d1d1d1] my-1" />
@@ -113,33 +140,58 @@ export const ReviewSection = ({ onPrevious }: ReviewSectionProps): JSX.Element =
                   Total Amount
                 </span>
                 <span className="[font-family:'Lato',Helvetica] font-bold text-[#ea690c] text-lg">
-                  GHC 130.00
+                  GHC {totalAmount.toFixed(2)}
                 </span>
               </div>
             </div>
           </section>
 
-          <nav className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-4">
-            <Button
-              variant="outline"
-              onClick={onPrevious}
-              className="flex w-full items-center justify-center gap-3 rounded border border-[#888888] bg-transparent px-6 py-3 hover:bg-gray-50 sm:w-auto"
-            >
-              <ArrowLeftIcon className="w-6 h-6" />
-              <span className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-[#4f4f4f] text-[length:var(--body-md-semibold-font-size)] tracking-[var(--body-md-semibold-letter-spacing)] leading-[var(--body-md-semibold-line-height)] [font-style:var(--body-md-semibold-font-style)]">
-                Previous
-              </span>
-            </Button>
+          <nav className="flex w-full flex-col gap-3 pt-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                variant="outline"
+                onClick={onPrevious}
+                className="flex w-full items-center justify-center gap-3 rounded border border-[#888888] bg-transparent px-6 py-3 hover:bg-gray-50 sm:w-auto"
+              >
+                <ArrowLeftIcon className="w-6 h-6" />
+                <span className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-[#4f4f4f] text-[length:var(--body-md-semibold-font-size)] tracking-[var(--body-md-semibold-letter-spacing)] leading-[var(--body-md-semibold-line-height)] [font-style:var(--body-md-semibold-font-style)]">
+                  Previous
+                </span>
+              </Button>
 
-            <Button
-              onClick={handleFinish}
-              className="flex w-full items-center justify-center gap-3 rounded bg-green-600 px-6 py-3 hover:bg-green-700 sm:w-auto"
-            >
-              <CheckCircleIcon className="w-6 h-6" />
-              <span className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-white text-[length:var(--body-md-semibold-font-size)] tracking-[var(--body-md-semibold-letter-spacing)] leading-[var(--body-md-semibold-line-height)] [font-style:var(--body-md-semibold-font-style)]">
-                Finish
-              </span>
-            </Button>
+              <Button
+                onClick={handleSaveAndAddAnother}
+                className="flex w-full items-center justify-center gap-3 rounded bg-blue-600 px-6 py-3 hover:bg-blue-700 sm:w-auto"
+              >
+                <PlusIcon className="w-6 h-6" />
+                <span className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-white text-[length:var(--body-md-semibold-font-size)] tracking-[var(--body-md-semibold-letter-spacing)] leading-[var(--body-md-semibold-line-height)] [font-style:var(--body-md-semibold-font-style)]">
+                  Add Another ({sessionInfo.driverName})
+                </span>
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={handleSaveAndAddDifferentDriver}
+                className="flex w-full items-center justify-center gap-3 rounded border border-[#ea690c] bg-transparent px-6 py-3 hover:bg-orange-50 sm:w-auto"
+              >
+                <PlusIcon className="w-6 h-6 text-[#ea690c]" />
+                <span className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-[#ea690c] text-[length:var(--body-md-semibold-font-size)] tracking-[var(--body-md-semibold-letter-spacing)] leading-[var(--body-md-semibold-line-height)] [font-style:var(--body-md-semibold-font-style)]">
+                  Add Different Driver
+                </span>
+              </Button>
+
+              <Button
+                onClick={onFinish}
+                className="flex w-full items-center justify-center gap-3 rounded bg-green-600 px-6 py-3 hover:bg-green-700 sm:w-auto"
+              >
+                <CheckCircleIcon className="w-6 h-6" />
+                <span className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-white text-[length:var(--body-md-semibold-font-size)] tracking-[var(--body-md-semibold-letter-spacing)] leading-[var(--body-md-semibold-line-height)] [font-style:var(--body-md-semibold-font-style)]">
+                  Finish
+                </span>
+              </Button>
+            </div>
           </nav>
         </div>
       </CardContent>

@@ -17,16 +17,24 @@ import { FinancialDashboard } from "./screens/FinancialDashboard/FinancialDashbo
 import { ShelfManagement } from "./screens/ShelfManagement/ShelfManagement";
 import { CallCenter } from "./screens/CallCenter/CallCenter";
 import { ParcelSearch } from "./screens/ParcelSearch/ParcelSearch";
+import { AdminDashboard } from "./screens/Admin/AdminDashboard/AdminDashboard";
+import { StationManagement } from "./screens/Admin/StationManagement/StationManagement";
+import { UserManagement } from "./screens/Admin/UserManagement/UserManagement";
+import { SystemParcelOverview } from "./screens/Admin/SystemParcelOverview/SystemParcelOverview";
+import { FinancialReports } from "./screens/Admin/FinancialReports/FinancialReports";
+import { DriverPaymentsOverview } from "./screens/Admin/DriverPaymentsOverview/DriverPaymentsOverview";
 
 export const App = (): JSX.Element => {
   return (
     <StationProvider>
       <BrowserRouter>
         <Routes>
+          {/* Auth Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/password-request-sent" element={<PasswordRequestSent />} />
 
+          {/* Main Routes */}
           <Route
             path="/"
             element={
@@ -137,6 +145,61 @@ export const App = (): JSX.Element => {
             element={
               <MainLayout>
                 <ShelfManagement />
+              </MainLayout>
+            }
+          />
+
+          {/* Admin Routes */}
+          <Route
+            path="/admin/dashboard"
+            element={
+              <MainLayout>
+                <AdminDashboard />
+              </MainLayout>
+            }
+          />
+
+          <Route
+            path="/admin/stations"
+            element={
+              <MainLayout>
+                <StationManagement />
+              </MainLayout>
+            }
+          />
+
+          <Route
+            path="/admin/users"
+            element={
+              <MainLayout>
+                <UserManagement />
+              </MainLayout>
+            }
+          />
+
+          <Route
+            path="/admin/parcels"
+            element={
+              <MainLayout>
+                <SystemParcelOverview />
+              </MainLayout>
+            }
+          />
+
+          <Route
+            path="/admin/financial-reports"
+            element={
+              <MainLayout>
+                <FinancialReports />
+              </MainLayout>
+            }
+          />
+
+          <Route
+            path="/admin/driver-payments"
+            element={
+              <MainLayout>
+                <DriverPaymentsOverview />
               </MainLayout>
             }
           />

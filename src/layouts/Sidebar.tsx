@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, InboxIcon, ClipboardListIcon, TruckIcon, DollarSignIcon, ClockIcon, LogOut, LayoutDashboard, Layers, PhoneIcon, SearchIcon } from "lucide-react";
+import { X, InboxIcon, ClipboardListIcon, TruckIcon, DollarSignIcon, ClockIcon, LayoutDashboard, Layers, PhoneIcon, SearchIcon, Package, Users, Building2, BarChart3 } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 
 interface SidebarProps {
@@ -17,7 +17,13 @@ const navItems = [
     { label: "Reconciliation", path: "/reconciliation", icon: DollarSignIcon, roles: ["call-center", "station-manager", "admin", "front-desk"] },
     { label: "Financial Dashboard", path: "/financial-dashboard", icon: LayoutDashboard, roles: ["station-manager", "admin", "front-desk"] },
     { label: "Shelf Management", path: "/shelf-management", icon: Layers, roles: ["station-manager", "admin", "front-desk"] },
-    { label: "History", path: "/history", icon: ClockIcon, roles: ["station-manager", "admin", "front-desk"] },
+    { label: "Admin Dashboard", path: "/admin/dashboard", icon: LayoutDashboard, roles: ["admin", "front-desk"] },
+    // { label: "Station Management", path: "/admin/stations", icon: Building2, roles: ["admin", "front-desk"] },
+    // { label: "User Management", path: "/admin/users", icon: Users, roles: ["admin", "front-desk"] },
+    // { label: "System Parcels", path: "/admin/parcels", icon: Package, roles: ["admin"] },
+    // { label: "Financial Reports", path: "/admin/financial-reports", icon: BarChart3, roles: ["admin", "front-desk"] },
+    // { label: "Driver Payments", path: "/admin/driver-payments", icon: DollarSignIcon, roles: ["admin", "front-desk"] },
+    // { label: "History", path: "/history", icon: ClockIcon, roles: ["station-manager", "admin", "front-desk"] },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {

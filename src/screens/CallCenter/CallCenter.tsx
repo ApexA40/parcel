@@ -148,8 +148,8 @@ export const CallCenter = (): JSX.Element => {
                                                     key={parcel.id}
                                                     onClick={() => handleParcelSelect(parcel)}
                                                     className={`w-full p-3 text-left rounded-lg border transition-colors ${selectedParcel?.id === parcel.id
-                                                            ? "border-[#ea690c] bg-orange-50"
-                                                            : "border-[#d1d1d1] bg-white hover:bg-gray-50"
+                                                        ? "border-[#ea690c] bg-orange-50"
+                                                        : "border-[#d1d1d1] bg-white hover:bg-gray-50"
                                                         }`}
                                                 >
                                                     <p className="font-semibold text-neutral-800 text-sm">

@@ -1,3 +1,6 @@
+
+
+
 import { useState } from "react";
 import { ErrorNotificationSection } from "./sections/ErrorNotificationSection";
 import { InfoSection } from "./sections/InfoSection";
@@ -59,8 +62,11 @@ export const ParcelRegistration = (): JSX.Element => {
       case 1:
         return (
           <InfoSection
-            onNext={handleNext}
-          // entryMode={entryMode}
+            onNext={handleNext} entryMode={"single"} onStartBulk={function (driverName: string, vehicleNumber: string): void {
+              throw new Error("Function not implemented.");
+            }} bulkSession={null} onAddParcel={function (parcelData: any): void {
+              throw new Error("Function not implemented.");
+            }}          // entryMode={entryMode}
           // onStartBulk={startBulkEntry}
           // bulkSession={bulkSession}
           // onAddParcel={addParcelToBulk}
@@ -70,23 +76,26 @@ export const ParcelRegistration = (): JSX.Element => {
         return (
           <CostsAndPODSection
             onPrevious={handlePrevious}
-            onNext={handleNext}
-          // bulkSession={bulkSession}
+            onNext={handleNext} bulkSession={null}          // bulkSession={bulkSession}
           />
         );
       case 3:
         return (
           <ReviewSection
-            onPrevious={handlePrevious}
-          // bulkSession={bulkSession}
+            onPrevious={handlePrevious} bulkSession={null} onEndBulk={function (): void {
+              throw new Error("Function not implemented.");
+            }}          // bulkSession={bulkSession}
           // onEndBulk={endBulkEntry}
           />
         );
       default:
         return (
           <InfoSection
-            onNext={handleNext}
-          // entryMode={entryMode}
+            onNext={handleNext} entryMode={"single"} onStartBulk={function (driverName: string, vehicleNumber: string): void {
+              throw new Error("Function not implemented.");
+            }} bulkSession={null} onAddParcel={function (parcelData: any): void {
+              throw new Error("Function not implemented.");
+            }}          // entryMode={entryMode}
           // onStartBulk={startBulkEntry}
           // bulkSession={bulkSession}
           // onAddParcel={addParcelToBulk}

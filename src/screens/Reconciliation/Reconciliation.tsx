@@ -242,8 +242,8 @@ export const Reconciliation = (): JSX.Element => {
                           setAmountReceived("");
                         }}
                         className={`rounded-lg border p-3 text-left hover:bg-gray-50 transition-colors ${selectedItem?.id === item.id
-                            ? "border-[#ea690c] bg-orange-50"
-                            : "border-[#d1d1d1] bg-white"
+                          ? "border-[#ea690c] bg-orange-50"
+                          : "border-[#d1d1d1] bg-white"
                           }`}
                       >
                         <div className="flex flex-col gap-2">

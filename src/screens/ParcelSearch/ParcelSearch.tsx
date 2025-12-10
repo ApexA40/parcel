@@ -252,8 +252,8 @@ export const ParcelSearch = (): JSX.Element => {
                                     onClick={() => setShowFilters(!showFilters)}
                                     variant={showFilters ? "default" : "outline"}
                                     className={`flex items-center gap-2 ${showFilters
-                                            ? "bg-[#ea690c] text-white"
-                                            : "border border-[#d1d1d1]"
+                                        ? "bg-[#ea690c] text-white"
+                                        : "border border-[#d1d1d1]"
                                         }`}
                                 >
                                     <FilterIcon size={18} />
@@ -399,8 +399,8 @@ export const ParcelSearch = (): JSX.Element => {
                                 <Card
                                     key={parcel.id}
                                     className={`border-2 cursor-pointer transition-all ${selectedParcel?.id === parcel.id
-                                            ? "border-[#ea690c] bg-orange-50"
-                                            : "border-[#d1d1d1] hover:border-[#ea690c]"
+                                        ? "border-[#ea690c] bg-orange-50"
+                                        : "border-[#d1d1d1] hover:border-[#ea690c]"
                                         }`}
                                     onClick={() =>
                                         setSelectedParcel(
