@@ -62,7 +62,7 @@ export let mockUsers: User[] = [
         name: "System Administrator",
         email: "admin@parcel.com",
         phone: "+233 555 000 001",
-        role: "admin",
+        role: "ADMIN",
         stationId: "STATION-001", // Admin can access all, but assigned to main station
         status: "active",
         lastLogin: "2024-01-20 14:30",
@@ -75,7 +75,7 @@ export let mockUsers: User[] = [
         name: "Kwame Asante",
         email: "kwame@parcel.com",
         phone: "+233 555 100 001",
-        role: "station-manager",
+        role: "MANAGER",
         stationId: "STATION-001",
         status: "active",
         lastLogin: "2024-01-20 10:15",
@@ -86,7 +86,7 @@ export let mockUsers: User[] = [
         name: "Ama Mensah",
         email: "ama@parcel.com",
         phone: "+233 555 100 002",
-        role: "station-manager",
+        role: "MANAGER",
         stationId: "STATION-002",
         status: "active",
         lastLogin: "2024-01-19 16:45",
@@ -99,7 +99,7 @@ export let mockUsers: User[] = [
         name: "Adams Godfred",
         email: "adams@parcel.com",
         phone: "+233 555 200 001",
-        role: "front-desk",
+        role: "FRONTDESK",
         stationId: "STATION-001",
         status: "active",
         lastLogin: "2024-01-20 08:00",
@@ -110,7 +110,7 @@ export let mockUsers: User[] = [
         name: "John Kofi",
         email: "john@parcel.com",
         phone: "+233 555 200 002",
-        role: "front-desk",
+        role: "FRONTDESK",
         stationId: "STATION-001",
         status: "active",
         lastLogin: "2024-01-20 09:30",
@@ -121,7 +121,7 @@ export let mockUsers: User[] = [
         name: "Mary Osei",
         email: "mary@parcel.com",
         phone: "+233 555 200 003",
-        role: "front-desk",
+        role: "FRONTDESK",
         stationId: "STATION-002",
         status: "active",
         lastLogin: "2024-01-19 15:20",
@@ -134,7 +134,7 @@ export let mockUsers: User[] = [
         name: "Grace Adjei",
         email: "grace@parcel.com",
         phone: "+233 555 300 001",
-        role: "call-center",
+        role: "CALLER",
         stationId: "STATION-001",
         status: "active",
         lastLogin: "2024-01-20 11:00",
@@ -145,7 +145,7 @@ export let mockUsers: User[] = [
         name: "Kofi Boateng",
         email: "kofi@parcel.com",
         phone: "+233 555 300 002",
-        role: "call-center",
+        role: "CALLER",
         stationId: "STATION-002",
         status: "active",
         lastLogin: "2024-01-19 14:15",
@@ -158,7 +158,7 @@ export let mockUsers: User[] = [
         name: "John Mensah",
         email: "john.mensah@parcel.com",
         phone: "+233 555 400 001",
-        role: "rider",
+        role: "RIDER",
         stationId: "STATION-001",
         status: "active",
         lastLogin: "2024-01-20 07:30",
@@ -169,7 +169,7 @@ export let mockUsers: User[] = [
         name: "Kwame Asante",
         email: "kwame.rider@parcel.com",
         phone: "+233 555 400 002",
-        role: "rider",
+        role: "RIDER",
         stationId: "STATION-001",
         status: "active",
         lastLogin: "2024-01-20 08:00",
@@ -180,7 +180,7 @@ export let mockUsers: User[] = [
         name: "Ama Kofi",
         email: "ama.rider@parcel.com",
         phone: "+233 555 400 003",
-        role: "rider",
+        role: "RIDER",
         stationId: "STATION-002",
         status: "active",
         lastLogin: "2024-01-19 16:00",
@@ -278,6 +278,7 @@ export const mockRiders: Rider[] = [
         outstandingBalance: 0.0,
         paymentStatus: "paid",
         lastPaymentDate: "2024-01-18",
+        location: ""
     },
     {
         id: "USER-RIDER-002",
@@ -292,6 +293,7 @@ export const mockRiders: Rider[] = [
         outstandingBalance: 300.0,
         paymentStatus: "partial",
         lastPaymentDate: "2024-01-15",
+        location: ""
     },
     {
         id: "USER-RIDER-003",
@@ -305,6 +307,7 @@ export const mockRiders: Rider[] = [
         amountPaid: 0.0,
         outstandingBalance: 850.0,
         paymentStatus: "pending",
+        location: ""
     },
     {
         id: "USER-RIDER-004",
@@ -319,6 +322,7 @@ export const mockRiders: Rider[] = [
         outstandingBalance: 0.0,
         paymentStatus: "paid",
         lastPaymentDate: "2024-01-19",
+        location: ""
     },
 ];
 
@@ -1188,7 +1192,7 @@ export interface SystemMetrics {
 export const getSystemMetrics = (): SystemMetrics => {
     const totalStations = mockStations.length;
     const totalParcels = mockParcels.length;
-    const activeUsers = mockUsers.filter((u) => u.role !== "admin").length;
+    const activeUsers = mockUsers.filter((u) => u.role !== "ADMIN").length;
     
     const deliveredParcels = mockParcels.filter((p) => p.status === "delivered");
     const failedParcels = mockParcels.filter((p) => p.status === "delivery-failed");

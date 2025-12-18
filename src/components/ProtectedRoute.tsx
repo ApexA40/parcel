@@ -15,11 +15,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
 
     if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
         // Redirect to appropriate dashboard based on role
-        if (userRole === "admin") {
+        if (userRole === "ADMIN") {
             return <Navigate to="/admin/dashboard" replace />;
-        } else if (userRole === "rider") {
-            return <Navigate to="/active-deliveries" replace />;
-        } else if (userRole === "call-center") {
+        } else if (userRole === "RIDER") {
+            return <Navigate to="/rider/dashboard" replace />;
+        } else if (userRole === "CALLER") {
             return <Navigate to="/call-center" replace />;
         } else {
             return <Navigate to="/parcel-intake" replace />;

@@ -2,7 +2,7 @@
  * Standardized TypeScript interfaces for Parcel Management System
  */
 
-export type UserRole = "admin" | "station-manager" | "front-desk" | "call-center" | "rider";
+export type UserRole = "ADMIN" | "MANAGER" | "FRONTDESK" | "RIDER" | "CALLER";
 
 export type ParcelStatus =
     | "registered"

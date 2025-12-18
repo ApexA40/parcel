@@ -6,12 +6,77 @@
 import { Parcel, ParcelStatus, Station, Shelf, User } from "../types";
 
 /**
- * Phone number validation (Ghana format: +233)
+ * Normalize phone number: accepts 0XXXXXXXXX or XXXXXXXXX, returns +233XXXXXXXXX
+ * Removes leading 0 if present and prepends +233
+ * If already in +233 format, returns as-is
+ */
+export const normalizePhoneNumber = (phone: string): string => {
+    // If already in +233 format, return as-is (but ensure it's valid)
+    if (phone.startsWith("+233")) {
+        const digits = phone.substring(4).replace(/\D/g, "");
+        const limited = digits.substring(0, 9);
+        return "+233" + limited;
+    }
+    
+    // Remove all non-digits
+    const digits = phone.replace(/\D/g, "");
+    
+    // If starts with 0, remove it
+    const cleaned = digits.startsWith("0") ? digits.substring(1) : digits;
+    
+    // Limit to 9 digits (Ghana phone number format)
+    const limited = cleaned.substring(0, 9);
+    
+    // Return with +233 prefix
+    return "+233" + limited;
+};
+
+/**
+ * Phone number validation (Ghana format: +233, 0XXXXXXXXX, or XXXXXXXXX)
+ * Normalizes the phone number first, then validates
  */
 export const validatePhoneNumber = (phone: string): boolean => {
-    // Ghana phone format: +233 followed by 9 digits
+    if (!phone || !phone.trim()) return false;
+    
+    // Normalize the phone number first
+    const normalized = normalizePhoneNumber(phone);
+    
+    // Validate normalized format: +233 followed by 9 digits
     const phoneRegex = /^\+233[0-9]{9}$/;
-    return phoneRegex.test(phone);
+    return phoneRegex.test(normalized);
+};
+
+/**
+ * Normalize phone number for search - extracts digits only
+ * Handles +233XXXXXXXXX, 0XXXXXXXXX, XXXXXXXXX formats
+ */
+export const normalizePhoneForSearch = (phone: string): string => {
+    if (!phone) return "";
+    // Remove all non-digits
+    const digits = phone.replace(/\D/g, "");
+    // If starts with 233, remove it (we'll search for the 9 digits after)
+    if (digits.startsWith("233") && digits.length >= 12) {
+        return digits.substring(3); // Get digits after 233
+    }
+    // If starts with 0, remove it
+    if (digits.startsWith("0") && digits.length >= 10) {
+        return digits.substring(1); // Get digits after 0
+    }
+    // Return last 9 digits (in case of full number)
+    return digits.length > 9 ? digits.substring(digits.length - 9) : digits;
+};
+
+/**
+ * Check if phone number matches search term (handles various formats)
+ */
+export const phoneMatchesSearch = (phone: string | undefined, searchTerm: string): boolean => {
+    if (!phone || !searchTerm) return false;
+    
+    const normalizedPhone = normalizePhoneForSearch(phone);
+    const normalizedSearch = normalizePhoneForSearch(searchTerm);
+    
+    // Check if normalized search term is contained in normalized phone
+    return normalizedPhone.includes(normalizedSearch) || normalizedSearch.includes(normalizedPhone);
 };
 
 /**
@@ -223,7 +288,7 @@ export const searchParcels = (parcels: Parcel[], criteria: ParcelSearchCriteria)
  * Check if user can access station
  */
 export const canAccessStation = (user: User, stationId: string): boolean => {
-    if (user.role === "admin") return true;
+    if (user.role === "ADMIN") return true;
     return user.stationId === stationId;
 };
 

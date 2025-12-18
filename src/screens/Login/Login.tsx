@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   UserIcon,
@@ -10,88 +10,171 @@ import {
   GiftIcon,
   MailIcon,
   AlertCircleIcon,
+  Loader,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Card, CardContent } from "../../components/ui/card";
 import { useStation } from "../../contexts/StationContext";
-import { mockUsers, mockStations } from "../../data/mockData";
+import authService from "../../services/authService";
 
 export const Login = (): JSX.Element => {
   const [showPassword, setShowPassword] = useState(false);
+  const [loginType, setLoginType] = useState<"email" | "phone">("phone");
   const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
   const { setUser, setStation, isAuthenticated, userRole } = useStation();
 
   // Redirect if already authenticated
-  if (isAuthenticated) {
-    if (userRole === "admin") {
-      navigate("/admin/dashboard", { replace: true });
-    } else if (userRole === "rider") {
-      navigate("/active-deliveries", { replace: true });
-    } else if (userRole === "call-center") {
-      navigate("/call-center", { replace: true });
-    } else {
-      navigate("/parcel-intake", { replace: true });
-    }
-    return <></>;
-  }
+  useEffect(() => {
+    console.log("Checking authentication - isAuthenticated:", isAuthenticated, "userRole:", userRole);
+    if (isAuthenticated && userRole) {
+      console.log("User is authenticated with role:", userRole);
 
-  const handleLogin = (e: React.FormEvent) => {
+      // Small delay to ensure state is properly updated
+      const timer = setTimeout(() => {
+        if (userRole === "ADMIN") {
+          console.log("Redirecting to admin dashboard");
+          navigate("/admin/dashboard", { replace: true });
+          return;
+        } else if (userRole === "RIDER") {
+          navigate("/rider/dashboard", { replace: true });
+        } else if (userRole === "CALLER") {
+          navigate("/call-center", { replace: true });
+        } else {
+          navigate("/parcel-search", { replace: true });
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, userRole, navigate]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
-    // Find user by email (in production, this would be an API call)
-    const user = mockUsers.find((u) => u.email.toLowerCase() === email.toLowerCase().trim());
+    try {
+      let response;
 
-    if (!user) {
-      setError("Invalid email or password. Please try again.");
-      return;
-    }
+      if (loginType === "email") {
+        if (!email.trim()) {
+          setError("Email is required.");
+          setLoading(false);
+          return;
+        }
+        response = await authService.loginWithEmail(email, password);
+      } else {
+        if (!phoneNumber.trim()) {
+          setError("Phone number is required.");
+          setLoading(false);
+          return;
+        }
+        response = await authService.loginWithPhone(phoneNumber, password);
+      }
+      console.log("Login response:", response);
 
-    // For now, accept any password (in production, verify password)
-    if (!password.trim()) {
-      setError("Password is required.");
-      return;
-    }
+      if (!response.success) {
+        setError(response.message);
+        setLoading(false);
+        return;
+      }
 
-    // Find user's station
-    const station = mockStations.find((s) => s.id === user.stationId);
+      if (response.data) {
+        const userData = response.data.user;
+        // Normalize role - handle both old and new role formats
+        let normalizedRole = userData.role?.toUpperCase() || "FRONTDESK";
+        // Map old role names to new ones
+        if (normalizedRole === 'STATION-MANAGER') normalizedRole = 'MANAGER';
+        if (normalizedRole === 'FRONT-DESK') normalizedRole = 'FRONTDESK';
+        if (normalizedRole === 'CALL-CENTER') normalizedRole = 'CALLER';
 
-    if (!station) {
-      setError("User station not found. Please contact administrator.");
-      return;
-    }
+        console.log("Setting user with role:", normalizedRole);
 
-    // Set user and station in context
-    setUser({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      stationId: user.stationId,
-    });
+        // Set user in context
+        setUser({
+          id: userData.id,
+          name: userData.name,
+          email: userData.email,
+          role: normalizedRole as any,
+          stationId: userData.stationId, // Will be undefined for admin
+        });
 
-    setStation({
-      id: station.id,
-      name: station.name,
-      location: station.location,
-    });
+        // Set station only if user has a stationId (not admin)
+        if (userData.stationId) {
+          setStation({
+            id: userData.stationId,
+            name: `Station ${userData.stationId}`,
+            location: "Location",
+          });
+        } else {
+          // Admin user - no station
+          setStation(null);
+        }
 
-    // Redirect based on role
-    if (user.role === "admin") {
-      navigate("/admin/dashboard", { replace: true });
-    } else if (user.role === "rider") {
-      navigate("/active-deliveries", { replace: true });
-    } else if (user.role === "call-center") {
-      navigate("/call-center", { replace: true });
-    } else {
-      navigate("/parcel-intake", { replace: true });
+        // Store remember me preference
+        if (rememberMe) {
+          localStorage.setItem("rememberMe", "true");
+          localStorage.setItem("loginType", loginType);
+          if (loginType === "email") {
+            localStorage.setItem("rememberedEmail", email);
+          } else {
+            localStorage.setItem("rememberedPhone", phoneNumber);
+          }
+        }
+
+        // Redirect based on role - do it directly instead of waiting for context update
+        console.log("Redirecting with role:", normalizedRole);
+        setTimeout(() => {
+          console.log("Navigating based on role:", normalizedRole);
+          if (normalizedRole === "ADMIN") {
+            console.log("Navigate to admin dashboard");
+            navigate("/admin/dashboard", { replace: true });
+          } else if (normalizedRole === "RIDER") {
+            navigate("/rider/dashboard", { replace: true });
+          } else if (normalizedRole === "CALLER") {
+            navigate("/call-center", { replace: true });
+          } else {
+            navigate("/parcel-search", { replace: true });
+          }
+        }, 500);
+      }
+    } catch (err: any) {
+      setError("An unexpected error occurred. Please try again.");
+      console.error("Login error:", err);
+    } finally {
+      setLoading(false);
     }
   };
+
+  // Load remembered credentials
+  useEffect(() => {
+    const rememberMe = localStorage.getItem("rememberMe") === "true";
+    if (rememberMe) {
+      const savedLoginType = localStorage.getItem("loginType") as "email" | "phone" | null;
+      if (savedLoginType === "email") {
+        const savedEmail = localStorage.getItem("rememberedEmail");
+        if (savedEmail) {
+          setEmail(savedEmail);
+          setLoginType("email");
+        }
+      } else if (savedLoginType === "phone") {
+        const savedPhone = localStorage.getItem("rememberedPhone");
+        if (savedPhone) {
+          setPhoneNumber(savedPhone);
+          setLoginType("phone");
+        }
+      }
+      setRememberMe(true);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-orange-50 to-yellow-50 relative overflow-hidden">
@@ -143,10 +226,7 @@ export const Login = (): JSX.Element => {
                 Welcome Back!
               </h1>
               <p className="font-body-md font-[number:var(--body-md-font-weight)] text-[#5d5d5d] text-[length:var(--body-md-font-size)]">
-                Enter your email and password to login
-              </p>
-              <p className="text-xs text-[#9a9a9a] mt-2">
-                Test users: admin@parcel.com, kwame@parcel.com, adams@parcel.com, grace@parcel.com, john.mensah@parcel.com
+                Enter your credentials to login
               </p>
             </div>
 
@@ -160,27 +240,52 @@ export const Login = (): JSX.Element => {
 
             {/* Login Form */}
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
-              {/* Email Field */}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="email" className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                  Email<span className="text-[#e22420]">*</span>
-                </Label>
-                <div className="relative">
-                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9a9a9a] pointer-events-none z-10" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="eg. admin@parcel.com"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setError("");
-                    }}
-                    required
-                    className="pl-10 pr-3 w-full rounded-lg border border-[#d1d1d1] bg-white py-2.5 [font-family:'Lato',Helvetica] font-normal text-neutral-700 placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#ea690c] focus:border-[#ea690c]"
-                  />
+              {/* Email/Phone Field */}
+              {loginType === "email" ? (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="email" className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
+                    Email<span className="text-[#e22420]">*</span>
+                  </Label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9a9a9a] pointer-events-none z-10" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="eg. admin@parcel.com"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setError("");
+                      }}
+                      disabled={loading}
+                      required
+                      className="pl-10 pr-3 w-full rounded-lg border border-[#d1d1d1] bg-white py-2.5 [font-family:'Lato',Helvetica] font-normal text-neutral-700 placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#ea690c] focus:border-[#ea690c] disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="phone" className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
+                    Phone Number<span className="text-[#e22420]">*</span>
+                  </Label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9a9a9a] pointer-events-none z-10" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="+233550566516"
+                      value={phoneNumber}
+                      onChange={(e) => {
+                        setPhoneNumber(e.target.value);
+                        setError("");
+                      }}
+                      disabled={loading}
+                      required
+                      className="pl-10 pr-3 w-full rounded-lg border border-[#d1d1d1] bg-white py-2.5 [font-family:'Lato',Helvetica] font-normal text-neutral-700 placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#ea690c] focus:border-[#ea690c] disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Password Field */}
               <div className="flex flex-col gap-2">
@@ -197,15 +302,17 @@ export const Login = (): JSX.Element => {
                       setPassword(e.target.value);
                       setError("");
                     }}
-                    placeholder="Enter any password (for testing)"
+                    disabled={loading}
+                    placeholder="Enter your password"
                     required
-                    className="pl-10 pr-10 w-full rounded-lg border border-[#d1d1d1] bg-white py-2.5 [font-family:'Lato',Helvetica] font-normal text-neutral-700 placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#ea690c] focus:border-[#ea690c]"
+                    className="pl-10 pr-10 w-full rounded-lg border border-[#d1d1d1] bg-white py-2.5 [font-family:'Lato',Helvetica] font-normal text-neutral-700 placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#ea690c] focus:border-[#ea690c] disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9a9a9a] hover:text-neutral-800 z-10"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9a9a9a] hover:text-neutral-800 z-10 disabled:opacity-50"
                     tabIndex={-1}
+                    disabled={loading}
                   >
                     {showPassword ? (
                       <EyeOffIcon className="w-5 h-5" />
@@ -214,9 +321,22 @@ export const Login = (): JSX.Element => {
                     )}
                   </button>
                 </div>
+              </div>
+
+              {/* Remember Me & Forgot Password */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-[#d1d1d1] text-[#ea690c] focus:ring-[#ea690c]"
+                  />
+                  <span className="text-sm text-[#5d5d5d]">Remember me</span>
+                </label>
                 <Link
                   to="/forgot-password"
-                  className="text-[#ea690c] hover:underline text-sm font-medium text-right mt-1"
+                  className="text-[#ea690c] hover:underline text-sm font-medium"
                 >
                   Forgot password?
                 </Link>
@@ -225,23 +345,28 @@ export const Login = (): JSX.Element => {
               {/* Login Button */}
               <Button
                 type="submit"
-                className="w-full bg-[#ea690c] text-white hover:bg-[#ea690c]/90 mt-2"
+                disabled={loading}
+                className="w-full bg-[#ea690c] text-white hover:bg-[#ea690c]/90 mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <span className="[font-family:'Lato',Helvetica] font-semibold text-sm">
-                  Login
-                </span>
-                <ArrowRightIcon className="w-4 h-4" />
+                {loading ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    <span>Logging in...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="[font-family:'Lato',Helvetica] font-semibold text-sm">
+                      Login
+                    </span>
+                    <ArrowRightIcon className="w-4 h-4" />
+                  </>
+                )}
               </Button>
             </form>
 
-            {/* Warning Message */}
-            <p className="text-center text-neutral-600 text-xs mt-6">
-              Warning: Unauthorized use of this system is prohibited and will be tracked. Violators will be subject to disciplinary and legal action.
-            </p>
-
             {/* Version */}
             <p className="text-center text-[#9a9a9a] text-xs mt-4">
-              Version 1.0.0
+              Version 1.0.0 | Secure API Integration
             </p>
           </CardContent>
         </Card>

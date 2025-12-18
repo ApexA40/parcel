@@ -1,74 +1,202 @@
-import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Package, AlertCircleIcon, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Trash2, Package, AlertCircleIcon, X, Loader } from "lucide-react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
 import { useStation } from "../../contexts/StationContext";
-import { getShelvesByStation, addShelf, deleteShelf, updateShelfParcelCount, getParcelsByStation } from "../../data/mockData";
-import { Shelf } from "../../types";
-import { canDeleteShelf } from "../../utils/dataHelpers";
+import { useShelf } from "../../contexts/ShelfContext";
+import shelfService, { ApiShelf } from "../../services/shelfService";
+import frontdeskService, { ParcelResponse } from "../../services/frontdeskService";
+import { useToast } from "../../components/ui/toast";
+import authService from "../../services/authService";
+
+type ParcelType = ParcelResponse;
+
+// Helper function to get manager's office ID
+const getManagerOfficeId = (): string | undefined => {
+    // Try to get from authService first
+    const userData = authService.getUser();
+    if (userData && (userData as any).office?.id) {
+        return (userData as any).office.id;
+    }
+    
+    // Fallback: check localStorage for full user response (might be stored during login)
+    try {
+        const storedUser = JSON.parse(localStorage.getItem("user_data") || localStorage.getItem("user") || "{}");
+        if (storedUser?.office?.id) {
+            return storedUser.office.id;
+        }
+    } catch (e) {
+        console.error("Error reading user data from localStorage:", e);
+    }
+    
+    return undefined;
+};
 
 export const ShelfManagement = (): JSX.Element => {
     const { currentStation, currentUser, userRole } = useStation();
-    const [shelves, setShelves] = useState<Shelf[]>([]);
-    const [parcels, setParcels] = useState<any[]>([]);
+    const { shelves, loading, loadShelves, refreshShelves } = useShelf();
+    const { showToast } = useToast();
+    const [shelfParcelCounts, setShelfParcelCounts] = useState<Record<string, number>>({});
     const [newShelfName, setNewShelfName] = useState("");
     const [showAddModal, setShowAddModal] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+    const [adding, setAdding] = useState(false);
+    const [loadingCounts, setLoadingCounts] = useState(false);
 
-    useEffect(() => {
-        if (currentStation) {
-            const stationShelves = getShelvesByStation(currentStation.id);
-            // Update parcel counts for all shelves
-            stationShelves.forEach((shelf) => {
-                updateShelfParcelCount(shelf.name, currentStation.id);
-            });
-            setShelves(getShelvesByStation(currentStation.id));
+    // Fetch parcel counts for shelves
+    const fetchShelfParcelCounts = async (shelvesList: ApiShelf[]) => {
+        if (shelvesList.length === 0) return;
 
-            // Load parcels to check if shelves can be deleted
-            const stationParcels = getParcelsByStation(currentStation.id);
-            setParcels(stationParcels);
+        setLoadingCounts(true);
+        try {
+            // Fetch all parcels for the station
+            const response = await frontdeskService.searchParcels(
+                {},
+                { page: 0, size: 1000 } // Get a large number to count all parcels
+            );
+
+            if (response.success && response.data) {
+                const parcels = response.data.content;
+                const counts: Record<string, number> = {};
+
+                // Count parcels per shelf
+                shelvesList.forEach((shelf) => {
+                    counts[shelf.id] = parcels.filter(
+                        (p: ParcelType) => p.shelfNumber === shelf.name
+                    ).length;
+                });
+
+                setShelfParcelCounts(counts);
+            }
+        } catch (error) {
+            console.error("Failed to fetch parcel counts:", error);
+        } finally {
+            setLoadingCounts(false);
         }
-    }, [currentStation]);
+    };
 
-    const handleAddShelf = () => {
-        if (!newShelfName.trim() || !currentStation || !currentUser) return;
+    // Load shelves when station changes or for managers, load their office shelves
+    useEffect(() => {
+        if (userRole === "MANAGER" && currentUser) {
+            // For managers, get office ID from user profile
+            const managerOfficeId = getManagerOfficeId();
+            if (managerOfficeId) {
+                loadShelves(managerOfficeId);
+            }
+        } else if (userRole === "ADMIN" && currentStation) {
+            // For admins, use selected station
+            loadShelves(currentStation.id);
+        }
+    }, [currentStation, currentUser, userRole, loadShelves]);
 
-        // Check if shelf name already exists in this station
+    // Fetch parcel counts when shelves change
+    useEffect(() => {
+        if (shelves.length > 0) {
+            // For managers, we don't need currentStation - shelves are already filtered by their office
+            // For admins, we need currentStation
+            if (userRole === "ADMIN" && !currentStation) {
+                return;
+            }
+            fetchShelfParcelCounts(shelves);
+        }
+    }, [shelves, currentStation, userRole]);
+
+    const handleAddShelf = async () => {
+        if (!newShelfName.trim()) {
+            showToast("Please enter a shelf name", "warning");
+            return;
+        }
+
+        if (!currentUser) {
+            showToast("User not authenticated. Please log in again.", "error");
+            return;
+        }
+
+        // Get office ID based on user role
+        let officeId: string | undefined;
+        
+        if (userRole === "MANAGER") {
+            // For managers, use their office ID from their profile
+            officeId = getManagerOfficeId();
+            
+            if (!officeId) {
+                showToast("Manager office not found. Please contact administrator.", "error");
+                return;
+            }
+        } else if (userRole === "ADMIN") {
+            // For admins, use the selected station
+            if (!currentStation) {
+                showToast("No station selected. Please select a station first.", "error");
+                return;
+            }
+            if (!currentStation.id) {
+                showToast("Invalid station. Please refresh and try again.", "error");
+                return;
+            }
+            officeId = currentStation.id;
+        } else {
+            showToast("You don't have permission to create shelves.", "error");
+            return;
+        }
+
+        // Check if shelf name already exists in this station (client-side validation)
         const existingShelf = shelves.find(
             (s) => s.name.toLowerCase() === newShelfName.trim().toLowerCase()
         );
         if (existingShelf) {
-            alert("A shelf with this name already exists in this station.");
+            showToast("A shelf with this name already exists in this station.", "warning");
             return;
         }
 
-        const newShelf = addShelf(newShelfName.trim(), currentStation.id, currentUser.id);
-        setShelves([...shelves, newShelf]);
-        setNewShelfName("");
-        setShowAddModal(false);
-        alert(`Shelf "${newShelf.name}" created successfully!`);
+        setAdding(true);
+        try {
+            console.log("Attempting to add shelf:", {
+                name: newShelfName.trim(),
+                officeId: officeId,
+                userRole: userRole,
+                currentUser: currentUser
+            });
+            
+            const response = await shelfService.addShelf(newShelfName.trim(), officeId);
+            
+            console.log("Add shelf response:", response);
+
+            if (response.success) {
+                showToast(response.message || `Shelf "${newShelfName.trim()}" created successfully!`, "success");
+                setNewShelfName("");
+                setShowAddModal(false);
+                // Refresh shelves list
+                await refreshShelves(officeId);
+            } else {
+                console.error("Add shelf failed:", response.message);
+                showToast(response.message || "Failed to create shelf", "error");
+            }
+        } catch (error) {
+            console.error("Add shelf exception:", error);
+            showToast("Failed to create shelf. Please try again.", "error");
+        } finally {
+            setAdding(false);
+        }
     };
 
-    const handleDeleteShelf = (shelfId: string, shelfName: string) => {
+    const handleDeleteShelf = async (shelfId: string, shelfName: string) => {
         if (!currentStation) return;
 
-        // Check if shelf can be deleted
-        if (!canDeleteShelf(shelfName, currentStation.id, parcels)) {
-            alert(`Cannot delete shelf "${shelfName}". It contains parcels. Please move or deliver all parcels first.`);
+        // Check if shelf can be deleted (check parcel count)
+        const parcelCount = shelfParcelCounts[shelfId] || 0;
+        
+        if (parcelCount > 0) {
+            showToast(`Cannot delete shelf "${shelfName}". It contains ${parcelCount} parcel(s). Please move or deliver all parcels first.`, "warning");
             setDeleteConfirm(null);
             return;
         }
 
-        const success = deleteShelf(shelfId, currentStation.id);
-        if (success) {
-            setShelves(shelves.filter((s) => s.id !== shelfId));
-            alert(`Shelf "${shelfName}" deleted successfully!`);
-        } else {
-            alert("Failed to delete shelf. Please try again.");
-        }
+        // Note: API doesn't have a delete endpoint based on the docs, so we'll just remove from UI
+        // If delete endpoint exists, we would call it here
+        showToast("Delete functionality is not available via API. Please contact administrator.", "info");
         setDeleteConfirm(null);
     };
 
@@ -77,7 +205,7 @@ export const ShelfManagement = (): JSX.Element => {
         setNewShelfName("");
     };
 
-    const canManageShelves = userRole === "station-manager" || userRole === "admin";
+    const canManageShelves = userRole === "MANAGER" || userRole === "ADMIN";
 
     return (
         <div className="w-full">
@@ -158,10 +286,17 @@ export const ShelfManagement = (): JSX.Element => {
                                         </Button>
                                         <Button
                                             onClick={handleAddShelf}
-                                            disabled={!newShelfName.trim()}
+                                            disabled={!newShelfName.trim() || adding}
                                             className="flex-1 bg-[#ea690c] text-white hover:bg-[#ea690c]/90 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            Create Shelf
+                                            {adding ? (
+                                                <>
+                                                    <Loader className="w-4 h-4 animate-spin mr-2" />
+                                                    Creating...
+                                                </>
+                                            ) : (
+                                                "Create Shelf"
+                                            )}
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -170,7 +305,14 @@ export const ShelfManagement = (): JSX.Element => {
                     )}
 
                     {/* Shelves Grid */}
-                    {shelves.length === 0 ? (
+                    {loading ? (
+                        <Card className="border border-[#d1d1d1] bg-white">
+                            <CardContent className="p-12 text-center">
+                                <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                                <p className="text-sm text-neutral-700">Loading shelves...</p>
+                            </CardContent>
+                        </Card>
+                    ) : shelves.length === 0 ? (
                         <Card className="border border-[#d1d1d1] bg-white">
                             <CardContent className="p-12 text-center">
                                 <Package className="w-16 h-16 text-[#9a9a9a] mx-auto mb-4 opacity-50" />
@@ -185,7 +327,9 @@ export const ShelfManagement = (): JSX.Element => {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {shelves.map((shelf) => {
-                                const canDelete = canDeleteShelf(shelf.name, currentStation?.id || "", parcels);
+                                // Get parcel count for this shelf
+                                const parcelCount = shelfParcelCounts[shelf.id] || 0;
+                                const canDelete = parcelCount === 0;
                                 const isDeleting = deleteConfirm === shelf.id;
 
                                 return (
@@ -238,27 +382,33 @@ export const ShelfManagement = (): JSX.Element => {
                                             <div className="space-y-2">
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-sm text-[#5d5d5d]">Current Parcels</span>
-                                                    <Badge
-                                                        className={
-                                                            shelf.parcelCount > 0
-                                                                ? "bg-blue-100 text-blue-800"
-                                                                : "bg-gray-100 text-gray-800"
-                                                        }
-                                                    >
-                                                        {shelf.parcelCount}
-                                                    </Badge>
+                                                    {loadingCounts ? (
+                                                        <Loader className="w-4 h-4 animate-spin text-[#5d5d5d]" />
+                                                    ) : (
+                                                        <Badge
+                                                            className={
+                                                                parcelCount > 0
+                                                                    ? "bg-blue-100 text-blue-800"
+                                                                    : "bg-gray-100 text-gray-800"
+                                                            }
+                                                        >
+                                                            {parcelCount}
+                                                        </Badge>
+                                                    )}
                                                 </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm text-[#5d5d5d]">Created</span>
-                                                    <span className="text-xs text-neutral-700">
-                                                        {new Date(shelf.createdAt).toLocaleDateString()}
-                                                    </span>
-                                                </div>
-                                                {!canDelete && shelf.parcelCount > 0 && (
+                                                {shelf.office && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-sm text-[#5d5d5d]">Office</span>
+                                                        <span className="text-xs text-neutral-700">
+                                                            {shelf.office.name}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {!canDelete && parcelCount > 0 && (
                                                     <div className="mt-3 pt-3 border-t border-[#d1d1d1]">
                                                         <div className="flex items-center gap-2 text-xs text-orange-600">
                                                             <AlertCircleIcon className="w-4 h-4" />
-                                                            <span>Contains {shelf.parcelCount} parcel(s)</span>
+                                                            <span>Contains {parcelCount} parcel(s)</span>
                                                         </div>
                                                     </div>
                                                 )}

@@ -7,6 +7,7 @@ import {
   AlertCircleIcon,
   XIcon,
   CameraIcon,
+  Loader,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
@@ -14,23 +15,102 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
 import { useStation } from "../../contexts/StationContext";
-import { getRemittanceItems, markParcelAsCollected, RemittanceItem as RemittanceItemType } from "../../data/mockData";
+import { useUser } from "../../contexts/UserContext";
 import { formatPhoneNumber, formatCurrency } from "../../utils/dataHelpers";
+import frontdeskService, { DeliveryAssignmentResponse } from "../../services/frontdeskService";
+import { useToast } from "../../components/ui/toast";
+
+interface RemittanceItem {
+  id: string;
+  assignmentId: string;
+  riderId: string;
+  riderName: string;
+  parcelId: string;
+  recipientName: string;
+  recipientPhone?: string;
+  deliveryAddress?: string;
+  totalAmount: number;
+  itemValue: number;
+  deliveryFee: number;
+}
 
 export const Reconciliation = (): JSX.Element => {
   const { currentStation, currentUser, userRole } = useStation();
-  const [remittanceItems, setRemittanceItems] = useState<RemittanceItemType[]>([]);
-  const [selectedItem, setSelectedItem] = useState<RemittanceItemType | null>(null);
+  const { users } = useUser();
+  const { showToast } = useToast();
+  const [remittanceItems, setRemittanceItems] = useState<RemittanceItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<RemittanceItem | null>(null);
   const [amountReceived, setAmountReceived] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
+
+  // Fetch rider assignments that are delivered but not paid
+  const fetchRemittanceItems = async () => {
+    setLoading(true);
+    try {
+      // Get all riders (RIDER role users)
+      const riders = users.filter(user => user.role === "RIDER");
+      
+      // Filter by station if not admin
+      const stationRiders = userRole === "ADMIN" 
+        ? riders 
+        : riders.filter(rider => rider.office?.id === currentStation?.id);
+
+      const allItems: RemittanceItem[] = [];
+
+      // Fetch assignments for each rider
+      for (const rider of stationRiders) {
+        try {
+          // Get unpaid assignments (payed=false means not yet paid)
+          const response = await frontdeskService.getRiderAssignments(rider.userId, false);
+          
+          if (response.success && response.data) {
+            const assignments = response.data as DeliveryAssignmentResponse[];
+            
+            // Filter for delivered assignments
+            const deliveredAssignments = assignments.filter(
+              assignment => assignment.status === "DELIVERED"
+            );
+
+            // Convert to remittance items
+            for (const assignment of deliveredAssignments) {
+              const parcel = assignment.parcel;
+              const totalAmount = (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) + 
+                                  (parcel.inboundCost || 0) + (parcel.storageCost || 0);
+              
+              allItems.push({
+                id: assignment.assignmentId,
+                assignmentId: assignment.assignmentId,
+                riderId: rider.userId,
+                riderName: rider.name || rider.email || "Unknown Rider",
+                parcelId: parcel.parcelId,
+                recipientName: parcel.receiverName || "N/A",
+                recipientPhone: parcel.recieverPhoneNumber,
+                deliveryAddress: parcel.receiverAddress,
+                totalAmount,
+                itemValue: parcel.inboundCost || 0,
+                deliveryFee: parcel.deliveryCost || 0,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to fetch assignments for rider ${rider.userId}:`, error);
+        }
+      }
+
+      setRemittanceItems(allItems);
+    } catch (error) {
+      console.error("Failed to fetch remittance items:", error);
+      showToast("Failed to load remittance items. Please try again.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Always load remittance items - filter by station if not admin
-    const items = getRemittanceItems(
-      userRole === "admin" ? undefined : currentStation?.id
-    );
-    setRemittanceItems(items);
-  }, [currentStation, userRole]);
+    fetchRemittanceItems();
+  }, [currentStation, userRole, users]);
 
   const receivedAmount = parseFloat(amountReceived) || 0;
   const discrepancy = selectedItem ? selectedItem.totalAmount - receivedAmount : 0;
@@ -42,30 +122,35 @@ export const Reconciliation = (): JSX.Element => {
     }
   };
 
-  const handleCompleteReconciliation = () => {
+  const handleCompleteReconciliation = async () => {
     if (!selectedItem || !currentUser || !amountReceived) return;
 
-    const success = markParcelAsCollected(
-      selectedItem.parcelId,
-      receivedAmount,
-      currentUser.id
-    );
-
-    if (success) {
-      // Remove from remittance queue
-      setRemittanceItems((prev) => prev.filter((item) => item.id !== selectedItem.id));
-      setShowModal(false);
-      setSelectedItem(null);
-      setAmountReceived("");
-      alert("Reconciliation completed successfully!");
-      
-      // Refresh items
-      const items = getRemittanceItems(
-        userRole === "admin" ? undefined : currentStation?.id
+    setIsReconciling(true);
+    try {
+      // Reconcile the assignment (mark as paid)
+      const response = await frontdeskService.reconcileRiderPayments(
+        selectedItem.riderId,
+        [selectedItem.assignmentId]
       );
-      setRemittanceItems(items);
-    } else {
-      alert("Failed to complete reconciliation. Please try again.");
+
+      if (response.success) {
+        // Remove from remittance queue
+        setRemittanceItems((prev) => prev.filter((item) => item.id !== selectedItem.id));
+        setShowModal(false);
+        setSelectedItem(null);
+        setAmountReceived("");
+        showToast("Reconciliation completed successfully!", "success");
+
+        // Refresh items
+        await fetchRemittanceItems();
+      } else {
+        showToast(response.message || "Failed to complete reconciliation. Please try again.", "error");
+      }
+    } catch (error) {
+      console.error("Reconciliation error:", error);
+      showToast("Failed to complete reconciliation. Please try again.", "error");
+    } finally {
+      setIsReconciling(false);
     }
   };
 
@@ -217,7 +302,12 @@ export const Reconciliation = (): JSX.Element => {
                     </Badge>
                   </header>
 
-                  {remittanceItems.length === 0 ? (
+                  {loading ? (
+                    <div className="text-center py-8">
+                      <Loader className="w-6 h-6 text-[#ea690c] mx-auto mb-2 animate-spin" />
+                      <p className="text-sm text-[#5d5d5d]">Loading remittance items...</p>
+                    </div>
+                  ) : remittanceItems.length === 0 ? (
                     <div className="text-center py-8">
                       <p className="text-sm text-[#5d5d5d]">No items in remittance queue</p>
                       <p className="text-xs text-[#9a9a9a] mt-2">
@@ -233,11 +323,10 @@ export const Reconciliation = (): JSX.Element => {
                             setSelectedItem(item);
                             setAmountReceived(item.amountCollected?.toString() || "");
                           }}
-                          className={`rounded-lg border p-3 text-left hover:bg-gray-50 transition-colors ${
-                            selectedItem?.id === item.id
+                          className={`rounded-lg border p-3 text-left hover:bg-gray-50 transition-colors ${selectedItem?.id === item.id
                               ? "border-[#ea690c] bg-orange-50"
                               : "border-[#d1d1d1] bg-white"
-                          }`}
+                            }`}
                         >
                           <div className="flex flex-col gap-2">
                             <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
@@ -368,9 +457,17 @@ export const Reconciliation = (): JSX.Element => {
                   </Button>
                   <Button
                     onClick={handleCompleteReconciliation}
-                    className="flex-1 bg-green-600 text-white hover:bg-green-700"
+                    disabled={isReconciling}
+                    className="flex-1 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                   >
-                    Complete Reconciliation
+                    {isReconciling ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin mr-2" />
+                        Reconciling...
+                      </>
+                    ) : (
+                      "Complete Reconciliation"
+                    )}
                   </Button>
                 </div>
               </div>

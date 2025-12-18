@@ -1,25 +1,85 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
-  UserIcon,
   ArrowRightIcon,
   PackageIcon,
   GiftIcon,
   MailIcon,
+  Loader,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Card, CardContent } from "../../components/ui/card";
+import authService from "../../services/authService";
+import { useToast } from "../../components/ui/toast";
 
 export const ForgotPassword = (): JSX.Element => {
-  const [clientId, setClientId] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const formatPhoneInput = (value: string) => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '');
+    
+    // Limit to 9 digits (after +233 prefix)
+    const limitedDigits = digits.slice(0, 9);
+    
+    // Format based on length
+    if (limitedDigits.length === 0) return '';
+    if (limitedDigits.length <= 3) return limitedDigits;
+    if (limitedDigits.length <= 6) return `${limitedDigits.slice(0, 3)} ${limitedDigits.slice(3)}`;
+    return `${limitedDigits.slice(0, 3)} ${limitedDigits.slice(3, 6)} ${limitedDigits.slice(6)}`;
+  };
+
+  const validatePhoneNumber = (phone: string): boolean => {
+    // Remove spaces and check format: should be 9 digits after +233
+    const cleaned = phone.replace(/\s+/g, '');
+    // Should be exactly 9 digits and start with 2-9
+    const pattern = /^[2-9][0-9]{8}$/;
+    return pattern.test(cleaned);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Navigate to password request sent screen
-    navigate("/password-request-sent");
+    setError("");
+    setLoading(true);
+
+    // Validate phone number (should be 9 digits)
+    const cleanedPhone = phoneNumber.replace(/\s+/g, '');
+    if (!validatePhoneNumber(cleanedPhone)) {
+      setError("Please enter a valid phone number (9 digits starting with 2-9)");
+      setLoading(false);
+      return;
+    }
+
+    // Prepend +233 to the phone number
+    const fullPhoneNumber = `+233${cleanedPhone}`;
+
+    try {
+      const response = await authService.requestPasswordReset(fullPhoneNumber);
+      
+      if (response.success) {
+        showToast(response.message || "OTP sent successfully to your phone", "success");
+        // Store verification ID if provided, or use phone number as identifier
+        if (response.data?.verificationId) {
+          sessionStorage.setItem('passwordResetVerificationId', response.data.verificationId);
+        }
+        sessionStorage.setItem('passwordResetPhone', fullPhoneNumber);
+        navigate("/reset-password");
+      } else {
+        setError(response.message);
+        showToast(response.message, "error");
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
+      showToast("An unexpected error occurred. Please try again.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -73,36 +133,69 @@ export const ForgotPassword = (): JSX.Element => {
 
             {/* Instructions */}
             <p className="font-body-md font-[number:var(--body-md-font-weight)] text-[#5d5d5d] text-[length:var(--body-md-font-size)] text-center mb-6">
-              Please enter your username and contact a manager to complete the password reset process.
+              Enter your phone number and we'll send you an OTP code to reset your password.
             </p>
+            <p className="text-xs text-[#5d5d5d] text-center mb-4">
+              Enter 9 digits (e.g., 24 XXX XXXX)
+            </p>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <Label className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                  Client ID<span className="text-[#e22420]">*</span>
+                  Phone Number<span className="text-[#e22420]">*</span>
                 </Label>
-                <div className="relative">
-                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9a9a9a]" />
-                  <Input
-                    type="text"
-                    placeholder="e. Age7336"
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                    required
-                    className="pl-10 w-full rounded border border-[#d1d1d1] bg-white px-3 py-2 [font-family:'Lato',Helvetica] font-normal text-neutral-700 placeholder:text-[#b0b0b0]"
-                  />
-                </div>
+                 <div className="relative">
+                     <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none z-10">
+                       <span className="text-[#5d5d5d] font-medium text-sm">+233</span>
+                     </div>
+                     <Input
+                       id="phone"
+                       type="tel"
+                       placeholder="24 XXX XXXX"
+                       value={phoneNumber}
+                       onChange={(e) => {
+                         const formatted = formatPhoneInput(e.target.value);
+                         setPhoneNumber(formatted);
+                         setError("");
+                       }}
+                       disabled={loading}
+                       required
+                       className="pl-12 pr-3 w-full rounded-lg border border-[#d1d1d1] bg-white py-2.5 [font-family:'Lato',Helvetica] font-normal text-neutral-700 placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#ea690c] focus:border-[#ea690c] disabled:opacity-50 disabled:cursor-not-allowed"
+                     />
+                   </div>
+                  <p className="text-xs text-[#5d5d5d] mt-1">
+                    Enter 9 digits starting with 2-9 (e.g., 24 XXX XXXX)
+                  </p>
               </div>
 
               <Button
                 type="submit"
-                className="w-full bg-[#ea690c] text-white hover:bg-[#ea690c]/90"
+                disabled={loading}
+                className="w-full bg-[#ea690c] text-white hover:bg-[#ea690c]/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <span className="[font-family:'Lato',Helvetica] font-semibold text-sm">
-                  Submit
-                </span>
-                <ArrowRightIcon className="w-4 h-4" />
+                {loading ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    <span className="[font-family:'Lato',Helvetica] font-semibold text-sm">
+                      Sending OTP...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="[font-family:'Lato',Helvetica] font-semibold text-sm">
+                      Send OTP
+                    </span>
+                    <ArrowRightIcon className="w-4 h-4" />
+                  </>
+                )}
               </Button>
             </form>
 

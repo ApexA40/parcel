@@ -1,10 +1,18 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { StationProvider } from "./contexts/StationContext";
+import { LocationProvider } from "./contexts/LocationContext";
+import { UserProvider } from "./contexts/UserContext";
+import { ParcelProvider } from "./contexts/ParcelContext";
+import { FrontdeskParcelProvider } from "./contexts/FrontdeskParcelContext";
+import { ShelfProvider } from "./contexts/ShelfContext";
+import { ToastProvider } from "./components/ui/toast";
 import { MainLayout } from "./layouts/MainLayout";
+import { RiderLayout } from "./layouts/RiderLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Login } from "./screens/Login";
 import { ForgotPassword } from "./screens/ForgotPassword";
 import { PasswordRequestSent } from "./screens/PasswordRequestSent";
+import { ResetPassword } from "./screens/ResetPassword";
 import { ParcelRegistration } from "./screens/ParcelRegistration";
 import { ParcelCostsAndPOD } from "./screens/ParcelCostsAndPOD";
 import { ParcelReview } from "./screens/ParcelReview";
@@ -12,6 +20,7 @@ import { ParcelSMSSuccess } from "./screens/ParcelSMSSuccess";
 import { ParcelSelection } from "./screens/ParcelSelection";
 import { ParcelRiderSelection } from "./screens/ParcelRiderSelection";
 import { ActiveDeliveries } from "./screens/ActiveDeliveries";
+import { RiderDashboard } from "./screens/RiderDashboard";
 import { Reconciliation } from "./screens/Reconciliation";
 import { ReconciliationConfirmation } from "./screens/ReconciliationConfirmation";
 import { FinancialDashboard } from "./screens/FinancialDashboard/FinancialDashboard";
@@ -29,30 +38,28 @@ import { Help } from "./screens/Help/Help";
 export const App = (): JSX.Element => {
   return (
     <StationProvider>
-      <BrowserRouter>
+      <LocationProvider>
+        <UserProvider>
+          <ParcelProvider>
+            <FrontdeskParcelProvider>
+              <ShelfProvider>
+                <ToastProvider>
+                <BrowserRouter>
         <Routes>
           {/* Auth Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/password-request-sent" element={<PasswordRequestSent />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Root - Redirect to login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
 
-          <Route
-            path="/parcel-intake"
-            element={
-              <ProtectedRoute allowedRoles={["front-desk", "station-manager", "admin"]}>
-                <MainLayout>
-                  <ParcelRegistration />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+          
           <Route
             path="/parcel-search"
             element={
-              <ProtectedRoute allowedRoles={["front-desk", "station-manager", "admin", "call-center"]}>
+              <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", "ADMIN", "CALLER"]}>
                 <MainLayout>
                   <ParcelSearch />
                 </MainLayout>
@@ -60,9 +67,19 @@ export const App = (): JSX.Element => {
             }
           />
           <Route
+            path="/parcel-intake"
+            element={
+              <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", "ADMIN"]}>
+                <MainLayout>
+                  <ParcelRegistration />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/call-center"
             element={
-              <ProtectedRoute allowedRoles={["call-center", "station-manager", "admin", "front-desk"]}>
+              <ProtectedRoute allowedRoles={["CALLER", "MANAGER", "ADMIN", "FRONTDESK"]}>
                 <MainLayout>
                   <CallCenter />
                 </MainLayout>
@@ -96,7 +113,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/package-assignments"
             element={
-              <ProtectedRoute allowedRoles={["station-manager", "admin", "front-desk"]}>
+              <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
                 <MainLayout>
                   <ParcelSelection />
                 </MainLayout>
@@ -106,7 +123,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/rider-selection"
             element={
-              <ProtectedRoute allowedRoles={["station-manager", "admin", "front-desk"]}>
+              <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
                 <MainLayout>
                   <ParcelRiderSelection />
                 </MainLayout>
@@ -116,7 +133,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/active-deliveries"
             element={
-              <ProtectedRoute allowedRoles={["rider", "station-manager", "admin", "front-desk"]}>
+              <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
                 <MainLayout>
                   <ActiveDeliveries />
                 </MainLayout>
@@ -124,9 +141,19 @@ export const App = (): JSX.Element => {
             }
           />
           <Route
+            path="/rider/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={["RIDER"]}>
+                <RiderLayout>
+                  <RiderDashboard />
+                </RiderLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/reconciliation"
             element={
-              <ProtectedRoute allowedRoles={["call-center", "station-manager", "admin", "front-desk"]}>
+              <ProtectedRoute allowedRoles={["CALLER", "MANAGER", "ADMIN", "FRONTDESK"]}>
                 <MainLayout>
                   <Reconciliation />
                 </MainLayout>
@@ -146,7 +173,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/financial-dashboard"
             element={
-              <ProtectedRoute allowedRoles={["station-manager", "admin", "front-desk"]}>
+              <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
                 <MainLayout>
                   <FinancialDashboard />
                 </MainLayout>
@@ -156,7 +183,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/shelf-management"
             element={
-              <ProtectedRoute allowedRoles={["station-manager", "admin", "front-desk"]}>
+              <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
                 <MainLayout>
                   <ShelfManagement />
                 </MainLayout>
@@ -168,7 +195,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/admin/dashboard"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
                 <MainLayout>
                   <AdminDashboard />
                 </MainLayout>
@@ -179,7 +206,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/admin/stations"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
                 <MainLayout>
                   <StationManagement />
                 </MainLayout>
@@ -190,7 +217,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/admin/users"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
                 <MainLayout>
                   <UserManagement />
                 </MainLayout>
@@ -201,7 +228,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/admin/parcels"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
                 <MainLayout>
                   <SystemParcelOverview />
                 </MainLayout>
@@ -212,7 +239,7 @@ export const App = (): JSX.Element => {
           <Route
             path="/admin/financial-reports"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
                 <MainLayout>
                   <FinancialReports />
                 </MainLayout>
@@ -242,7 +269,13 @@ export const App = (): JSX.Element => {
             }
           />
         </Routes>
-      </BrowserRouter>
+                </BrowserRouter>
+                </ToastProvider>
+              </ShelfProvider>
+            </FrontdeskParcelProvider>
+          </ParcelProvider>
+        </UserProvider>
+      </LocationProvider>
     </StationProvider>
   );
 };

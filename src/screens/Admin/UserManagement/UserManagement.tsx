@@ -1,75 +1,214 @@
-import { useState, useEffect } from "react";
-import { Plus, Edit, Phone, Mail, Building2, X } from "lucide-react";
+import { useState } from "react";
+import { Plus, Phone, Mail, Building2, X, Loader, Trash2, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Badge } from "../../../components/ui/badge";
 import { Label } from "../../../components/ui/label";
-import { mockUsers, mockStations, addUser } from "../../../data/mockData";
-import { User, UserRole } from "../../../types";
-import { getStationName, formatPhoneNumber } from "../../../utils/dataHelpers";
+import { formatPhoneNumber } from "../../../utils/dataHelpers";
+import { useLocation } from "../../../contexts/LocationContext";
+import { useUser } from "../../../contexts/UserContext";
+import { useToast } from "../../../components/ui/toast";
+import userService from "../../../services/userService";
 
-const roleColors: Record<UserRole, string> = {
-    admin: "bg-red-100 text-red-800",
-    "station-manager": "bg-blue-100 text-blue-800",
-    "front-desk": "bg-green-100 text-green-800",
-    "call-center": "bg-yellow-100 text-yellow-800",
-    rider: "bg-purple-100 text-purple-800",
+const roleColors: Record<string, string> = {
+    ADMIN: "bg-red-100 text-red-800",
+    MANAGER: "bg-blue-100 text-blue-800",
+    FRONTDESK: "bg-green-100 text-green-800",
+    RIDER: "bg-purple-100 text-purple-800",
+    CALLER: "bg-orange-100 text-orange-800",
+};
+
+const statusColors: Record<string, string> = {
+    ACTIVE: "bg-green-100 text-green-800",
+    INACTIVE: "bg-gray-100 text-gray-800",
+    SUSPENDED: "bg-yellow-100 text-yellow-800",
+    DELETED: "bg-red-100 text-red-800",
 };
 
 export const UserManagement = (): JSX.Element => {
-    const [users, setUsers] = useState<User[]>([]);
+    const { stations } = useLocation();
+    const { users, loading: loadingUsers, pagination, refreshUsers } = useUser();
+    const { showToast } = useToast();
     const [showAddForm, setShowAddForm] = useState(false);
+    const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+    const [userToDelete, setUserToDelete] = useState<{ userId: string; name: string } | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [filterRole, setFilterRole] = useState("");
     const [filterStation, setFilterStation] = useState("");
+    const [isCreating, setIsCreating] = useState(false);
     const [formData, setFormData] = useState({
         name: "",
         email: "",
-        phone: "",
-        role: "front-desk" as UserRole,
-        stationId: "",
+        password: "",
+        phoneNumber: "",
+        role: "FRONTDESK",
+        officeId: "",
     });
-
-    useEffect(() => {
-        setUsers(mockUsers);
-    }, []);
 
     const filteredUsers = users.filter((user) => {
         if (filterRole && user.role !== filterRole) return false;
-        if (filterStation && user.stationId !== filterStation) return false;
+        if (filterStation && user.office?.id !== filterStation) return false;
         return true;
     });
 
-    const toggleUserStatus = () => {
-        // For now, just show a message since User type doesn't have status
-        // In a real app, you'd update the user status
-        alert("User status toggle functionality - to be implemented with backend");
+    // Initiate delete with confirmation modal
+    const handleInitiateDelete = (user: { userId: string; name: string }) => {
+        setUserToDelete(user);
+        setShowDeleteConfirmModal(true);
     };
 
-    const handleAddUser = () => {
-        if (
-            formData.name.trim() &&
-            formData.email.trim() &&
-            formData.phone.trim() &&
-            formData.stationId
-        ) {
-            const newUser = addUser({
-                name: formData.name,
-                email: formData.email,
-                phone: formData.phone,
-                role: formData.role,
-                stationId: formData.stationId,
-            });
-            setUsers([...users, newUser]);
+    // Confirm and delete user
+    const handleConfirmDelete = async () => {
+        if (!userToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            const response = await userService.deleteUser(userToDelete.userId);
+            
+            if (response.success) {
+                showToast(`User "${userToDelete.name}" deleted successfully!`, "success");
+                setShowDeleteConfirmModal(false);
+                setUserToDelete(null);
+                // Refresh users list
+                await refreshUsers(pagination.page, pagination.size);
+            } else {
+                showToast(response.message || "Failed to delete user", "error");
+            }
+        } catch (error) {
+            console.error("Failed to delete user:", error);
+            showToast("Failed to delete user. Please try again.", "error");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleCloseDeleteConfirmModal = () => {
+        setShowDeleteConfirmModal(false);
+        setUserToDelete(null);
+    };
+
+    // Format phone number to match API pattern: ^(\+233|0)[2-9][0-9]{8}$
+    // Pattern means: starts with +233 or 0, then digit 2-9, then 8 more digits
+    const formatPhoneInput = (phone: string): string => {
+        // Remove all non-digit characters except +
+        let cleaned = phone.replace(/[^\d+]/g, '');
+        
+        // If it already starts with +233, validate and return
+        if (cleaned.startsWith('+233')) {
+            const digits = cleaned.substring(4); // Get digits after +233
+            // Must have 9 digits total, first digit must be 2-9
+            if (digits.length === 9 && /^[2-9]\d{8}$/.test(digits)) {
+                return cleaned;
+            }
+        }
+        
+        // If it starts with 0, replace with +233
+        if (cleaned.startsWith('0')) {
+            const digits = cleaned.substring(1); // Get digits after 0
+            // Must have 9 digits total, first digit must be 2-9
+            if (digits.length === 9 && /^[2-9]\d{8}$/.test(digits)) {
+                return '+233' + digits;
+            }
+        }
+        
+        // If it starts with 233 (without +), add +
+        if (cleaned.startsWith('233') && !cleaned.startsWith('+')) {
+            const digits = cleaned.substring(3); // Get digits after 233
+            if (digits.length === 9 && /^[2-9]\d{8}$/.test(digits)) {
+                return '+' + cleaned;
+            }
+        }
+        
+        // If it's just 9 digits starting with 2-9, add +233
+        if (/^[2-9]\d{8}$/.test(cleaned)) {
+            return '+233' + cleaned;
+        }
+        
+        // Return as is if it doesn't match pattern (validation will catch it)
+        return cleaned.startsWith('+') ? cleaned : (cleaned.startsWith('0') ? cleaned : '+233' + cleaned);
+    };
+
+    // Validate phone number against API pattern
+    const validatePhoneNumber = (phone: string): boolean => {
+        const pattern = /^(\+233|0)[2-9][0-9]{8}$/;
+        return pattern.test(phone);
+    };
+
+    const handleAddUser = async () => {
+        // Validation
+        if (!formData.name.trim()) {
+            showToast("Name is required", "error");
+            return;
+        }
+
+        if (!formData.email.trim()) {
+            showToast("Email is required", "error");
+            return;
+        }
+
+        // Password is optional according to API spec, but if provided, validate length
+        if (formData.password && formData.password.trim().length > 0 && formData.password.length < 6) {
+            showToast("Password must be at least 6 characters if provided", "error");
+            return;
+        }
+
+        if (!formData.phoneNumber.trim()) {
+            showToast("Phone number is required", "error");
+            return;
+        }
+
+        // Format and validate phone number
+        const formattedPhone = formatPhoneInput(formData.phoneNumber);
+        if (!validatePhoneNumber(formattedPhone)) {
+            showToast("Phone number must be in format: +233XXXXXXXXX or 0XXXXXXXXX (9 digits starting with 2-9)", "error");
+            return;
+        }
+
+        if (!formData.officeId) {
+            showToast("Office/Station is required", "error");
+            return;
+        }
+
+        setIsCreating(true);
+        try {
+            // Prepare request payload - password is optional
+            const requestPayload: any = {
+                name: formData.name.trim(),
+                email: formData.email.trim().toLowerCase(),
+                phoneNumber: formattedPhone,
+                role: formData.role as "ADMIN" | "RIDER" | "FRONTDESK" | "MANAGER" | "CALLER",
+                officeId: formData.officeId,
+            };
+            
+            // Only include password if provided
+            if (formData.password && formData.password.trim().length > 0) {
+                requestPayload.password = formData.password;
+            }
+            
+            const response = await userService.createUser(requestPayload);
+
+            if (response.success) {
+                showToast(`User "${formData.name}" created successfully!`, "success");
             setFormData({
                 name: "",
                 email: "",
-                phone: "",
-                role: "front-desk",
-                stationId: "",
+                    password: "",
+                    phoneNumber: "",
+                    role: "FRONTDESK",
+                    officeId: "",
             });
             setShowAddForm(false);
-            alert(`User "${newUser.name}" created successfully!`);
+                // Refresh users list
+                await refreshUsers(pagination.page, pagination.size);
+            } else {
+                showToast(response.message || "Failed to create user", "error");
+            }
+        } catch (error) {
+            console.error("Failed to create user:", error);
+            showToast("Failed to create user. Please try again.", "error");
+        } finally {
+            setIsCreating(false);
         }
     };
 
@@ -102,9 +241,10 @@ export const UserManagement = (): JSX.Element => {
                                                 setFormData({
                                                     name: "",
                                                     email: "",
-                                                    phone: "",
-                                                    role: "front-desk",
-                                                    stationId: "",
+                                                    password: "",
+                                                    phoneNumber: "",
+                                                    role: "FRONTDESK",
+                                                    officeId: "",
                                                 });
                                             }}
                                             className="text-[#9a9a9a] hover:text-neutral-800"
@@ -141,15 +281,30 @@ export const UserManagement = (): JSX.Element => {
 
                                         <div>
                                             <Label className="block text-sm font-semibold text-neutral-800 mb-2">
-                                                Phone <span className="text-[#e22420]">*</span>
+                                                Phone Number <span className="text-[#e22420]">*</span>
                                             </Label>
                                             <Input
                                                 type="tel"
-                                                value={formData.phone}
-                                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                                placeholder="+233XXXXXXXXX"
+                                                value={formData.phoneNumber}
+                                                onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                                                placeholder="+233620037006 or 0620037006"
                                                 className="border border-[#d1d1d1]"
                                             />
+                                            <p className="text-xs text-[#5d5d5d] mt-1">Format: +233XXXXXXXXX or 0XXXXXXXXX (9 digits, first digit 2-9)</p>
+                                        </div>
+
+                                        <div>
+                                            <Label className="block text-sm font-semibold text-neutral-800 mb-2">
+                                                Password <span className="text-[#9a9a9a] text-xs">(Optional)</span>
+                                            </Label>
+                                            <Input
+                                                type="password"
+                                                value={formData.password}
+                                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                                placeholder="Minimum 6 characters if provided"
+                                                className="border border-[#d1d1d1]"
+                                            />
+                                            <p className="text-xs text-[#5d5d5d] mt-1">Optional. If provided, must be at least 6 characters</p>
                                         </div>
 
                                         <div>
@@ -158,32 +313,38 @@ export const UserManagement = (): JSX.Element => {
                                             </Label>
                                             <select
                                                 value={formData.role}
-                                                onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                                                onChange={(e) => setFormData({ ...formData, role: e.target.value as "ADMIN" | "RIDER" | "FRONTDESK" | "MANAGER" })}
                                                 className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
                                             >
-                                                <option value="front-desk">Front Desk</option>
-                                                <option value="call-center">Call Center</option>
-                                                <option value="station-manager">Station Manager</option>
-                                                <option value="rider">Rider</option>
+                                                <option value="ADMIN">Admin</option>
+                                                <option value="MANAGER">Manager</option>
+                                                <option value="FRONTDESK">Front Desk</option>
+                                                <option value="RIDER">Rider</option>
+                                                <option value="CALLER">Caller</option>
                                             </select>
                                         </div>
 
-                                        <div className="md:col-span-2">
+                                        <div>
                                             <Label className="block text-sm font-semibold text-neutral-800 mb-2">
-                                                Station <span className="text-[#e22420]">*</span>
+                                                Office/Station <span className="text-[#e22420]">*</span>
                                             </Label>
                                             <select
-                                                value={formData.stationId}
-                                                onChange={(e) => setFormData({ ...formData, stationId: e.target.value })}
+                                                value={formData.officeId}
+                                                onChange={(e) => setFormData({ ...formData, officeId: e.target.value })}
                                                 className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
                                             >
-                                                <option value="">Select a station</option>
-                                                {mockStations.map((station) => (
+                                                <option value="">Select an office/station</option>
+                                                {stations.map((station) => (
                                                     <option key={station.id} value={station.id}>
-                                                        {station.name}
+                                                        {station.name} {station.locationName && `- ${station.locationName}`}
                                                     </option>
                                                 ))}
                                             </select>
+                                            {stations.length === 0 && (
+                                                <p className="text-xs text-orange-600 mt-2">
+                                                    No offices available. Create an office first.
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 
@@ -193,12 +354,20 @@ export const UserManagement = (): JSX.Element => {
                                             disabled={
                                                 !formData.name.trim() ||
                                                 !formData.email.trim() ||
-                                                !formData.phone.trim() ||
-                                                !formData.stationId
+                                                !formData.phoneNumber.trim() ||
+                                                !formData.officeId ||
+                                                isCreating
                                             }
-                                            className="flex-1 bg-[#ea690c] text-white hover:bg-[#ea690c]/90 disabled:opacity-50"
+                                            className="flex-1 bg-[#ea690c] text-white hover:bg-[#ea690c]/90 disabled:opacity-50 flex items-center justify-center gap-2"
                                         >
-                                            Create User
+                                            {isCreating ? (
+                                                <>
+                                                    <Loader className="w-4 h-4 animate-spin" />
+                                                    Creating...
+                                                </>
+                                            ) : (
+                                                "Create User"
+                                            )}
                                         </Button>
                                         <Button
                                             onClick={() => {
@@ -206,13 +375,15 @@ export const UserManagement = (): JSX.Element => {
                                                 setFormData({
                                                     name: "",
                                                     email: "",
-                                                    phone: "",
-                                                    role: "front-desk",
-                                                    stationId: "",
+                                                    password: "",
+                                                    phoneNumber: "",
+                                                    role: "FRONTDESK",
+                                                    officeId: "",
                                                 });
                                             }}
                                             variant="outline"
                                             className="flex-1 border border-[#d1d1d1]"
+                                            disabled={isCreating}
                                         >
                                             Cancel
                                         </Button>
@@ -236,11 +407,11 @@ export const UserManagement = (): JSX.Element => {
                                         className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
                                     >
                                         <option value="">All Roles</option>
-                                        <option value="admin">Admin</option>
-                                        <option value="station-manager">Station Manager</option>
-                                        <option value="front-desk">Front Desk</option>
-                                        <option value="call-center">Call Center</option>
-                                        <option value="rider">Rider</option>
+                                        <option value="ADMIN">Admin</option>
+                                        <option value="MANAGER">Manager</option>
+                                        <option value="FRONTDESK">Front Desk</option>
+                                        <option value="RIDER">Rider</option>
+                                        <option value="CALLER">Caller</option>
                                     </select>
                                 </div>
 
@@ -254,7 +425,7 @@ export const UserManagement = (): JSX.Element => {
                                         className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
                                     >
                                         <option value="">All Stations</option>
-                                        {mockStations.map((station) => (
+                                        {stations.map((station) => (
                                             <option key={station.id} value={station.id}>
                                                 {station.name}
                                             </option>
@@ -265,9 +436,71 @@ export const UserManagement = (): JSX.Element => {
                         </CardContent>
                     </Card>
 
+                    {/* Delete Confirmation Modal */}
+                    {showDeleteConfirmModal && userToDelete && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <Card className="w-full max-w-md rounded-lg border border-[#d1d1d1] bg-white shadow-lg">
+                                <CardContent className="p-6">
+                                    <div className="flex items-start gap-4 mb-4">
+                                        <div className="p-3 bg-red-50 rounded-lg flex-shrink-0">
+                                            <AlertTriangle className="w-6 h-6 text-red-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h2 className="text-lg font-bold text-neutral-800 mb-2">Delete User?</h2>
+                                            <p className="text-sm text-neutral-700 mb-1">
+                                                Are you sure you want to delete this user?
+                                            </p>
+                                            <div className="bg-gray-50 rounded p-3 mt-3">
+                                                <p className="text-sm font-semibold text-neutral-800">{userToDelete.name}</p>
+                                                <p className="text-xs text-[#5d5d5d]">User ID: {userToDelete.userId}</p>
+                                            </div>
+                                            <p className="text-xs text-red-600 mt-3 font-semibold">
+                                                ⚠️ This action cannot be undone.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <Button
+                                            onClick={handleCloseDeleteConfirmModal}
+                                            variant="outline"
+                                            className="flex-1 border border-[#d1d1d1] text-neutral-700 hover:bg-gray-50"
+                                            disabled={isDeleting}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleConfirmDelete}
+                                            className="flex-1 bg-red-600 text-white hover:bg-red-700 flex items-center justify-center gap-2"
+                                            disabled={isDeleting}
+                                        >
+                                            {isDeleting ? (
+                                                <>
+                                                    <Loader className="w-4 h-4 animate-spin" />
+                                                    Deleting...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Trash2 size={16} />
+                                                    Delete User
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+
                     {/* Users Table */}
                     <Card className="border border-[#d1d1d1] bg-white shadow-sm overflow-hidden">
                         <CardContent className="p-0">
+                            {loadingUsers ? (
+                                <div className="p-12 text-center">
+                                    <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                                    <p className="text-neutral-700">Loading users...</p>
+                                </div>
+                            ) : (
                             <div className="overflow-x-auto -mx-6 sm:mx-0">
                                 <div className="inline-block min-w-full align-middle">
                                     <div className="overflow-hidden">
@@ -283,6 +516,9 @@ export const UserManagement = (): JSX.Element => {
                                                     <th className="text-left py-3 px-3 sm:py-4 sm:px-6 text-xs font-semibold text-neutral-700 uppercase tracking-wider">
                                                         Role
                                                     </th>
+                                                        <th className="text-left py-3 px-3 sm:py-4 sm:px-6 text-xs font-semibold text-neutral-700 uppercase tracking-wider">
+                                                            Status
+                                                    </th>
                                                     <th className="text-left py-3 px-3 sm:py-4 sm:px-6 text-xs font-semibold text-neutral-700 uppercase tracking-wider">
                                                         Station
                                                     </th>
@@ -294,14 +530,16 @@ export const UserManagement = (): JSX.Element => {
                                             <tbody className="bg-white divide-y divide-[#d1d1d1]">
                                                 {filteredUsers.length === 0 ? (
                                                     <tr>
-                                                        <td colSpan={5} className="py-12 text-center">
-                                                            <p className="text-sm text-neutral-500">No users found matching filters</p>
+                                                            <td colSpan={6} className="py-12 text-center">
+                                                                <p className="text-sm text-neutral-500">
+                                                                    {users.length === 0 ? "No users found" : "No users found matching filters"}
+                                                                </p>
                                                         </td>
                                                     </tr>
                                                 ) : (
                                                     filteredUsers.map((user, index) => (
                                                         <tr 
-                                                            key={user.id} 
+                                                                key={user.userId} 
                                                             className={`transition-colors hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
                                                         >
                                                             <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap">
@@ -309,36 +547,44 @@ export const UserManagement = (): JSX.Element => {
                                                             </td>
                                                             <td className="py-3 px-3 sm:py-4 sm:px-6">
                                                                 <div className="flex flex-col gap-1.5">
+                                                                        {user.email && (
                                                                     <div className="flex items-center gap-1.5">
                                                                         <Mail size={12} className="sm:w-[14px] sm:h-[14px] text-[#9a9a9a] flex-shrink-0" />
                                                                         <span className="text-xs sm:text-sm text-neutral-700 truncate">{user.email}</span>
                                                                     </div>
+                                                                        )}
                                                                     <div className="flex items-center gap-1.5">
                                                                         <Phone size={12} className="sm:w-[14px] sm:h-[14px] text-[#9a9a9a] flex-shrink-0" />
-                                                                        <span className="text-xs sm:text-sm text-neutral-700">{formatPhoneNumber(user.phone)}</span>
+                                                                            <span className="text-xs sm:text-sm text-neutral-700">{formatPhoneNumber(user.phoneNumber)}</span>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
+                                                                </td>
+                                                                <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap">
+                                                                    <Badge className={roleColors[user.role] || "bg-gray-100 text-gray-800"}>
+                                                                        <span className="text-xs">{user.role.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                                                    </Badge>
                                                             </td>
                                                             <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap">
-                                                                <Badge className={roleColors[user.role]}>
-                                                                    <span className="text-xs">{user.role.replace("-", " ")}</span>
+                                                                    <Badge className={statusColors[user.status] || "bg-gray-100 text-gray-800"}>
+                                                                        <span className="text-xs">{user.status}</span>
                                                                 </Badge>
                                                             </td>
                                                             <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap">
                                                                 <div className="flex items-center gap-1.5">
                                                                     <Building2 size={12} className="sm:w-[14px] sm:h-[14px] text-[#9a9a9a] flex-shrink-0" />
-                                                                    <span className="text-xs sm:text-sm text-neutral-700 truncate">{getStationName(user.stationId, mockStations)}</span>
+                                                                        <span className="text-xs sm:text-sm text-neutral-700 truncate">
+                                                                            {user.office?.name || "N/A"}
+                                                                        </span>
                                                                 </div>
                                                             </td>
                                                             <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap">
-                                                                <Button
-                                                                    onClick={() => toggleUserStatus()}
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    className="border border-[#d1d1d1] hover:bg-gray-100"
+                                                                <button
+                                                                    onClick={() => handleInitiateDelete({ userId: user.userId, name: user.name })}
+                                                                    className="text-[#e22420] hover:bg-red-50 p-2 rounded transition-colors"
+                                                                    title="Delete user"
                                                                 >
-                                                                    <Edit size={14} className="sm:w-4 sm:h-4" />
-                                                                </Button>
+                                                                    <Trash2 size={16} />
+                                                                </button>
                                                             </td>
                                                         </tr>
                                                     ))
@@ -348,6 +594,35 @@ export const UserManagement = (): JSX.Element => {
                                     </div>
                                 </div>
                             </div>
+                            )}
+                            {/* Pagination */}
+                            {!loadingUsers && pagination.totalPages > 1 && (
+                                <div className="px-6 py-4 border-t border-[#d1d1d1] flex items-center justify-between">
+                                    <div className="text-sm text-neutral-700">
+                                        Showing {pagination.page * pagination.size + 1} to {Math.min((pagination.page + 1) * pagination.size, pagination.totalElements)} of {pagination.totalElements} users
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={() => refreshUsers(pagination.page - 1, pagination.size)}
+                                            disabled={pagination.page === 0 || loadingUsers}
+                                            variant="outline"
+                                            size="sm"
+                                            className="border border-[#d1d1d1]"
+                                        >
+                                            Previous
+                                        </Button>
+                                        <Button
+                                            onClick={() => refreshUsers(pagination.page + 1, pagination.size)}
+                                            disabled={pagination.page >= pagination.totalPages - 1 || loadingUsers}
+                                            variant="outline"
+                                            size="sm"
+                                            className="border border-[#d1d1d1]"
+                                        >
+                                            Next
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </main>

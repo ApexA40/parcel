@@ -1,23 +1,25 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckIcon, UserIcon, MapPinIcon, PhoneIcon, AlertCircleIcon } from "lucide-react";
+import { CheckIcon, UserIcon, MapPinIcon, PhoneIcon, AlertCircleIcon, Loader } from "lucide-react";
 import { ErrorNotificationSection } from "../ParcelRegistration/sections/ErrorNotificationSection";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
 import { useStation } from "../../contexts/StationContext";
-import { getRidersByStation, assignParcelsToRider, mockRiders } from "../../data/mockData";
-import { Rider } from "../../types";
 import { formatPhoneNumber } from "../../utils/dataHelpers";
+import frontdeskService, { RiderResponse } from "../../services/frontdeskService";
+import { useToast } from "../../components/ui/toast";
 
 export const ParcelRiderSelection = (): JSX.Element => {
-  const { currentStation, currentUser } = useStation();
+  const { currentUser } = useStation();
   const navigate = useNavigate();
-  const [riders, setRiders] = useState<Rider[]>([]);
+  const { showToast } = useToast();
   const [selectedRider, setSelectedRider] = useState<string | null>(null);
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [riders, setRiders] = useState<RiderResponse[]>([]);
+  const [loadingRiders, setLoadingRiders] = useState(false);
 
   useEffect(() => {
     // Get selected parcel IDs from sessionStorage
@@ -28,47 +30,70 @@ export const ParcelRiderSelection = (): JSX.Element => {
         setSelectedParcelIds(ids);
       } catch (e) {
         console.error("Failed to parse selected parcel IDs", e);
+        showToast("Failed to load selected parcels", "error");
+        navigate("/package-assignments");
       }
     } else {
       // No parcels selected, redirect back
       navigate("/package-assignments");
     }
+  }, [navigate, showToast]);
 
-    // Load riders for current station
-    if (currentStation) {
-      const stationRiders = getRidersByStation(currentStation.id);
-      setRiders(stationRiders);
-    } else {
-      // If admin, show all riders
-      setRiders(mockRiders);
-    }
-  }, [currentStation, navigate]);
+  // Fetch riders for the current office (API uses authenticated user's office automatically)
+  useEffect(() => {
+    const fetchRiders = async () => {
+      setLoadingRiders(true);
+      try {
+        const response = await frontdeskService.getRiders();
+        
+        if (response.success && response.data) {
+          setRiders(response.data as RiderResponse[]);
+        } else {
+          showToast(response.message || "Failed to load riders", "error");
+        }
+      } catch (error) {
+        console.error("Failed to fetch riders:", error);
+        showToast("Failed to load riders. Please try again.", "error");
+      } finally {
+        setLoadingRiders(false);
+      }
+    };
 
-  const handleAssign = () => {
+    fetchRiders();
+  }, [showToast]);
+
+  const handleAssign = async () => {
     if (!selectedRider || selectedParcelIds.length === 0 || !currentUser) {
+      showToast("Please select a rider", "warning");
       return;
     }
 
     setIsAssigning(true);
 
     try {
-      assignParcelsToRider(selectedParcelIds, selectedRider, currentUser.id);
+      const response = await frontdeskService.assignParcelsToRider(selectedRider, selectedParcelIds);
 
-      // Clear session storage
-      sessionStorage.removeItem("selectedParcelIds");
+      if (response.success) {
+        // Clear session storage
+        sessionStorage.removeItem("selectedParcelIds");
 
-      // Show success and redirect
-      alert(`Successfully assigned ${selectedParcelIds.length} parcel(s) to rider!`);
-      navigate("/active-deliveries");
+        // Show success and redirect
+        showToast(`Successfully assigned ${selectedParcelIds.length} parcel(s) to rider!`, "success");
+        setTimeout(() => {
+          navigate("/active-deliveries");
+        }, 1500);
+      } else {
+        showToast(response.message || "Failed to assign parcels. Please try again.", "error");
+      }
     } catch (error) {
       console.error("Failed to assign parcels:", error);
-      alert("Failed to assign parcels. Please try again.");
+      showToast("Failed to assign parcels. Please try again.", "error");
     } finally {
       setIsAssigning(false);
     }
   };
 
-  const selectedRiderData = riders.find((r) => r.id === selectedRider);
+  const selectedRiderData = riders.find((r) => r.userId === selectedRider);
 
   return (
     <div className="w-full">
@@ -99,7 +124,12 @@ export const ParcelRiderSelection = (): JSX.Element => {
                   Select an available rider for the selected parcels
                 </p>
 
-                {riders.length === 0 ? (
+                {loadingRiders ? (
+                  <div className="text-center py-8">
+                    <Loader className="w-12 h-12 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                    <p className="text-neutral-700 font-medium">Loading riders...</p>
+                  </div>
+                ) : riders.length === 0 ? (
                   <div className="text-center py-8">
                     <AlertCircleIcon className="w-12 h-12 text-[#9a9a9a] mx-auto mb-4 opacity-50" />
                     <p className="text-neutral-700 font-medium">No riders available</p>
@@ -111,38 +141,39 @@ export const ParcelRiderSelection = (): JSX.Element => {
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {riders.map((rider) => {
-                        const isAvailable = rider.status === "available";
-                        const isSelected = selectedRider === rider.id;
+                        const isSelected = selectedRider === rider.userId;
+                        const riderName = rider.name || rider.email || "Unknown";
 
                         return (
                           <div
-                            key={rider.id}
-                            onClick={() => isAvailable && setSelectedRider(rider.id)}
+                            key={rider.userId}
+                            onClick={() => setSelectedRider(rider.userId)}
                             className={`flex flex-col gap-4 p-4 rounded-lg border cursor-pointer transition-colors ${isSelected
                                 ? "border-[#ea690c] bg-orange-50"
-                                : isAvailable
-                                  ? "border-[#d1d1d1] bg-white hover:bg-gray-50"
-                                  : "border-[#d1d1d1] bg-gray-100 opacity-60 cursor-not-allowed"
+                                : "border-[#d1d1d1] bg-white hover:bg-gray-50"
                               }`}
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex items-center gap-3">
                                 <Avatar className="h-12 w-12 border border-solid border-[#d1d1d1]">
-                                  <AvatarImage src="/vector.svg" alt={rider.name} />
+                                  <AvatarImage src="/vector.svg" alt={riderName} />
                                   <AvatarFallback>
-                                    {rider.name
+                                    {riderName
                                       .split(" ")
                                       .map((n) => n[0])
-                                      .join("")}
+                                      .join("")
+                                      .toUpperCase()}
                                   </AvatarFallback>
                                 </Avatar>
                                 <div className="flex flex-col">
                                   <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-base">
-                                    {rider.name}
+                                    {riderName}
                                   </span>
-                                  <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-xs">
-                                    {rider.id}
-                                  </span>
+                                  {rider.phoneNumber && (
+                                    <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-xs">
+                                      {formatPhoneNumber(rider.phoneNumber)}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
@@ -153,52 +184,42 @@ export const ParcelRiderSelection = (): JSX.Element => {
                               )}
                             </div>
 
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center gap-2">
-                                <PhoneIcon className="w-4 h-4 text-[#5d5d5d]" />
-                                <a
-                                  href={`tel:${rider.phone}`}
-                                  className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm hover:text-[#ea690c]"
-                                >
-                                  {formatPhoneNumber(rider.phone)}
-                                </a>
-                              </div>
-                              {rider.location && (
+                            {rider.phoneNumber && (
+                              <div className="flex flex-col gap-2">
                                 <div className="flex items-center gap-2">
-                                  <MapPinIcon className="w-4 h-4 text-[#5d5d5d]" />
-                                  <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
-                                    {rider.location}
-                                  </span>
+                                  <PhoneIcon className="w-4 h-4 text-[#5d5d5d]" />
+                                  <a
+                                    href={`tel:${rider.phoneNumber}`}
+                                    className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm hover:text-[#ea690c]"
+                                  >
+                                    {formatPhoneNumber(rider.phoneNumber)}
+                                  </a>
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            )}
 
-                            <div className="flex items-center justify-between pt-2 border-t border-[#d1d1d1]">
-                              <div className="flex flex-col">
-                                <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-xs">
-                                  Deliveries
-                                </span>
-                                <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                                  {rider.deliveriesCompleted || 0}
+                            {rider.office && (
+                              <div className="flex items-center gap-2 pt-2 border-t border-[#d1d1d1]">
+                                <MapPinIcon className="w-4 h-4 text-[#5d5d5d]" />
+                                <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
+                                  {rider.office.name}
                                 </span>
                               </div>
-                              <div className="flex flex-col">
-                                <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-xs">
-                                  Rating
-                                </span>
-                                <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                                  ⭐ {rider.rating?.toFixed(1) || "N/A"}
-                                </span>
-                              </div>
-                              <Badge
-                                className={`${isAvailable
-                                    ? "bg-green-100 text-green-800 hover:bg-green-100"
-                                    : "bg-red-100 text-red-800 hover:bg-red-100"
+                            )}
+
+                            {rider.status && (
+                              <div className="flex items-center justify-end pt-2">
+                                <Badge
+                                  className={`${
+                                    rider.status === "ACTIVE"
+                                      ? "bg-green-100 text-green-800 hover:bg-green-100"
+                                      : "bg-gray-100 text-gray-800 hover:bg-gray-100"
                                   }`}
-                              >
-                                {rider.status === "available" ? "Available" : "Busy"}
-                              </Badge>
-                            </div>
+                                >
+                                  {rider.status}
+                                </Badge>
+                              </div>
+                            )}
                           </div>
                         );
                       })}

@@ -20,15 +20,15 @@ export const FinancialDashboard = (): JSX.Element => {
     const [toDate, setToDate] = useState("");
 
     useEffect(() => {
-        if (currentStation || userRole === "admin") {
+        if (currentStation || userRole === "ADMIN") {
             const summary = calculateFinancialSummary(
-                userRole === "admin" ? undefined : currentStation?.id,
+                userRole === "ADMIN" ? undefined : currentStation?.id,
                 dateRange
             );
             setFinancialData(summary);
 
             const drivers = getDriverFinancials(
-                userRole === "admin" ? undefined : currentStation?.id
+                userRole === "ADMIN" ? undefined : currentStation?.id
             );
             setDriverBreakdown(drivers);
         }
@@ -102,7 +102,7 @@ export const FinancialDashboard = (): JSX.Element => {
                         <div>
                             <h1 className="text-2xl font-bold text-neutral-800">Financial Dashboard</h1>
                             <p className="text-sm text-[#5d5d5d] mt-1">
-                                {userRole === "admin" ? "System-wide financial overview" : `${currentStation?.name} - Financial Overview`}
+                                {userRole === "ADMIN" ? "System-wide financial overview" : `${currentStation?.name} - Financial Overview`}
                             </p>
                         </div>
                         <div className="flex gap-2">
@@ -322,8 +322,8 @@ export const FinancialDashboard = (): JSX.Element => {
                                                                         driver.paymentStatus === "paid"
                                                                             ? "bg-green-100 text-green-800"
                                                                             : driver.paymentStatus === "partial"
-                                                                            ? "bg-yellow-100 text-yellow-800"
-                                                                            : "bg-red-100 text-red-800"
+                                                                                ? "bg-yellow-100 text-yellow-800"
+                                                                                : "bg-red-100 text-red-800"
                                                                     }
                                                                 >
                                                                     <span className="text-xs">{driver.paymentStatus}</span>

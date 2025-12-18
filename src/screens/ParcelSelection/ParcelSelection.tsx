@@ -1,34 +1,49 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
 import {
     CheckIcon,
-    FilterIcon,
     MapPinIcon,
     PhoneIcon,
-    ClockIcon,
     PackageIcon,
+    Loader,
+    TruckIcon,
+    UserIcon,
+    AlertCircleIcon,
+    X,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
+import { formatPhoneNumber, formatCurrency } from "../../utils/dataHelpers";
+import { ParcelResponse, RiderResponse } from "../../services/frontdeskService";
+import { useToast } from "../../components/ui/toast";
+import { useFrontdeskParcel } from "../../contexts/FrontdeskParcelContext";
+import frontdeskService from "../../services/frontdeskService";
 import { useStation } from "../../contexts/StationContext";
-import { getReadyForAssignmentParcels } from "../../data/mockData";
-import { Parcel, STATUS_CONFIG } from "../../types";
-import { formatPhoneNumber, calculateTotalAmount, formatCurrency } from "../../utils/dataHelpers";
 
 interface ParcelCardProps {
-    parcel: Parcel;
+    parcel: ParcelResponse;
     isSelected: boolean;
     onToggle: () => void;
 }
 
 const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
-    const statusConfig = STATUS_CONFIG[parcel.status] || { label: parcel.status, color: "bg-gray-100 text-gray-800" };
-    const totalAmount = calculateTotalAmount(
-        parcel.itemValue || 0,
-        parcel.deliveryFee || 0,
-        parcel.deliveryPreference || "delivery"
-    );
+    // Determine status from API fields
+    let statusLabel = "Ready";
+    let statusColor = "bg-green-100 text-green-800";
+    if (parcel.delivered) {
+        statusLabel = "Delivered";
+        statusColor = "bg-green-100 text-green-800";
+    } else if (parcel.parcelAssigned) {
+        statusLabel = "Assigned";
+        statusColor = "bg-blue-100 text-blue-800";
+    }
+    
+    // Calculate total amount from API fields
+    const totalAmount = (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) + (parcel.inboundCost || 0) + (parcel.storageCost || 0);
+    
+    // Show delivery address if home delivery, otherwise show shelf for pickup
+    const hasDeliveryAddress = parcel.receiverAddress && parcel.homeDelivery;
 
     return (
         <Card
@@ -56,14 +71,14 @@ const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
                             </button>
                             <div className="flex flex-col">
                                 <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                                    {parcel.recipientName}
+                                    {parcel.receiverName || "N/A"}
                                 </span>
                                 <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-xs">
-                                    {parcel.id}
+                                    {parcel.parcelId}
                                 </span>
                             </div>
                         </div>
-                        <Badge className={statusConfig.color}>{statusConfig.label}</Badge>
+                        <Badge className={statusColor}>{statusLabel}</Badge>
                     </div>
 
                     {/* Details */}
@@ -71,43 +86,34 @@ const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
                         <div className="flex items-center gap-2">
                             <PhoneIcon className="w-4 h-4 text-[#5d5d5d]" />
                             <a
-                                href={`tel:${parcel.recipientPhone}`}
+                                href={`tel:${parcel.recieverPhoneNumber}`}
                                 className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm hover:text-[#ea690c]"
                             >
-                                {formatPhoneNumber(parcel.recipientPhone)}
+                                {parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : "N/A"}
                             </a>
                         </div>
 
-                        {parcel.deliveryPreference === "delivery" && parcel.deliveryAddress ? (
+                        {hasDeliveryAddress ? (
                             <div className="flex items-center gap-2">
                                 <MapPinIcon className="w-4 h-4 text-[#5d5d5d]" />
                                 <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
-                                    {parcel.deliveryAddress}
+                                    {parcel.receiverAddress}
                                 </span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-2">
                                 <MapPinIcon className="w-4 h-4 text-[#5d5d5d]" />
                                 <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
-                                    Shelf: <strong>{parcel.shelfLocation}</strong> (Customer Pickup)
+                                    Shelf: <strong>{parcel.shelfName || parcel.shelfNumber || "N/A"}</strong>
                                 </span>
                             </div>
                         )}
 
-                        {parcel.preferredDeliveryDate && (
-                            <div className="flex items-center gap-2">
-                                <ClockIcon className="w-4 h-4 text-[#5d5d5d]" />
-                                <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
-                                    Preferred: {new Date(parcel.preferredDeliveryDate).toLocaleDateString()}
-                                </span>
-                            </div>
-                        )}
-
-                        {parcel.itemDescription && (
+                        {parcel.parcelDescription && (
                             <div className="flex items-center gap-2">
                                 <PackageIcon className="w-4 h-4 text-[#5d5d5d]" />
                                 <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
-                                    {parcel.itemDescription}
+                                    {parcel.parcelDescription}
                                 </span>
                             </div>
                         )}
@@ -121,9 +127,12 @@ const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
 
                     {/* Status message */}
                     <div className="rounded-lg border p-3 bg-green-50 border-green-200">
-                        <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
-                            Ready for assignment to rider
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <TruckIcon className="w-4 h-4 text-green-600" />
+                            <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
+                                Ready for home delivery assignment
+                            </span>
+                        </div>
                     </div>
                 </div>
             </CardContent>
@@ -132,44 +141,114 @@ const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
 };
 
 export const ParcelSelection = (): JSX.Element => {
-    const { currentStation } = useStation();
-    const navigate = useNavigate();
-    const [parcels, setParcels] = useState<Parcel[]>([]);
+    const { showToast } = useToast();
+    const { currentUser } = useStation();
+    const { 
+        parcels: allParcels, 
+        loading, 
+        pagination, 
+        loadParcelsIfNeeded,
+        refreshParcels
+    } = useFrontdeskParcel();
     const [selectedParcels, setSelectedParcels] = useState<Set<string>>(new Set());
-    const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [showRiderModal, setShowRiderModal] = useState(false);
+    const [riders, setRiders] = useState<RiderResponse[]>([]);
+    const [loadingRiders, setLoadingRiders] = useState(false);
+    const [selectedRider, setSelectedRider] = useState<string | null>(null);
+    const [isAssigning, setIsAssigning] = useState(false);
 
+    // Load parcels on mount
     useEffect(() => {
-        if (currentStation) {
-            const readyParcels = getReadyForAssignmentParcels(currentStation.id);
-            setParcels(readyParcels);
-        }
-    }, [currentStation]);
+        const hasCache = allParcels.length > 0;
+        // Load all parcels - we'll filter client-side for homeDelivery
+        loadParcelsIfNeeded({}, pagination.page, pagination.size, !hasCache);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const toggleParcel = (id: string) => {
+    // Filter parcels: only show those with homeDelivery === true, hasCalled === true, not assigned, not delivered
+    const readyParcels = useMemo(() => {
+        return allParcels.filter(p => 
+            p.homeDelivery === true &&
+            p.hasCalled === true &&
+            p.parcelAssigned !== true &&
+            p.delivered !== true
+        );
+    }, [allParcels]);
+
+    const toggleParcel = (parcelId: string) => {
         const newSelected = new Set(selectedParcels);
-        if (newSelected.has(id)) {
-            newSelected.delete(id);
+        if (newSelected.has(parcelId)) {
+            newSelected.delete(parcelId);
         } else {
             if (newSelected.size >= 10) {
-                alert("Maximum 10 parcels can be selected at once");
+                showToast("Maximum 10 parcels can be selected at once", "warning");
                 return;
             }
-            newSelected.add(id);
+            newSelected.add(parcelId);
         }
         setSelectedParcels(newSelected);
     };
 
     const handleAssign = () => {
         if (selectedParcels.size > 0) {
-            // Store selected parcel IDs in sessionStorage to pass to rider selection
-            sessionStorage.setItem("selectedParcelIds", JSON.stringify(Array.from(selectedParcels)));
-            navigate("/rider-selection");
+            setShowRiderModal(true);
+            // Fetch riders when modal opens
+            fetchRiders();
         }
     };
 
-    const filteredParcels = statusFilter === "all" 
-        ? parcels 
-        : parcels.filter((p) => p.status === statusFilter);
+    const fetchRiders = async () => {
+        setLoadingRiders(true);
+        try {
+            const response = await frontdeskService.getRiders();
+            
+            if (response.success && response.data) {
+                setRiders(response.data as RiderResponse[]);
+            } else {
+                showToast(response.message || "Failed to load riders", "error");
+            }
+        } catch (error) {
+            console.error("Failed to fetch riders:", error);
+            showToast("Failed to load riders. Please try again.", "error");
+        } finally {
+            setLoadingRiders(false);
+        }
+    };
+
+    const handleAssignToRider = async () => {
+        if (!selectedRider || selectedParcels.size === 0 || !currentUser) {
+            showToast("Please select a rider", "warning");
+            return;
+        }
+
+        setIsAssigning(true);
+
+        try {
+            const parcelIds = Array.from(selectedParcels);
+            const response = await frontdeskService.assignParcelsToRider(selectedRider, parcelIds);
+
+            if (response.success) {
+                showToast(`Successfully assigned ${parcelIds.length} parcel(s) to rider!`, "success");
+                
+                // Clear selections and close modal
+                setSelectedParcels(new Set());
+                setSelectedRider(null);
+                setShowRiderModal(false);
+                
+                // Refresh parcels to update the list
+                refreshParcels();
+            } else {
+                showToast(response.message || "Failed to assign parcels. Please try again.", "error");
+            }
+        } catch (error) {
+            console.error("Failed to assign parcels:", error);
+            showToast("Failed to assign parcels. Please try again.", "error");
+        } finally {
+            setIsAssigning(false);
+        }
+    };
+
+    const selectedRiderData = riders.find((r) => r.userId === selectedRider);
 
     return (
         <div className="w-full">
@@ -179,7 +258,7 @@ export const ParcelSelection = (): JSX.Element => {
                     <div>
                         <h1 className="text-2xl font-bold text-neutral-800">Parcel Assignment</h1>
                         <p className="text-sm text-[#5d5d5d] mt-1">
-                            Select parcels ready for delivery and assign them to a rider
+                            Select parcels with home delivery requests and assign them to a rider
                         </p>
                     </div>
 
@@ -196,16 +275,10 @@ export const ParcelSelection = (): JSX.Element => {
                     <Card className="w-full rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
                         <CardContent className="flex flex-col sm:flex-row items-center gap-4 p-4">
                             <div className="flex items-center gap-2">
-                                <FilterIcon className="w-5 h-5 text-[#5d5d5d]" />
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="rounded border border-[#d1d1d1] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
-                                >
-                                    <option value="all">All Status</option>
-                                    <option value="ready-for-assignment">Ready for Assignment</option>
-                                    <option value="customer-contacted">Contacted</option>
-                                </select>
+                                <TruckIcon className="w-5 h-5 text-[#ea690c]" />
+                                <span className="text-sm font-medium text-neutral-700">
+                                    {readyParcels.length} parcel{readyParcels.length !== 1 ? 's' : ''} ready for home delivery
+                                </span>
                             </div>
 
                             <div className="flex-1" />
@@ -221,30 +294,210 @@ export const ParcelSelection = (): JSX.Element => {
                     </Card>
 
                     {/* Parcel Cards Grid */}
-                    {filteredParcels.length === 0 ? (
+                    {loading ? (
+                        <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
+                            <CardContent className="p-12 text-center">
+                                <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                                <p className="text-neutral-700 font-medium">Loading parcels...</p>
+                            </CardContent>
+                        </Card>
+                    ) : readyParcels.length === 0 ? (
                         <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
                             <CardContent className="p-12 text-center">
                                 <PackageIcon className="w-16 h-16 text-[#9a9a9a] mx-auto mb-4 opacity-50" />
                                 <p className="text-neutral-700 font-medium">No parcels ready for assignment</p>
                                 <p className="text-sm text-[#5d5d5d] mt-2">
-                                    Parcels will appear here once customers are contacted and delivery preferences are set
+                                    Parcels will appear here once customers are contacted and request home delivery
                                 </p>
                             </CardContent>
                         </Card>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredParcels.map((parcel) => (
+                            {readyParcels.map((parcel) => (
                                 <ParcelCard
-                                    key={parcel.id}
+                                    key={parcel.parcelId}
                                     parcel={parcel}
-                                    isSelected={selectedParcels.has(parcel.id)}
-                                    onToggle={() => toggleParcel(parcel.id)}
+                                    isSelected={selectedParcels.has(parcel.parcelId)}
+                                    onToggle={() => toggleParcel(parcel.parcelId)}
                                 />
                             ))}
                         </div>
                     )}
                 </main>
             </div>
+
+            {/* Rider Selection Modal */}
+            {showRiderModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <Card className="w-full max-w-4xl border border-[#d1d1d1] bg-white shadow-lg max-h-[90vh] overflow-y-auto">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-2">
+                                    <UserIcon className="w-6 h-6 text-[#ea690c]" />
+                                    <h2 className="text-xl font-bold text-neutral-800">Select Rider</h2>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setShowRiderModal(false);
+                                        setSelectedRider(null);
+                                    }}
+                                    className="text-[#9a9a9a] hover:text-neutral-800 transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Info Banner */}
+                            {selectedParcels.size > 0 && (
+                                <div className="w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 mb-4">
+                                    <p className="[font-family:'Lato',Helvetica] font-normal text-blue-800 text-sm">
+                                        <span className="font-semibold">{selectedParcels.size} Parcel(s)</span> selected for assignment
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="flex flex-col gap-4">
+                                <p className="text-sm text-[#5d5d5d]">
+                                    Select an available rider for the selected parcels
+                                </p>
+
+                                {loadingRiders ? (
+                                    <div className="text-center py-8">
+                                        <Loader className="w-12 h-12 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                                        <p className="text-neutral-700 font-medium">Loading riders...</p>
+                                    </div>
+                                ) : riders.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <AlertCircleIcon className="w-12 h-12 text-[#9a9a9a] mx-auto mb-4 opacity-50" />
+                                        <p className="text-neutral-700 font-medium">No riders available</p>
+                                        <p className="text-sm text-[#5d5d5d] mt-2">
+                                            Please add riders to this station first
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto">
+                                            {riders.map((rider) => {
+                                                const isSelected = selectedRider === rider.userId;
+                                                const riderName = rider.name || rider.email || "Unknown";
+
+                                                return (
+                                                    <div
+                                                        key={rider.userId}
+                                                        onClick={() => setSelectedRider(rider.userId)}
+                                                        className={`flex flex-col gap-4 p-4 rounded-lg border cursor-pointer transition-colors ${
+                                                            isSelected
+                                                                ? "border-[#ea690c] bg-orange-50"
+                                                                : "border-[#d1d1d1] bg-white hover:bg-gray-50"
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-start justify-between">
+                                                            <div className="flex items-center gap-3">
+                                                                <Avatar className="h-12 w-12 border border-solid border-[#d1d1d1]">
+                                                                    <AvatarImage src="/vector.svg" alt={riderName} />
+                                                                    <AvatarFallback>
+                                                                        {riderName
+                                                                            .split(" ")
+                                                                            .map((n) => n[0])
+                                                                            .join("")
+                                                                            .toUpperCase()}
+                                                                    </AvatarFallback>
+                                                                </Avatar>
+                                                                <div className="flex flex-col">
+                                                                    <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-base">
+                                                                        {riderName}
+                                                                    </span>
+                                                                    {rider.phoneNumber && (
+                                                                        <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-xs">
+                                                                            {formatPhoneNumber(rider.phoneNumber)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {isSelected && (
+                                                                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[#ea690c]">
+                                                                    <CheckIcon className="w-4 h-4 text-white" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {rider.phoneNumber && (
+                                                            <div className="flex flex-col gap-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <PhoneIcon className="w-4 h-4 text-[#5d5d5d]" />
+                                                                    <a
+                                                                        href={`tel:${rider.phoneNumber}`}
+                                                                        className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm hover:text-[#ea690c]"
+                                                                    >
+                                                                        {formatPhoneNumber(rider.phoneNumber)}
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {rider.office && (
+                                                            <div className="flex items-center gap-2 pt-2 border-t border-[#d1d1d1]">
+                                                                <MapPinIcon className="w-4 h-4 text-[#5d5d5d]" />
+                                                                <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
+                                                                    {rider.office.name}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
+                                                        {rider.status && (
+                                                            <div className="flex items-center justify-end pt-2">
+                                                                <Badge
+                                                                    className={`${
+                                                                        rider.status === "ACTIVE"
+                                                                            ? "bg-green-100 text-green-800 hover:bg-green-100"
+                                                                            : "bg-gray-100 text-gray-800 hover:bg-gray-100"
+                                                                    }`}
+                                                                >
+                                                                    {rider.status}
+                                                                </Badge>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {selectedRider && (
+                                            <div className="flex justify-end gap-3 pt-4 border-t border-[#d1d1d1]">
+                                                <Button
+                                                    onClick={() => {
+                                                        setShowRiderModal(false);
+                                                        setSelectedRider(null);
+                                                    }}
+                                                    variant="outline"
+                                                    className="border border-[#d1d1d1]"
+                                                >
+                                                    Cancel
+                                                </Button>
+                                                <Button
+                                                    onClick={handleAssignToRider}
+                                                    disabled={isAssigning}
+                                                    className="bg-[#ea690c] text-white hover:bg-[#ea690c]/90 disabled:opacity-50"
+                                                >
+                                                    {isAssigning ? (
+                                                        <>
+                                                            <Loader className="w-4 h-4 animate-spin mr-2" />
+                                                            Assigning...
+                                                        </>
+                                                    ) : (
+                                                        `Assign ${selectedParcels.size} Parcel(s) to ${selectedRiderData?.name || "Rider"}`
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
         </div>
     );
 };

@@ -11,13 +11,14 @@ interface NavbarProps {
 }
 
 const routeTitles: Record<string, { title: string; description: string }> = {
-    "/parcel-intake": {
-        title: "Parcel Intake",
-        description: "Manage parcel intake, assignments, and payments",
-    },
+   
     "/parcel-search": {
         title: "Parcel Search",
         description: "Find parcels by recipient, phone, ID, or date range",
+    },
+    "/parcel-intake": {
+        title: "Parcel Intake",
+        description: "Manage parcel intake, assignments, and payments",
     },
     "/call-center": {
         title: "Call Center",

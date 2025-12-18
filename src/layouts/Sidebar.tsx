@@ -10,23 +10,23 @@ interface SidebarProps {
 
 const navItems = [
     // Admin Only - System Management
-    { label: "Admin Dashboard", path: "/admin/dashboard", icon: LayoutDashboard, roles: ["admin"] },
-    { label: "Station Management", path: "/admin/stations", icon: Building2, roles: ["admin"] },
-    { label: "User Management", path: "/admin/users", icon: Users, roles: ["admin"] },
-    { label: "System Parcels", path: "/admin/parcels", icon: Package, roles: ["admin"] },
-    { label: "Financial Reports", path: "/admin/financial-reports", icon: BarChart3, roles: ["admin"] },
-    
+    { label: "Admin Dashboard", path: "/admin/dashboard", icon: LayoutDashboard, roles: ["ADMIN"] },
+    { label: "Station Management", path: "/admin/stations", icon: Building2, roles: ["ADMIN"] },
+    { label: "User Management", path: "/admin/users", icon: Users, roles: ["ADMIN"] },
+    { label: "System Parcels", path: "/admin/parcels", icon: Package, roles: ["ADMIN"] },
+    { label: "Financial Reports", path: "/admin/financial-reports", icon: BarChart3, roles: ["ADMIN"] },
+
     // Station Manager & Front Desk - Core Operations
-    { label: "Parcel Intake", path: "/parcel-intake", icon: InboxIcon, roles: ["front-desk", "station-manager"] },
-    { label: "Parcel Search", path: "/parcel-search", icon: SearchIcon, roles: ["front-desk", "station-manager", "call-center"] },
-    { label: "Package Assignments", path: "/package-assignments", icon: ClipboardListIcon, roles: ["station-manager", "front-desk"] },
-    { label: "Call Center", path: "/call-center", icon: PhoneIcon, roles: ["call-center", "station-manager", "front-desk"] },
-    { label: "Active Deliveries", path: "/active-deliveries", icon: TruckIcon, roles: ["rider", "station-manager", "front-desk"] },
-    { label: "Reconciliation", path: "/reconciliation", icon: DollarSignIcon, roles: ["call-center", "station-manager", "front-desk"] },
-    
+    { label: "Parcel Search", path: "/parcel-search", icon: SearchIcon, roles: ["FRONTDESK", "MANAGER", "CALLER"] },
+    { label: "Parcel Intake", path: "/parcel-intake", icon: InboxIcon, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Package Assignments", path: "/package-assignments", icon: ClipboardListIcon, roles: ["MANAGER", "FRONTDESK"] },
+    { label: "Call Center", path: "/call-center", icon: PhoneIcon, roles: ["CALLER", "MANAGER", "FRONTDESK"] },
+    { label: "Active Deliveries", path: "/active-deliveries", icon: TruckIcon, roles: ["MANAGER", "FRONTDESK"] },
+    { label: "Reconciliation", path: "/reconciliation", icon: DollarSignIcon, roles: ["CALLER", "MANAGER", "FRONTDESK"] },
+
     // Station Manager & Front Desk - Management
-    { label: "Financial Dashboard", path: "/financial-dashboard", icon: LayoutDashboard, roles: ["station-manager", "front-desk"] },
-    { label: "Shelf Management", path: "/shelf-management", icon: Layers, roles: ["station-manager", "front-desk"] },
+    // { label: "Financial Dashboard", path: "/financial-dashboard", icon: LayoutDashboard, roles: ["MANAGER", "FRONTDESK"] },
+    { label: "Shelf Management", path: "/shelf-management", icon: Layers, roles: ["MANAGER", "FRONTDESK"] },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {

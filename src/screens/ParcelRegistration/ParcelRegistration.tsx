@@ -1,49 +1,108 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useStation } from "../../contexts/StationContext";
 import { InfoSection } from "./sections/InfoSection";
-import { addParcel } from "../../data/mockData";
-import { generateParcelId } from "../../utils/dataHelpers";
-import { Parcel } from "../../types";
+import frontdeskService from "../../services/frontdeskService";
+import authService from "../../services/authService";
+import { useToast } from "../../components/ui/toast";
 import { Package } from "lucide-react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 
 interface ParcelFormData {
   driverName?: string;
+  driverPhone?: string;
   vehicleNumber?: string;
+  senderName?: string;
+  senderPhone?: string;
   recipientName: string;
   recipientPhone: string;
+  receiverAddress?: string;
   itemDescription?: string;
-  shelfLocation: string;
+  shelfLocation: string; // Stores shelf ID
+  shelfName?: string; // Stores shelf name for display
   itemValue: number;
+  pickUpCost?: number;
 }
 
+const STORAGE_KEY_PARCELS = "parcel_registration_parcels";
+const STORAGE_KEY_SESSION_DRIVER = "parcel_registration_session_driver";
+
 export const ParcelRegistration = (): JSX.Element => {
-  const { currentStation, currentUser } = useStation();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const [sessionDriver, setSessionDriver] = useState<{ driverName?: string; vehicleNumber?: string } | null>(null);
-  const [parcels, setParcels] = useState<ParcelFormData[]>([]);
+  
+  // Load from localStorage on mount
+  const loadFromStorage = (): { parcels: ParcelFormData[]; sessionDriver: { driverName?: string; driverPhone?: string; vehicleNumber?: string } | null } => {
+    try {
+      const storedParcels = localStorage.getItem(STORAGE_KEY_PARCELS);
+      const storedDriver = localStorage.getItem(STORAGE_KEY_SESSION_DRIVER);
+      return {
+        parcels: storedParcels ? JSON.parse(storedParcels) : [],
+        sessionDriver: storedDriver ? JSON.parse(storedDriver) : null,
+      };
+    } catch (error) {
+      console.error("Error loading from localStorage:", error);
+      return { parcels: [], sessionDriver: null };
+    }
+  };
+
+  const { parcels: initialParcels, sessionDriver: initialDriver } = loadFromStorage();
+  const [sessionDriver, setSessionDriver] = useState<{ driverName?: string; driverPhone?: string; vehicleNumber?: string } | null>(initialDriver);
+  const [parcels, setParcels] = useState<ParcelFormData[]>(initialParcels);
   const [isSaved, setIsSaved] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Save to localStorage whenever parcels or sessionDriver changes
+  useEffect(() => {
+    if (parcels.length > 0 || sessionDriver) {
+      try {
+        localStorage.setItem(STORAGE_KEY_PARCELS, JSON.stringify(parcels));
+        if (sessionDriver) {
+          localStorage.setItem(STORAGE_KEY_SESSION_DRIVER, JSON.stringify(sessionDriver));
+        } else {
+          localStorage.removeItem(STORAGE_KEY_SESSION_DRIVER);
+        }
+      } catch (error) {
+        console.error("Error saving to localStorage:", error);
+      }
+    } else {
+      // Clear storage if no data
+      localStorage.removeItem(STORAGE_KEY_PARCELS);
+      localStorage.removeItem(STORAGE_KEY_SESSION_DRIVER);
+    }
+  }, [parcels, sessionDriver]);
 
   // Block navigation if there are unsaved parcels
   const hasUnsavedParcels = parcels.length > 0 && !isSaved;
 
-  // Handle browser refresh/close
+  // Handle browser refresh/close - data is already saved to localStorage, so just warn
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedParcels) {
         e.preventDefault();
-        e.returnValue = "You have unsaved parcels. Are you sure you want to leave?";
+        e.returnValue = "You have unsaved parcels. Your data has been saved temporarily. Are you sure you want to leave?";
         return e.returnValue;
       }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedParcels]);
+
+  // Handle visibility change (tab switch)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && hasUnsavedParcels) {
+        // Tab switched - data is already saved to localStorage
+        console.log("Tab switched - parcel data saved to localStorage");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [hasUnsavedParcels]);
 
   // Intercept navigation attempts
@@ -72,6 +131,7 @@ export const ParcelRegistration = (): JSX.Element => {
     if (parcels.length === 0 && parcelData.driverName && parcelData.vehicleNumber) {
       setSessionDriver({
         driverName: parcelData.driverName,
+        driverPhone: parcelData.driverPhone,
         vehicleNumber: parcelData.vehicleNumber,
       });
     }
@@ -89,50 +149,107 @@ export const ParcelRegistration = (): JSX.Element => {
     }
   };
 
-  const handleSaveAll = () => {
-    if (parcels.length === 0 || !currentStation || !currentUser) {
+  const handleSaveAll = async () => {
+    if (parcels.length === 0) {
+      showToast("No parcels to save", "warning");
       return;
     }
 
-    // Save all parcels to database
-    parcels.forEach((parcelData) => {
-      const parcel: Parcel = {
-        id: generateParcelId(),
-        stationId: currentStation.id,
-        recipientName: parcelData.recipientName,
-        recipientPhone: parcelData.recipientPhone,
-        itemDescription: parcelData.itemDescription,
-        itemValue: parcelData.itemValue || 0,
-        shelfLocation: parcelData.shelfLocation,
-        registeredDate: new Date().toISOString(),
-        registeredBy: currentUser.id,
-        driverName: parcelData.driverName,
-        vehicleNumber: parcelData.vehicleNumber,
-        status: "registered",
-        updatedAt: new Date().toISOString(),
-      };
+    // Get office ID from user stored in localStorage
+    const userData = authService.getUser();
+    const officeId = (userData as any)?.office?.id;
 
-      addParcel(parcel);
-    });
+    if (!officeId) {
+      showToast("Office ID not found. Please ensure you are logged in with a valid account.", "error");
+      return;
+    }
 
-    const parcelCount = parcels.length;
-    const driverInfo = sessionDriver?.driverName 
-      ? ` for driver ${sessionDriver.driverName}` 
-      : "";
+    // Validate required fields for each parcel
+    const invalidParcels = parcels.filter(p => 
+      !p.recipientName || 
+      !p.recipientPhone || 
+      !p.shelfLocation || 
+      !p.driverName || 
+      !p.driverPhone || 
+      !p.vehicleNumber ||
+      p.pickUpCost === undefined
+    );
 
-    alert(`Successfully saved ${parcelCount} parcel${parcelCount > 1 ? "s" : ""}${driverInfo}!`);
+    if (invalidParcels.length > 0) {
+      showToast("Please ensure all required fields are filled for all parcels", "error");
+      return;
+    }
 
-    // Clear everything
-    setParcels([]);
-    setSessionDriver(null);
-    setIsSaved(true);
-  };
+    setIsSaving(true);
 
-  const handleDiscard = () => {
-    if (window.confirm("Are you sure you want to discard all unsaved parcels?")) {
+    try {
+      // Save all parcels to backend API
+      const savePromises = parcels.map(async (parcelData) => {
+        const parcelRequest = {
+          senderName: parcelData.senderName || undefined,
+          senderPhoneNumber: parcelData.senderPhone || "", // API requires this field
+          receiverName: parcelData.recipientName,
+          receiverAddress: parcelData.receiverAddress || undefined,
+          recieverPhoneNumber: parcelData.recipientPhone, // Note: API has typo "reciever"
+          parcelDescription: parcelData.itemDescription || undefined,
+          driverName: parcelData.driverName!,
+          driverPhoneNumber: parcelData.driverPhone!,
+          inboundCost: parcelData.itemValue > 0 ? parcelData.itemValue : undefined,
+          pickUpCost: parcelData.pickUpCost || 0,
+          deliveryCost: undefined,
+          storageCost: undefined,
+          shelfNumber: parcelData.shelfLocation, // shelfLocation now contains shelf ID
+          hasCalled: false,
+          vehicleNumber: parcelData.vehicleNumber!,
+          officeId: officeId,
+          pod: false,
+          delivered: false,
+          parcelAssigned: false,
+          fragile: false,
+        };
+
+        return frontdeskService.addParcel(parcelRequest);
+      });
+
+      const results = await Promise.all(savePromises);
+      
+      // Check if all saves were successful
+      const failedSaves = results.filter(r => !r.success);
+      
+      if (failedSaves.length > 0) {
+        const errorMessages = failedSaves.map(r => r.message).join(", ");
+        showToast(`Failed to save ${failedSaves.length} parcel(s): ${errorMessages}`, "error");
+        return;
+      }
+
+      const parcelCount = parcels.length;
+      const driverInfo = sessionDriver?.driverName 
+        ? ` for driver ${sessionDriver.driverName}` 
+        : "";
+
+      showToast(`Successfully saved ${parcelCount} parcel${parcelCount > 1 ? "s" : ""}${driverInfo}!`, "success");
+
+      // Clear everything and localStorage
       setParcels([]);
       setSessionDriver(null);
       setIsSaved(true);
+      localStorage.removeItem(STORAGE_KEY_PARCELS);
+      localStorage.removeItem(STORAGE_KEY_SESSION_DRIVER);
+    } catch (error: any) {
+      console.error("Error saving parcels:", error);
+      showToast("An error occurred while saving parcels. Please try again.", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDiscard = () => {
+    if (window.confirm("Are you sure you want to discard all unsaved parcels? This will also clear the temporarily saved data.")) {
+      setParcels([]);
+      setSessionDriver(null);
+      setIsSaved(true);
+      localStorage.removeItem(STORAGE_KEY_PARCELS);
+      localStorage.removeItem(STORAGE_KEY_SESSION_DRIVER);
       setShowLeaveModal(false);
       if (pendingNavigation) {
         navigate(pendingNavigation);
@@ -157,14 +274,14 @@ export const ParcelRegistration = (): JSX.Element => {
 
   return (
     <div className="w-full bg-gray-50 min-h-screen">
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
+        {/* <div className="mb-8">
           <h1 className="text-3xl font-bold text-neutral-800">Parcel Registration</h1>
           <p className="text-sm text-[#5d5d5d] mt-2">
             {currentStation?.name} - Register new parcels for processing
           </p>
-        </div>
+        </div> */}
 
         {/* Session Banner - Only show if there's an active session */}
         {sessionDriver && parcels.length > 0 && (
@@ -199,8 +316,11 @@ export const ParcelRegistration = (): JSX.Element => {
               <CardContent className="p-6">
                 <div className="mb-4">
                   <h3 className="text-lg font-bold text-neutral-800 mb-2">Unsaved Parcels</h3>
-                  <p className="text-sm text-neutral-700">
-                    You have {parcels.length} unsaved parcel{parcels.length > 1 ? "s" : ""}. What would you like to do?
+                  <p className="text-sm text-neutral-700 mb-2">
+                    You have {parcels.length} unsaved parcel{parcels.length > 1 ? "s" : ""}. Your data has been temporarily saved.
+                  </p>
+                  <p className="text-xs text-neutral-500">
+                    What would you like to do?
                   </p>
                 </div>
                 <div className="flex gap-3">
@@ -244,7 +364,7 @@ export const ParcelRegistration = (): JSX.Element => {
               setIsSaved(true);
             }
           }}
-          onClearSessionDriver={() => setSessionDriver(null)}
+          isSaving={isSaving}
         />
       </div>
     </div>

@@ -11,4 +11,14 @@ export default defineConfig({
       plugins: [tailwind()],
     },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://backend.mandmservicescorp.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        secure: false,
+      }
+    }
+  }
 });
