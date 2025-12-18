@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
     PackageIcon,
     MapPinIcon,
-    PhoneIcon,
     ClockIcon,
     CheckCircleIcon,
     XCircleIcon,
@@ -12,6 +11,7 @@ import {
     TruckIcon,
     AlertCircleIcon,
     XIcon,
+    Phone,
 } from "lucide-react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -76,149 +76,7 @@ export const RiderDashboard = (): JSX.Element => {
     const [failureReason, setFailureReason] = useState("");
     const [updatingAssignment, setUpdatingAssignment] = useState<string | null>(null);
 
-    // Dummy data for preview
-    const dummyAssignments: RiderAssignmentResponse[] = [
-        {
-            assignmentId: "assign-001",
-            riderName: "John Doe",
-            status: "ASSIGNED",
-            assignedAt: Date.now() - 3600000, // 1 hour ago
-            parcel: {
-                parcelId: "PARCEL-2024-001",
-                parcelDescription: "Electronics - Mobile Phone",
-                inboundCost: 1500.00,
-                pickUpCost: 10.00,
-                deliveryCost: 25.00,
-                storageCost: 5.00,
-                hasCalled: true,
-                driverId: "driver-001",
-                officeId: "office-001",
-                driverName: "Driver Name",
-                driverPhoneNumber: "+233241234567",
-                vehicleNumber: "GR-1234-21",
-                senderName: "Tech Store",
-                senderPhoneNumber: "+233241234567",
-                receiverName: "Kwame Mensah",
-                receiverAddress: "123 Main Street, Accra, Ghana",
-                recieverPhoneNumber: "+233501234567",
-                shelfName: "A-12",
-                shelfId: "shelf-001",
-                homeDelivery: true,
-                pod: false,
-                delivered: false,
-                parcelAssigned: true,
-                fragile: true,
-            }
-        },
-        {
-            assignmentId: "assign-002",
-            riderName: "John Doe",
-            status: "ASSIGNED",
-            assignedAt: Date.now() - 7200000, // 2 hours ago
-            parcel: {
-                parcelId: "PARCEL-2024-002",
-                parcelDescription: "Clothing - T-Shirts",
-                inboundCost: 200.00,
-                pickUpCost: 5.00,
-                deliveryCost: 15.00,
-                storageCost: 0,
-                hasCalled: true,
-                driverId: "driver-002",
-                officeId: "office-001",
-                driverName: "Driver Name",
-                driverPhoneNumber: "+233241234567",
-                vehicleNumber: "GR-1234-21",
-                senderName: "Fashion Hub",
-                senderPhoneNumber: "+233241234567",
-                receiverName: "Ama Serwaa",
-                receiverAddress: "456 Independence Avenue, Kumasi, Ghana",
-                recieverPhoneNumber: "+233501234568",
-                shelfName: "B-05",
-                shelfId: "shelf-002",
-                homeDelivery: true,
-                pod: false,
-                delivered: false,
-                parcelAssigned: true,
-                fragile: false,
-            }
-        },
-        {
-            assignmentId: "assign-003",
-            riderName: "John Doe",
-            status: "ASSIGNED",
-            assignedAt: Date.now() - 10800000, // 3 hours ago
-            parcel: {
-                parcelId: "PARCEL-2024-003",
-                parcelDescription: "Food Items - Groceries",
-                inboundCost: 350.00,
-                pickUpCost: 8.00,
-                deliveryCost: 20.00,
-                storageCost: 3.00,
-                hasCalled: false,
-                driverId: "driver-003",
-                officeId: "office-001",
-                driverName: "Driver Name",
-                driverPhoneNumber: "+233241234567",
-                vehicleNumber: "GR-1234-21",
-                senderName: "Supermarket",
-                senderPhoneNumber: "+233241234567",
-                receiverName: "Kofi Asante",
-                receiverAddress: "789 Ring Road, Tamale, Ghana",
-                recieverPhoneNumber: "+233501234569",
-                shelfName: null,
-                shelfId: null,
-                homeDelivery: true,
-                pod: false,
-                delivered: false,
-                parcelAssigned: true,
-                fragile: false,
-            }
-        },
-        {
-            assignmentId: "assign-004",
-            riderName: "John Doe",
-            status: "ASSIGNED",
-            assignedAt: Date.now() - 1800000, // 30 minutes ago
-            parcel: {
-                parcelId: "PARCEL-2024-004",
-                parcelDescription: "Documents - Legal Papers",
-                inboundCost: 50.00,
-                pickUpCost: 5.00,
-                deliveryCost: 12.00,
-                storageCost: 0,
-                hasCalled: true,
-                driverId: "driver-004",
-                officeId: "office-001",
-                driverName: "Driver Name",
-                driverPhoneNumber: "+233241234567",
-                vehicleNumber: "GR-1234-21",
-                senderName: "Law Firm",
-                senderPhoneNumber: "+233241234567",
-                receiverName: "Yaa Bonsu",
-                receiverAddress: null,
-                recieverPhoneNumber: "+233501234570",
-                shelfName: "C-08",
-                shelfId: "shelf-003",
-                homeDelivery: false,
-                pod: false,
-                delivered: false,
-                parcelAssigned: true,
-                fragile: false,
-            }
-        }
-    ];
-
-    // Fetch assignments on mount
-    useEffect(() => {
-        // Use dummy data for preview - comment out when ready for real API
-        setAssignments(dummyAssignments);
-        setLoading(false);
-        
-        // Uncomment below for real API calls
-        // fetchAssignments();
-    }, []);
-
-    const fetchAssignments = async () => {
+    const fetchAssignments = useCallback(async () => {
         setLoading(true);
         try {
             const response = await riderService.getAssignments();
@@ -233,7 +91,12 @@ export const RiderDashboard = (): JSX.Element => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [showToast]);
+
+    // Fetch assignments on mount
+    useEffect(() => {
+        fetchAssignments();
+    }, [fetchAssignments]);
 
 
     const handleAssignmentStatusUpdate = async (assignmentId: string, newUIStatus: UIStatus) => {
@@ -349,12 +212,6 @@ export const RiderDashboard = (): JSX.Element => {
         });
     }, [assignments]);
 
-    const completedAssignments = useMemo(() => {
-        return assignments.filter(a => {
-            const uiStatus = mapAssignmentStatusToUI(a.status);
-            return uiStatus === "delivered";
-        });
-    }, [assignments]);
 
     const handleDownloadPDF = () => {
         try {
@@ -422,32 +279,18 @@ export const RiderDashboard = (): JSX.Element => {
                     <p className="text-sm text-gray-600">Manage your assigned parcels</p>
                 </div>
 
-                {/* Statistics Cards - Compact */}
-                <div className="grid grid-cols-2 gap-3">
-                    <Card className="rounded-lg border border-gray-200 bg-white shadow-sm">
-                        <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs text-gray-600 mb-1">Active</p>
-                                    <p className="text-2xl font-bold text-blue-600">{activeAssignments.length}</p>
-                                </div>
-                                <TruckIcon className="w-8 h-8 text-blue-500 opacity-50" />
+                {/* Statistics Card - Compact */}
+                <Card className="rounded-lg border border-gray-200 bg-white shadow-sm max-w-xs">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs text-gray-600 mb-1">Active Deliveries</p>
+                                <p className="text-2xl font-bold text-blue-600">{activeAssignments.length}</p>
                             </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="rounded-lg border border-gray-200 bg-white shadow-sm">
-                        <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs text-gray-600 mb-1">Completed</p>
-                                    <p className="text-2xl font-bold text-green-600">{completedAssignments.length}</p>
-                                </div>
-                                <CheckCircleIcon className="w-8 h-8 text-green-500 opacity-50" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
+                            <TruckIcon className="w-8 h-8 text-blue-500 opacity-50" />
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {/* Active Assignments */}
                 <div>
@@ -491,36 +334,38 @@ export const RiderDashboard = (): JSX.Element => {
                             </CardContent>
                         </Card>
                     ) : (
-                        <Card className="rounded-xl border-0 bg-white shadow-lg overflow-hidden">
+                        <Card className="rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
                             <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                <table className="w-full border-collapse">
+                                    <thead className="bg-gray-50">
                                         <tr>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Parcel ID</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Recipient</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Phone</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Location</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Parcel ID</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Recipient</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Phone</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Location</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Amount</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Status</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {activeAssignments.map((assignment) => {
+                                    <tbody className="bg-white">
+                                        {activeAssignments.map((assignment, index) => {
                                             const nextAction = getNextStatusAction(assignment);
                                             const parcel = assignment.parcel;
                                             const totalAmount = (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) +
                                                 (parcel.inboundCost || 0) + (parcel.storageCost || 0);
-                                            const uiStatus = mapAssignmentStatusToUI(assignment.status);
 
                                             return (
-                                                <tr key={assignment.assignmentId} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                <tr 
+                                                    key={assignment.assignmentId} 
+                                                    className={`hover:bg-gray-50 transition-colors ${index !== activeAssignments.length - 1 ? 'border-b border-gray-200' : ''}`}
+                                                >
+                                                    <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
                                                         <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs font-semibold">
                                                             {parcel.parcelId}
                                                         </Badge>
                                                     </td>
-                                                    <td className="px-4 py-4">
+                                                    <td className="px-4 py-4 border-r border-gray-100">
                                                         <div className="text-sm font-semibold text-neutral-800">
                                                             {parcel.receiverName || "N/A"}
                                                         </div>
@@ -530,7 +375,7 @@ export const RiderDashboard = (): JSX.Element => {
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                    <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
                                                         {parcel.recieverPhoneNumber ? (
                                                             <a
                                                                 href={`tel:${parcel.recieverPhoneNumber}`}
@@ -542,7 +387,7 @@ export const RiderDashboard = (): JSX.Element => {
                                                             <span className="text-sm text-gray-400">N/A</span>
                                                         )}
                                                     </td>
-                                                    <td className="px-4 py-4">
+                                                    <td className="px-4 py-4 border-r border-gray-100">
                                                         <div className="text-sm text-neutral-700">
                                                             {parcel.homeDelivery && parcel.receiverAddress ? (
                                                                 <div className="flex items-start gap-1">
@@ -561,16 +406,26 @@ export const RiderDashboard = (): JSX.Element => {
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                    <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
                                                         <div className="text-sm font-bold text-[#ea690c]">
                                                             {formatCurrency(totalAmount)}
                                                         </div>
                                                     </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                    <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
                                                         {getStatusBadge(assignment.status)}
                                                     </td>
                                                     <td className="px-4 py-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-2">
+                                                            {parcel.recieverPhoneNumber && (
+                                                                <Button
+                                                                    onClick={() => window.location.href = `tel:${parcel.recieverPhoneNumber}`}
+                                                                    variant="outline"
+                                                                    className="border-green-300 text-green-600 hover:bg-green-50 text-xs px-2.5 py-1.5"
+                                                                    title={`Call ${parcel.receiverName || 'recipient'}`}
+                                                                >
+                                                                    <Phone className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                            )}
                                                             <Button
                                                                 onClick={() => {
                                                                     setSelectedAssignment(assignment);
@@ -737,7 +592,6 @@ export const RiderDashboard = (): JSX.Element => {
                                 const parcel = selectedAssignment.parcel;
                                 const totalAmount = (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) +
                                     (parcel.inboundCost || 0) + (parcel.storageCost || 0);
-                                const uiStatus = mapAssignmentStatusToUI(selectedAssignment.status);
                                 const nextAction = getNextStatusAction(selectedAssignment);
 
                                 return (

@@ -30,9 +30,8 @@ export const ResetPassword = (): JSX.Element => {
   const { showToast } = useToast();
 
   useEffect(() => {
-    // Get phone number and verification ID from session storage
+    // Get phone number from session storage
     const storedPhone = sessionStorage.getItem('passwordResetPhone');
-    const storedVerificationId = sessionStorage.getItem('passwordResetVerificationId');
     
     if (!storedPhone) {
       // If no phone number in session, redirect to forgot password
@@ -76,9 +75,16 @@ export const ResetPassword = (): JSX.Element => {
     setLoading(true);
 
     try {
-      // Use verificationId from session if available, otherwise use OTP as verificationId
-      const verificationId = sessionStorage.getItem('passwordResetVerificationId') || otp.trim();
-      const response = await authService.resetPassword(verificationId, newPassword);
+      // Get verificationId from session storage
+      const verificationId = sessionStorage.getItem('passwordResetVerificationId');
+      
+      if (!verificationId) {
+        setError("Verification session expired. Please request a new OTP.");
+        setLoading(false);
+        return;
+      }
+      
+      const response = await authService.resetPassword(verificationId, otp.trim(), newPassword);
       
       if (response.success) {
         showToast(response.message || "Password reset successfully", "success");

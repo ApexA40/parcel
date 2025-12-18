@@ -21,6 +21,7 @@ import { ParcelSelection } from "./screens/ParcelSelection";
 import { ParcelRiderSelection } from "./screens/ParcelRiderSelection";
 import { ActiveDeliveries } from "./screens/ActiveDeliveries";
 import { RiderDashboard } from "./screens/RiderDashboard";
+import { RiderHistory } from "./screens/RiderHistory";
 import { Reconciliation } from "./screens/Reconciliation";
 import { ReconciliationConfirmation } from "./screens/ReconciliationConfirmation";
 import { FinancialDashboard } from "./screens/FinancialDashboard/FinancialDashboard";
@@ -146,6 +147,16 @@ export const App = (): JSX.Element => {
               <ProtectedRoute allowedRoles={["RIDER"]}>
                 <RiderLayout>
                   <RiderDashboard />
+                </RiderLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rider/history"
+            element={
+              <ProtectedRoute allowedRoles={["RIDER"]}>
+                <RiderLayout>
+                  <RiderHistory />
                 </RiderLayout>
               </ProtectedRoute>
             }

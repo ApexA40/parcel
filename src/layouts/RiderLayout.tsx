@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { LogOut, Menu, X, User } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { LogOut, Menu, X, User, Package, History } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 
@@ -12,6 +12,7 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const { currentUser, logout } = useStation();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const handleLogout = () => {
         logout();
@@ -51,6 +52,36 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
 
                         {/* User Info & Menu */}
                         <div className="flex items-center gap-3">
+                            {/* Desktop Navigation */}
+                            <div className="hidden lg:flex items-center gap-2">
+                                <button
+                                    onClick={() => navigate("/rider/dashboard")}
+                                    className={`px-4 py-2 rounded-lg transition-colors font-medium text-sm ${
+                                        location.pathname === "/rider/dashboard"
+                                            ? "bg-[#ea690c] text-white"
+                                            : "bg-gray-50 text-neutral-800 hover:bg-gray-100"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Package size={16} />
+                                        <span>My Deliveries</span>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => navigate("/rider/history")}
+                                    className={`px-4 py-2 rounded-lg transition-colors font-medium text-sm ${
+                                        location.pathname === "/rider/history"
+                                            ? "bg-[#ea690c] text-white"
+                                            : "bg-gray-50 text-neutral-800 hover:bg-gray-100"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <History size={16} />
+                                        <span>History</span>
+                                    </div>
+                                </button>
+                            </div>
+
                             {currentUser && (
                                 <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                                     <Avatar className="h-8 w-8 border-2 border-white shadow-sm">
@@ -94,7 +125,7 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
                 {/* Mobile Menu Dropdown */}
                 {menuOpen && (
                     <div className="lg:hidden border-t border-gray-200 bg-white shadow-lg animate-in slide-in-from-top-2">
-                        <div className="px-4 py-4 space-y-3">
+                        <div className="px-4 py-4 space-y-2">
                             {currentUser && (
                                 <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
                                     <Avatar className="h-12 w-12 border-2 border-[#ea690c]">
@@ -109,13 +140,47 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
                                     </div>
                                 </div>
                             )}
+                            
+                            {/* Navigation Menu Items */}
                             <button
-                                onClick={handleLogout}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-semibold"
+                                onClick={() => {
+                                    navigate("/rider/dashboard");
+                                    setMenuOpen(false);
+                                }}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${
+                                    location.pathname === "/rider/dashboard"
+                                        ? "bg-[#ea690c] text-white"
+                                        : "bg-gray-50 text-neutral-800 hover:bg-gray-100"
+                                }`}
                             >
-                                <LogOut size={18} />
-                                <span>Logout</span>
+                                <Package size={18} />
+                                <span>My Deliveries</span>
                             </button>
+                            
+                            <button
+                                onClick={() => {
+                                    navigate("/rider/history");
+                                    setMenuOpen(false);
+                                }}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${
+                                    location.pathname === "/rider/history"
+                                        ? "bg-[#ea690c] text-white"
+                                        : "bg-gray-50 text-neutral-800 hover:bg-gray-100"
+                                }`}
+                            >
+                                <History size={18} />
+                                <span>History</span>
+                            </button>
+                            
+                            <div className="pt-2 border-t border-gray-200">
+                                <button
+                                    onClick={handleLogout}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-semibold"
+                                >
+                                    <LogOut size={18} />
+                                    <span>Logout</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
