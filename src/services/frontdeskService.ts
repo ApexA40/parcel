@@ -373,12 +373,31 @@ class FrontdeskService {
     }
 
     /**
-     * Reconcile rider payments
+     * Get all parcel assignments
      */
-    async reconcileRiderPayments(riderId: string, assignmentIds: string[]): Promise<ApiResponse> {
+    async getParcelAssignments(): Promise<ApiResponse> {
+        try {
+            const response = await this.apiClient.get<DeliveryAssignmentResponse[]>('/parcel-assignment');
+            return {
+                success: true,
+                message: 'Assignments retrieved successfully',
+                data: response.data,
+            };
+        } catch (error: any) {
+            console.error('Get parcel assignments error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to retrieve assignments. Please try again.',
+            };
+        }
+    }
+
+    /**
+     * Reconcile rider payments (manual payment)
+     */
+    async reconcileRiderPayments(assignmentIds: string[]): Promise<ApiResponse> {
         try {
             const response = await this.apiClient.post<{ message: string }>('/reconcilation-parcels', {
-                riderId,
                 assignmentIds,
             });
             return {

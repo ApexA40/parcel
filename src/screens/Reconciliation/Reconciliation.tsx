@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ArrowRightIcon,
   DollarSignIcon,
@@ -8,367 +8,329 @@ import {
   XIcon,
   CameraIcon,
   Loader,
+  PackageIcon,
+  MapPinIcon,
+  Phone,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
-import { useStation } from "../../contexts/StationContext";
-import { useUser } from "../../contexts/UserContext";
-import { formatPhoneNumber, formatCurrency } from "../../utils/dataHelpers";
+import { formatPhoneNumber, formatCurrency, formatDateTime } from "../../utils/dataHelpers";
 import frontdeskService, { DeliveryAssignmentResponse } from "../../services/frontdeskService";
 import { useToast } from "../../components/ui/toast";
 
-interface RemittanceItem {
-  id: string;
-  assignmentId: string;
-  riderId: string;
-  riderName: string;
-  parcelId: string;
-  recipientName: string;
-  recipientPhone?: string;
-  deliveryAddress?: string;
-  totalAmount: number;
-  itemValue: number;
-  deliveryFee: number;
-}
-
 export const Reconciliation = (): JSX.Element => {
-  const { currentStation, currentUser, userRole } = useStation();
-  const { users } = useUser();
   const { showToast } = useToast();
-  const [remittanceItems, setRemittanceItems] = useState<RemittanceItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<RemittanceItem | null>(null);
-  const [amountReceived, setAmountReceived] = useState("");
-  const [showModal, setShowModal] = useState(false);
+  const [assignments, setAssignments] = useState<DeliveryAssignmentResponse[]>([]);
+  const [selectedAssignments, setSelectedAssignments] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  // Fetch rider assignments that are delivered but not paid
-  const fetchRemittanceItems = async () => {
+  // Fetch all parcel assignments
+  const fetchAssignments = async () => {
     setLoading(true);
     try {
-      // Get all riders (RIDER role users)
-      const riders = users.filter(user => user.role === "RIDER");
+      const response = await frontdeskService.getParcelAssignments();
       
-      // Filter by station if not admin
-      const stationRiders = userRole === "ADMIN" 
-        ? riders 
-        : riders.filter(rider => rider.office?.id === currentStation?.id);
-
-      const allItems: RemittanceItem[] = [];
-
-      // Fetch assignments for each rider
-      for (const rider of stationRiders) {
-        try {
-          // Get unpaid assignments (payed=false means not yet paid)
-          const response = await frontdeskService.getRiderAssignments(rider.userId, false);
-          
-          if (response.success && response.data) {
-            const assignments = response.data as DeliveryAssignmentResponse[];
-            
-            // Filter for delivered assignments
-            const deliveredAssignments = assignments.filter(
-              assignment => assignment.status === "DELIVERED"
-            );
-
-            // Convert to remittance items
-            for (const assignment of deliveredAssignments) {
-              const parcel = assignment.parcel;
-              const totalAmount = (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) + 
-                                  (parcel.inboundCost || 0) + (parcel.storageCost || 0);
-              
-              allItems.push({
-                id: assignment.assignmentId,
-                assignmentId: assignment.assignmentId,
-                riderId: rider.userId,
-                riderName: rider.name || rider.email || "Unknown Rider",
-                parcelId: parcel.parcelId,
-                recipientName: parcel.receiverName || "N/A",
-                recipientPhone: parcel.recieverPhoneNumber,
-                deliveryAddress: parcel.receiverAddress,
-                totalAmount,
-                itemValue: parcel.inboundCost || 0,
-                deliveryFee: parcel.deliveryCost || 0,
-              });
-            }
-          }
-        } catch (error) {
-          console.error(`Failed to fetch assignments for rider ${rider.userId}:`, error);
-        }
+      if (response.success && response.data) {
+        const allAssignments = response.data as DeliveryAssignmentResponse[];
+        // Filter only delivered assignments
+        const deliveredAssignments = allAssignments.filter(
+          assignment => assignment.status === "DELIVERED"
+        );
+        setAssignments(deliveredAssignments);
+      } else {
+        showToast(response.message || "Failed to load assignments", "error");
       }
-
-      setRemittanceItems(allItems);
     } catch (error) {
-      console.error("Failed to fetch remittance items:", error);
-      showToast("Failed to load remittance items. Please try again.", "error");
+      console.error("Failed to fetch assignments:", error);
+      showToast("Failed to load assignments. Please try again.", "error");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRemittanceItems();
-  }, [currentStation, userRole, users]);
+    fetchAssignments();
+  }, []);
 
-  const receivedAmount = parseFloat(amountReceived) || 0;
-  const discrepancy = selectedItem ? selectedItem.totalAmount - receivedAmount : 0;
-  const hasDiscrepancy = discrepancy > 0 && amountReceived !== "";
+  // Calculate totals for selected assignments
+  const selectedAssignmentsData = useMemo(() => {
+    return assignments.filter(a => selectedAssignments.has(a.assignmentId));
+  }, [assignments, selectedAssignments]);
 
-  const handleProceed = () => {
-    if (!hasDiscrepancy && amountReceived && selectedItem) {
-      setShowModal(true);
+  const totalAmount = useMemo(() => {
+    return selectedAssignmentsData.reduce((sum, assignment) => {
+      const parcel = assignment.parcel;
+      return sum + (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) +
+        (parcel.inboundCost || 0) + (parcel.storageCost || 0);
+    }, 0);
+  }, [selectedAssignmentsData]);
+
+  const handleToggleSelection = (assignmentId: string) => {
+    setSelectedAssignments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(assignmentId)) {
+        newSet.delete(assignmentId);
+      } else {
+        newSet.add(assignmentId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedAssignments.size === assignments.length) {
+      setSelectedAssignments(new Set());
+    } else {
+      setSelectedAssignments(new Set(assignments.map(a => a.assignmentId)));
     }
   };
 
-  const handleCompleteReconciliation = async () => {
-    if (!selectedItem || !currentUser || !amountReceived) return;
+  const handleReconcile = async () => {
+    if (selectedAssignments.size === 0) {
+      showToast("Please select at least one assignment to reconcile", "error");
+      return;
+    }
 
     setIsReconciling(true);
     try {
-      // Reconcile the assignment (mark as paid)
-      const response = await frontdeskService.reconcileRiderPayments(
-        selectedItem.riderId,
-        [selectedItem.assignmentId]
-      );
+      const assignmentIds = Array.from(selectedAssignments);
+      const response = await frontdeskService.reconcileRiderPayments(assignmentIds);
 
       if (response.success) {
-        // Remove from remittance queue
-        setRemittanceItems((prev) => prev.filter((item) => item.id !== selectedItem.id));
-        setShowModal(false);
-        setSelectedItem(null);
-        setAmountReceived("");
-        showToast("Reconciliation completed successfully!", "success");
-
-        // Refresh items
-        await fetchRemittanceItems();
+        showToast(`Successfully reconciled ${assignmentIds.length} assignment(s)`, "success");
+        setSelectedAssignments(new Set());
+        await fetchAssignments();
+        setShowConfirmModal(false);
       } else {
-        showToast(response.message || "Failed to complete reconciliation. Please try again.", "error");
+        showToast(response.message || "Failed to reconcile assignments", "error");
       }
     } catch (error) {
       console.error("Reconciliation error:", error);
-      showToast("Failed to complete reconciliation. Please try again.", "error");
+      showToast("Failed to reconcile assignments. Please try again.", "error");
     } finally {
       setIsReconciling(false);
     }
   };
 
-
   return (
-    <div className={`w-full ${showModal ? "overflow-hidden" : ""}`}>
+    <div className={`w-full ${showConfirmModal ? "overflow-hidden" : ""}`}>
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <main className="flex-1 space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Cash Reconciliation - Center */}
-            <div className="lg:col-span-3">
-              {selectedItem ? (
-                <Card className="w-full rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
-                  <CardContent className="flex flex-col gap-6 p-4 sm:p-6">
-                    <header className="inline-flex items-center gap-2">
-                      <DollarSignIcon className="w-6 h-6 text-[#ea690c]" />
-                      <h2 className="font-body-lg-semibold font-[number:var(--body-lg-semibold-font-weight)] text-[#ea690c] text-[length:var(--body-lg-semibold-font-size)] tracking-[var(--body-lg-semibold-letter-spacing)] leading-[var(--body-lg-semibold-line-height)] [font-style:var(--body-lg-semibold-font-style)]">
-                        Cash Reconciliation
-                      </h2>
-                    </header>
-
-                    <div className="flex flex-col gap-4">
-                      {/* Select Rider */}
-                      <div className="flex flex-col gap-2">
-                        <Label className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                          Select Rider<span className="text-[#e22420]">*</span>
-                        </Label>
-                        <select
-                          value={selectedItem.riderName}
-                          disabled
-                          className="w-full rounded border border-[#d1d1d1] bg-gray-50 px-3 py-2 [font-family:'Lato',Helvetica] font-normal text-neutral-700 cursor-not-allowed"
-                        >
-                          <option>{selectedItem.riderName}</option>
-                        </select>
-                      </div>
-
-                      {/* Parcel ID */}
-                      <div className="flex flex-col gap-2">
-                        <Label className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                          Parcel ID<span className="text-[#e22420]">*</span>
-                        </Label>
-                        <select
-                          value={selectedItem.parcelId}
-                          disabled
-                          className="w-full rounded border border-[#d1d1d1] bg-gray-50 px-3 py-2 [font-family:'Lato',Helvetica] font-normal text-neutral-700 cursor-not-allowed"
-                        >
-                          <option>{selectedItem.parcelId}</option>
-                        </select>
-                      </div>
-
-                      {/* Parcel Details Box */}
-                      <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex flex-col">
-                            <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-base mb-1">
-                              {selectedItem.recipientName}
-                            </span>
-                            <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 w-fit">
-                              {selectedItem.parcelId}
-                            </Badge>
-                            {selectedItem.recipientPhone && (
-                              <span className="text-xs text-neutral-600 mt-1">
-                                {formatPhoneNumber(selectedItem.recipientPhone)}
-                              </span>
-                            )}
-                            {selectedItem.deliveryAddress && (
-                              <span className="text-xs text-neutral-600 mt-1">
-                                {selectedItem.deliveryAddress}
-                              </span>
-                            )}
-                          </div>
-                          <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 flex items-center gap-1">
-                            <CheckCircleIcon className="w-3 h-3" />
-                            Delivered
-                          </Badge>
-                        </div>
-                        <div className="mt-3 pt-3 border-t border-blue-200">
-                          <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                            Total Amount: {formatCurrency(selectedItem.totalAmount)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Amount Received */}
-                      <div className="flex flex-col gap-2">
-                        <Label className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                          Amount Received<span className="text-[#e22420]">*</span>
-                        </Label>
-                        <Input
-                          type="number"
-                          placeholder="eg. 100.00"
-                          value={amountReceived}
-                          onChange={(e) => setAmountReceived(e.target.value)}
-                          className="w-full rounded border border-[#d1d1d1] bg-white px-3 py-2 [font-family:'Lato',Helvetica] font-normal text-neutral-700"
-                        />
-                      </div>
-
-                      {/* Discrepancy Alert */}
-                      {hasDiscrepancy && (
-                        <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 flex items-start gap-2">
-                          <AlertCircleIcon className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
-                          <span className="[font-family:'Lato',Helvetica] font-normal text-orange-800 text-sm">
-                            Discrepancy detected: {formatCurrency(discrepancy)} short
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Proceed Button */}
-                      <Button
-                        onClick={handleProceed}
-                        disabled={!amountReceived || hasDiscrepancy}
-                        className="bg-[#ea690c] text-white hover:bg-[#ea690c]/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="[font-family:'Lato',Helvetica] font-semibold text-sm">
-                          Proceed
-                        </span>
-                        <ArrowRightIcon className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="w-full rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
-                  <CardContent className="flex items-center justify-center p-12">
-                    <div className="text-center">
-                      <DollarSignIcon className="w-16 h-16 text-[#9a9a9a] mx-auto mb-4" />
-                      <p className="[font-family:'Lato',Helvetica] font-normal text-[#5d5d5d] text-base">
-                        Select an item from the Remittance Queue to begin reconciliation
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800 mb-1">Reconciliation</h1>
+              <p className="text-sm text-gray-600">Approve and reconcile delivered assignments</p>
             </div>
-
-            {/* Remittance Queue - Right Side */}
-            <div className="lg:col-span-1">
-              <Card className="w-full rounded-lg border border-[#d1d1d1] bg-white shadow-sm h-full">
-                <CardContent className="flex flex-col gap-4 p-4 sm:p-6">
-                  <header className="flex items-center justify-between">
-                    <div className="inline-flex items-center gap-2">
-                      <UserIcon className="w-6 h-6 text-[#ea690c]" />
-                      <h2 className="font-body-lg-semibold font-[number:var(--body-lg-semibold-font-weight)] text-[#ea690c] text-[length:var(--body-lg-semibold-font-size)] tracking-[var(--body-lg-semibold-letter-spacing)] leading-[var(--body-lg-semibold-line-height)] [font-style:var(--body-lg-semibold-font-style)]">
-                        Remittance Queue
-                      </h2>
-                    </div>
-                    <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
-                      {remittanceItems.length} waiting
-                    </Badge>
-                  </header>
-
-                  {loading ? (
-                    <div className="text-center py-8">
-                      <Loader className="w-6 h-6 text-[#ea690c] mx-auto mb-2 animate-spin" />
-                      <p className="text-sm text-[#5d5d5d]">Loading remittance items...</p>
-                    </div>
-                  ) : remittanceItems.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-[#5d5d5d]">No items in remittance queue</p>
-                      <p className="text-xs text-[#9a9a9a] mt-2">
-                        Delivered parcels will appear here for reconciliation
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto">
-                      {remittanceItems.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setAmountReceived(item.amountCollected?.toString() || "");
-                          }}
-                          className={`rounded-lg border p-3 text-left hover:bg-gray-50 transition-colors ${selectedItem?.id === item.id
-                              ? "border-[#ea690c] bg-orange-50"
-                              : "border-[#d1d1d1] bg-white"
-                            }`}
-                        >
-                          <div className="flex flex-col gap-2">
-                            <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                              {item.riderName}
-                            </span>
-                            <div className="flex items-center justify-between">
-                              <Badge className="bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100">
-                                {item.parcelId}
-                              </Badge>
-                              <span className="[font-family:'Lato',Helvetica] font-bold text-neutral-800 text-base">
-                                {formatCurrency(item.totalAmount)}
-                              </span>
-                            </div>
-                            <span className="text-xs text-[#5d5d5d]">
-                              {item.recipientName}
-                            </span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            {selectedAssignments.size > 0 && (
+              <Badge className="bg-orange-100 text-orange-700 border-orange-200 px-4 py-2 text-base font-semibold">
+                {selectedAssignments.size} Selected
+              </Badge>
+            )}
           </div>
+
+          {/* Summary Card */}
+          {selectedAssignments.size > 0 && (
+            <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Total Selected</p>
+                    <p className="text-2xl font-bold text-[#ea690c]">{selectedAssignments.size} Assignment(s)</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+                    <p className="text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</p>
+                  </div>
+                  <Button
+                    onClick={() => setShowConfirmModal(true)}
+                    disabled={selectedAssignments.size === 0 || isReconciling}
+                    className="bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {isReconciling ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin mr-2" />
+                        Reconciling...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircleIcon className="w-4 h-4 mr-2" />
+                        Reconcile Selected
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Assignments Table */}
+          <Card className="rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+            <CardContent className="p-0">
+              {loading ? (
+                <div className="text-center py-12">
+                  <Loader className="w-10 h-10 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                  <p className="text-neutral-700 font-semibold text-lg">Loading assignments...</p>
+                </div>
+              ) : assignments.length === 0 ? (
+                <div className="text-center py-12">
+                  <PackageIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-neutral-800 font-semibold text-lg mb-2">No assignments to reconcile</p>
+                  <p className="text-sm text-gray-500">
+                    Delivered assignments will appear here for reconciliation
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={selectedAssignments.size === assignments.length && assignments.length > 0}
+                            onChange={handleSelectAll}
+                            className="rounded border-gray-300 text-[#ea690c] focus:ring-[#ea690c]"
+                          />
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Rider</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Parcel ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Recipient</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Location</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Completed</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white">
+                      {assignments.map((assignment, index) => {
+                        const parcel = assignment.parcel;
+                        const totalAmount = (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) +
+                          (parcel.inboundCost || 0) + (parcel.storageCost || 0);
+                        const isSelected = selectedAssignments.has(assignment.assignmentId);
+
+                        return (
+                          <tr
+                            key={assignment.assignmentId}
+                            className={`hover:bg-gray-50 transition-colors ${index !== assignments.length - 1 ? 'border-b border-gray-200' : ''} ${isSelected ? 'bg-orange-50' : ''}`}
+                          >
+                            <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleSelection(assignment.assignmentId)}
+                                className="rounded border-gray-300 text-[#ea690c] focus:ring-[#ea690c]"
+                              />
+                            </td>
+                            <td className="px-4 py-4 border-r border-gray-100">
+                              <div className="text-sm font-semibold text-neutral-800">
+                                {assignment.riderName || "N/A"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
+                              <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs font-semibold">
+                                {parcel.parcelId}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-4 border-r border-gray-100">
+                              <div className="text-sm font-semibold text-neutral-800">
+                                {parcel.receiverName || "N/A"}
+                              </div>
+                              {parcel.parcelDescription && (
+                                <div className="text-xs text-gray-500 mt-1 truncate max-w-[150px]">
+                                  {parcel.parcelDescription}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
+                              {parcel.recieverPhoneNumber ? (
+                                <a
+                                  href={`tel:${parcel.recieverPhoneNumber}`}
+                                  className="text-sm text-[#ea690c] hover:underline font-medium"
+                                >
+                                  {formatPhoneNumber(parcel.recieverPhoneNumber)}
+                                </a>
+                              ) : (
+                                <span className="text-sm text-gray-400">N/A</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 border-r border-gray-100">
+                              <div className="text-sm text-neutral-700">
+                                {parcel.homeDelivery && parcel.receiverAddress ? (
+                                  <div className="flex items-start gap-1">
+                                    <MapPinIcon className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                    <span className="truncate max-w-[200px]" title={parcel.receiverAddress}>
+                                      {parcel.receiverAddress}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <PackageIcon className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                                    <span className="text-sm">
+                                      Shelf: <strong>{parcel.shelfName || "N/A"}</strong>
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
+                              <div className="text-sm font-bold text-[#ea690c]">
+                                {formatCurrency(totalAmount)}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
+                              {assignment.completedAt ? (
+                                <div className="text-xs text-gray-600">
+                                  {formatDateTime(new Date(assignment.completedAt).toISOString())}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400">N/A</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              {parcel.recieverPhoneNumber && (
+                                <Button
+                                  onClick={() => window.location.href = `tel:${parcel.recieverPhoneNumber}`}
+                                  variant="outline"
+                                  className="border-green-300 text-green-600 hover:bg-green-50 text-xs px-2.5 py-1.5"
+                                  title={`Call ${parcel.receiverName || 'recipient'}`}
+                                >
+                                  <Phone className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </main>
       </div>
 
       {/* Confirm Reconciliation Modal */}
-      {showModal && selectedItem && (
+      {showConfirmModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-2xl rounded-lg border border-[#d1d1d1] bg-white shadow-lg">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="inline-flex items-center gap-2">
-                  <CameraIcon className="w-6 h-6 text-[#ea690c]" />
+                  <CheckCircleIcon className="w-6 h-6 text-[#ea690c]" />
                   <h2 className="font-body-lg-semibold font-[number:var(--body-lg-semibold-font-weight)] text-[#ea690c] text-[length:var(--body-lg-semibold-font-size)]">
                     Confirm Reconciliation
                   </h2>
                 </div>
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={() => setShowConfirmModal(false)}
                   className="text-[#9a9a9a] hover:text-neutral-800"
                 >
                   <XIcon className="w-5 h-5" />
@@ -376,87 +338,53 @@ export const Reconciliation = (): JSX.Element => {
               </div>
 
               <div className="flex flex-col gap-6">
-                {/* Receiver's Details */}
-                <div className="flex flex-col gap-3">
-                  <h3 className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-[#5d5d5d] text-[length:var(--body-md-semibold-font-size)]">
-                    Receiver&apos;s Details
-                  </h3>
-                  <div className="flex flex-col gap-2">
-                    <div>
-                      <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-sm">Name: </span>
-                      <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                        {selectedItem.recipientName}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-sm">Phone Number: </span>
-                      <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                        {formatPhoneNumber(selectedItem.recipientPhone)}
-                      </span>
-                    </div>
-                    {selectedItem.deliveryAddress && (
-                      <div>
-                        <span className="[font-family:'Lato',Helvetica] font-normal text-[#9a9a9a] text-sm">Address: </span>
-                        <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                          {selectedItem.deliveryAddress}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-blue-900 mb-2">
+                    You are about to reconcile {selectedAssignments.size} assignment(s)
+                  </p>
+                  <p className="text-sm text-blue-800">
+                    Total Amount: <span className="font-bold">{formatCurrency(totalAmount)}</span>
+                  </p>
                 </div>
 
-                {/* Fee Breakdown */}
-                <div className="flex flex-col gap-3">
-                  <h3 className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-[#5d5d5d] text-[length:var(--body-md-semibold-font-size)]">
-                    Fee Breakdown
-                  </h3>
-                  <div className="flex flex-col gap-2 bg-gray-50 rounded-lg p-4">
-                    <div className="flex justify-between items-center">
-                      <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
-                        Item Value
-                      </span>
-                      <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                        {formatCurrency(selectedItem.itemValue)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="[font-family:'Lato',Helvetica] font-normal text-neutral-700 text-sm">
-                        Delivery Fee
-                      </span>
-                      <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                        {formatCurrency(selectedItem.deliveryFee)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-[#d1d1d1]">
-                      <span className="[font-family:'Lato',Helvetica] font-bold text-neutral-800 text-base">
-                        Total Amount
-                      </span>
-                      <span className="[font-family:'Lato',Helvetica] font-bold text-[#ea690c] text-lg">
-                        {formatCurrency(selectedItem.totalAmount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-[#d1d1d1]">
-                      <span className="[font-family:'Lato',Helvetica] font-semibold text-neutral-800 text-sm">
-                        Amount Received
-                      </span>
-                      <span className="[font-family:'Lato',Helvetica] font-bold text-green-600 text-lg">
-                        {formatCurrency(receivedAmount)}
-                      </span>
-                    </div>
-                  </div>
+                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Parcel ID</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Rider</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Recipient</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedAssignmentsData.map((assignment) => {
+                        const parcel = assignment.parcel;
+                        const amount = (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) +
+                          (parcel.inboundCost || 0) + (parcel.storageCost || 0);
+                        return (
+                          <tr key={assignment.assignmentId} className="border-b border-gray-100">
+                            <td className="px-3 py-2">{parcel.parcelId}</td>
+                            <td className="px-3 py-2">{assignment.riderName}</td>
+                            <td className="px-3 py-2">{parcel.receiverName || "N/A"}</td>
+                            <td className="px-3 py-2 text-right font-semibold">{formatCurrency(amount)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex gap-3 pt-4">
                   <Button
                     variant="outline"
-                    onClick={() => setShowModal(false)}
-                    className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                    onClick={() => setShowConfirmModal(false)}
+                    className="flex-1 border border-[#d1d1d1]"
                   >
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleCompleteReconciliation}
+                    onClick={handleReconcile}
                     disabled={isReconciling}
                     className="flex-1 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                   >
@@ -466,7 +394,7 @@ export const Reconciliation = (): JSX.Element => {
                         Reconciling...
                       </>
                     ) : (
-                      "Complete Reconciliation"
+                      "Confirm Reconciliation"
                     )}
                   </Button>
                 </div>
