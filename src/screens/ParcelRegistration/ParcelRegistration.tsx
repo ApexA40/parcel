@@ -149,8 +149,11 @@ export const ParcelRegistration = (): JSX.Element => {
     }
   };
 
-  const handleSaveAll = async () => {
-    if (parcels.length === 0) {
+  const handleSaveAll = async (additionalParcel?: ParcelFormData) => {
+    // Combine existing parcels with additional parcel if provided
+    const parcelsToSave = additionalParcel ? [...parcels, additionalParcel] : parcels;
+    
+    if (parcelsToSave.length === 0) {
       showToast("No parcels to save", "warning");
       return;
     }
@@ -165,7 +168,7 @@ export const ParcelRegistration = (): JSX.Element => {
     }
 
     // Validate required fields for each parcel
-    const invalidParcels = parcels.filter(p => 
+    const invalidParcels = parcelsToSave.filter(p => 
       !p.recipientName || 
       !p.recipientPhone || 
       !p.shelfLocation || 
@@ -184,7 +187,7 @@ export const ParcelRegistration = (): JSX.Element => {
 
     try {
       // Save all parcels to backend API
-      const savePromises = parcels.map(async (parcelData) => {
+      const savePromises = parcelsToSave.map(async (parcelData) => {
         const parcelRequest = {
           senderName: parcelData.senderName || undefined,
           senderPhoneNumber: parcelData.senderPhone || "", // API requires this field
@@ -222,7 +225,7 @@ export const ParcelRegistration = (): JSX.Element => {
         return;
       }
 
-      const parcelCount = parcels.length;
+      const parcelCount = parcelsToSave.length;
       const driverInfo = sessionDriver?.driverName 
         ? ` for driver ${sessionDriver.driverName}` 
         : "";

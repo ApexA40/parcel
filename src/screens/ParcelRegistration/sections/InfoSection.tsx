@@ -30,7 +30,7 @@ interface InfoSectionProps {
     parcels: ParcelFormData[];
     sessionDriver: { driverName?: string; driverPhone?: string; vehicleNumber?: string } | null;
     onAddParcel: (data: ParcelFormData) => void;
-    onSaveAll: () => void;
+    onSaveAll: (additionalParcel?: ParcelFormData) => void;
     onRemoveParcel: (index: number) => void;
     isSaving?: boolean;
 }
@@ -179,7 +179,7 @@ export const InfoSection = ({
         setPhoneError("");
     };
 
-    const handleAddNewParcel = () => {
+    const handleSaveDirectly = () => {
         if (!validateForm()) {
             return;
         }
@@ -187,11 +187,16 @@ export const InfoSection = ({
         // Find shelf name for display
         const selectedShelf = shelves.find(s => s.id === shelf);
         
-        // Add current parcel to session
+        // Get driver info - use current form values if not locked, otherwise use session driver
+        const currentDriverName = isDriverLocked ? sessionDriver?.driverName : driverName.trim();
+        const currentDriverPhone = isDriverLocked ? sessionDriver?.driverPhone : driverPhone.trim();
+        const currentVehicleNumber = isDriverLocked ? sessionDriver?.vehicleNumber : vehicleNumber.trim();
+        
+        // Create parcel data from current form
         const parcelData: ParcelFormData = {
-            driverName: isDriverLocked ? sessionDriver?.driverName : driverName.trim() || undefined,
-            driverPhone: isDriverLocked ? sessionDriver?.driverPhone : driverPhone.trim() || undefined,
-            vehicleNumber: isDriverLocked ? sessionDriver?.vehicleNumber : vehicleNumber.trim() || undefined,
+            driverName: currentDriverName || undefined,
+            driverPhone: currentDriverPhone || undefined,
+            vehicleNumber: currentVehicleNumber || undefined,
             senderName: senderName.trim() || undefined,
             senderPhone: senderPhone.trim() || undefined,
             recipientName: recipientName.trim(),
@@ -204,9 +209,10 @@ export const InfoSection = ({
             pickUpCost: pickUpCost ? parseFloat(pickUpCost) : 0,
         };
 
-        onAddParcel(parcelData);
+        // Save all parcels (including current form data)
+        onSaveAll(parcelData);
 
-        // Clear parcel information but keep driver info for session
+        // Clear form after saving
         setRecipientName("");
         setPhoneNumber("");
         setReceiverAddress("");
@@ -218,6 +224,11 @@ export const InfoSection = ({
         setPickUpCost("");
         setSpecialNotes("");
         setPhoneError("");
+        
+        // If driver was locked, unlock it after saving
+        if (isDriverLocked) {
+            setIsDriverLocked(false);
+        }
     };
 
     const isFormValid = recipientName.trim() && phoneNumber.trim() && shelf.trim() && !phoneError;
@@ -233,7 +244,7 @@ export const InfoSection = ({
                                 Parcels Added ({parcels.length})
                             </h3>
                             <Button
-                                onClick={onSaveAll}
+                                onClick={() => onSaveAll()}
                                 disabled={isSaving}
                                 className="bg-[#ea690c] text-white hover:bg-[#ea690c]/90 flex items-center gap-2 disabled:opacity-50"
                             >
@@ -582,7 +593,7 @@ export const InfoSection = ({
                         <div className="flex gap-3 pt-4 border-t border-[#d1d1d1]">
                             <Button
                                 onClick={handleAddAnotherSameDriver}
-                                disabled={!isFormValid}
+                                disabled={!isFormValid || isSaving}
                                 variant="outline"
                                 className="flex-1 border border-[#d1d1d1] text-neutral-700 hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -590,12 +601,12 @@ export const InfoSection = ({
                                 Add Another (Same Driver)
                             </Button>
                             <Button
-                                onClick={handleAddNewParcel}
-                                disabled={!isFormValid}
+                                onClick={handleSaveDirectly}
+                                disabled={!isFormValid || isSaving}
                                 className="flex-1 bg-[#ea690c] text-white hover:bg-[#ea690c]/90 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <PlusIcon className="w-4 h-4" />
-                                Add New Parcel
+                                <Save className="w-4 h-4" />
+                                {isSaving ? "Saving..." : "Save"}
                             </Button>
                         </div>
                     </div>

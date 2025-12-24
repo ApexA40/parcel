@@ -73,8 +73,22 @@ export const RiderDashboard = (): JSX.Element => {
     const [showFailedModal, setShowFailedModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [amountCollected, setAmountCollected] = useState("");
+    const [confirmationCode, setConfirmationCode] = useState("");
     const [failureReason, setFailureReason] = useState("");
+    const [selectedFailureReason, setSelectedFailureReason] = useState("");
     const [updatingAssignment, setUpdatingAssignment] = useState<string | null>(null);
+
+    // Predefined failure reasons
+    const failureReasons = [
+        "Recipient not available",
+        "Wrong address",
+        "Recipient refused delivery",
+        "Address not found",
+        "Recipient phone number not reachable",
+        "Parcel damaged",
+        "Incorrect recipient information",
+        "Other"
+    ];
 
     const fetchAssignments = useCallback(async () => {
         setLoading(true);
@@ -142,13 +156,19 @@ export const RiderDashboard = (): JSX.Element => {
     };
 
     const handleDeliveryComplete = async () => {
-        if (!selectedAssignment || !amountCollected) return;
+        if (!selectedAssignment || !amountCollected || !confirmationCode.trim()) {
+            if (!confirmationCode.trim()) {
+                showToast("Please enter the confirmation code", "error");
+            }
+            return;
+        }
 
         setUpdatingAssignment(selectedAssignment.assignmentId);
         try {
             const response = await riderService.updateAssignmentStatus(
                 selectedAssignment.assignmentId,
-                "DELIVERED"
+                "DELIVERED",
+                confirmationCode.trim()
             );
 
             if (response.success) {
@@ -165,6 +185,7 @@ export const RiderDashboard = (): JSX.Element => {
                 setShowDeliveryModal(false);
                 setSelectedAssignment(null);
                 setAmountCollected("");
+                setConfirmationCode("");
                 await fetchAssignments();
             } else {
                 showToast(response.message || "Failed to complete delivery", "error");
@@ -178,13 +199,25 @@ export const RiderDashboard = (): JSX.Element => {
     };
 
     const handleDeliveryFailed = async () => {
-        if (!selectedAssignment || !failureReason.trim()) return;
+        if (!selectedAssignment) return;
+        
+        // Validate that either a reason is selected or custom reason is provided
+        const finalReason = selectedFailureReason === "Other" 
+            ? failureReason.trim() 
+            : selectedFailureReason;
+        
+        if (!finalReason) {
+            showToast("Please select a failure reason", "error");
+            return;
+        }
 
         setUpdatingAssignment(selectedAssignment.assignmentId);
         try {
             const response = await riderService.updateAssignmentStatus(
                 selectedAssignment.assignmentId,
-                "CANCELLED"
+                "CANCELLED",
+                undefined, // confirmationCode not needed for CANCELLED
+                finalReason // reason is required for CANCELLED
             );
 
             if (response.success) {
@@ -192,6 +225,7 @@ export const RiderDashboard = (): JSX.Element => {
                 setShowFailedModal(false);
                 setSelectedAssignment(null);
                 setFailureReason("");
+                setSelectedFailureReason("");
                 await fetchAssignments();
             } else {
                 showToast(response.message || "Failed to record failure", "error");
@@ -481,6 +515,7 @@ export const RiderDashboard = (): JSX.Element => {
                                         setShowDeliveryModal(false);
                                         setSelectedAssignment(null);
                                         setAmountCollected("");
+                                        setConfirmationCode("");
                                     }}
                                     className="text-[#9a9a9a] hover:text-neutral-800"
                                 >
@@ -534,12 +569,32 @@ export const RiderDashboard = (): JSX.Element => {
                                     />
                                 </div>
 
+                                <div>
+                                    <Label className="text-sm font-semibold text-neutral-800 mb-2">
+                                        Confirmation Code <span className="text-[#e22420]">*</span>
+                                    </Label>
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                                        <p className="text-xs text-blue-800">
+                                            <strong>Note:</strong> Ask the recipient for the confirmation code sent to their phone via SMS during parcel registration.
+                                        </p>
+                                    </div>
+                                    <Input
+                                        type="text"
+                                        value={confirmationCode}
+                                        onChange={(e) => setConfirmationCode(e.target.value.toUpperCase())}
+                                        placeholder="Enter confirmation code"
+                                        className="w-full uppercase"
+                                        maxLength={10}
+                                    />
+                                </div>
+
                                 <div className="flex gap-3 pt-4">
                                     <Button
                                         onClick={() => {
                                             setShowDeliveryModal(false);
                                             setSelectedAssignment(null);
                                             setAmountCollected("");
+                                            setConfirmationCode("");
                                         }}
                                         variant="outline"
                                         className="flex-1 border border-[#d1d1d1]"
@@ -548,7 +603,7 @@ export const RiderDashboard = (): JSX.Element => {
                                     </Button>
                                     <Button
                                         onClick={handleDeliveryComplete}
-                                        disabled={!amountCollected || updatingAssignment === selectedAssignment.assignmentId}
+                                        disabled={!amountCollected || !confirmationCode.trim() || updatingAssignment === selectedAssignment.assignmentId}
                                         className="flex-1 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                                     >
                                         {updatingAssignment === selectedAssignment.assignmentId ? (
@@ -802,6 +857,7 @@ export const RiderDashboard = (): JSX.Element => {
                                         setShowFailedModal(false);
                                         setSelectedAssignment(null);
                                         setFailureReason("");
+                                        setSelectedFailureReason("");
                                     }}
                                     className="text-[#9a9a9a] hover:text-neutral-800"
                                 >
@@ -836,13 +892,37 @@ export const RiderDashboard = (): JSX.Element => {
                                     <Label className="text-sm font-semibold text-neutral-800 mb-2">
                                         Failure Reason <span className="text-[#e22420]">*</span>
                                     </Label>
-                                    <textarea
-                                        value={failureReason}
-                                        onChange={(e) => setFailureReason(e.target.value)}
-                                        placeholder="Enter reason for delivery failure (e.g., recipient not available, wrong address, etc.)..."
-                                        className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c] resize-none"
-                                        rows={4}
-                                    />
+                                    <select
+                                        value={selectedFailureReason}
+                                        onChange={(e) => {
+                                            setSelectedFailureReason(e.target.value);
+                                            if (e.target.value !== "Other") {
+                                                setFailureReason("");
+                                            }
+                                        }}
+                                        className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c] bg-white"
+                                    >
+                                        <option value="">Select a reason</option>
+                                        {failureReasons.map((reason) => (
+                                            <option key={reason} value={reason}>
+                                                {reason}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {selectedFailureReason === "Other" && (
+                                        <div className="mt-3">
+                                            <Label className="text-sm font-semibold text-neutral-800 mb-2">
+                                                Please specify <span className="text-[#e22420]">*</span>
+                                            </Label>
+                                            <textarea
+                                                value={failureReason}
+                                                onChange={(e) => setFailureReason(e.target.value)}
+                                                placeholder="Enter reason for delivery failure..."
+                                                className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c] resize-none"
+                                                rows={4}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex gap-3 pt-4">
@@ -851,6 +931,7 @@ export const RiderDashboard = (): JSX.Element => {
                                             setShowFailedModal(false);
                                             setSelectedAssignment(null);
                                             setFailureReason("");
+                                            setSelectedFailureReason("");
                                         }}
                                         variant="outline"
                                         className="flex-1 border border-[#d1d1d1]"
@@ -859,7 +940,7 @@ export const RiderDashboard = (): JSX.Element => {
                                     </Button>
                                     <Button
                                         onClick={handleDeliveryFailed}
-                                        disabled={!failureReason.trim() || updatingAssignment === selectedAssignment.assignmentId}
+                                        disabled={(!selectedFailureReason || (selectedFailureReason === "Other" && !failureReason.trim())) || updatingAssignment === selectedAssignment.assignmentId}
                                         className="flex-1 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                                     >
                                         {updatingAssignment === selectedAssignment.assignmentId ? (

@@ -56,6 +56,8 @@ export interface RiderAssignmentResponse {
 
 interface UpdateAssignmentStatusRequest {
     status: AssignmentStatus;
+    confirmationCode?: string;
+    cancelationReason?: string;
 }
 
 interface ApiResponse {
@@ -146,11 +148,28 @@ class RiderService {
     /**
      * Update assignment status
      */
-    async updateAssignmentStatus(assignmentId: string, status: AssignmentStatus): Promise<ApiResponse> {
+    async updateAssignmentStatus(
+        assignmentId: string, 
+        status: AssignmentStatus, 
+        confirmationCode?: string,
+        reason?: string
+    ): Promise<ApiResponse> {
         try {
-            const response = await this.apiClient.put<{ message: string }>(`/assignments/${assignmentId}/status`, {
+            const requestBody: UpdateAssignmentStatusRequest = {
                 status,
-            });
+            };
+            
+            // Include confirmation code only for DELIVERED status
+            if (status === "DELIVERED" && confirmationCode) {
+                requestBody.confirmationCode = confirmationCode;
+            }
+            
+            // Include cancelationReason only for CANCELLED status
+            if (status === "CANCELLED" && reason) {
+                requestBody.cancelationReason = reason;
+            }
+            
+            const response = await this.apiClient.put<{ message: string }>(`/assignments/${assignmentId}/status`, requestBody);
             return {
                 success: true,
                 message: response.data.message || 'Assignment status updated successfully',
