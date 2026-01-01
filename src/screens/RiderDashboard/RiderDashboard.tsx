@@ -543,11 +543,6 @@ export const RiderDashboard = (): JSX.Element => {
                                     <p className="font-semibold text-neutral-800">{selectedAssignment.parcel.receiverName || "N/A"}</p>
                                 </div>
 
-                                <div>
-                                    <p className="text-sm text-[#5d5d5d] mb-1">Parcel ID</p>
-                                    <p className="font-semibold text-neutral-800">{selectedAssignment.parcel.parcelId}</p>
-                                </div>
-
                                 <div className="bg-gray-50 rounded-lg p-3">
                                     <p className="text-xs font-semibold text-[#5d5d5d] mb-2">Expected Amount</p>
                                     <p className="text-xl sm:text-2xl font-bold text-[#ea690c]">
@@ -575,11 +570,6 @@ export const RiderDashboard = (): JSX.Element => {
                                     <Label className="text-sm font-semibold text-neutral-800 mb-2">
                                         Confirmation Code <span className="text-[#e22420]">*</span>
                                     </Label>
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mb-2">
-                                        <p className="text-xs text-blue-800">
-                                            <strong>Note:</strong> Ask the recipient for the confirmation code sent to their phone via SMS during parcel registration.
-                                        </p>
-                                    </div>
                                     <Input
                                         type="text"
                                         value={confirmationCode}
