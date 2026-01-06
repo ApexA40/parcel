@@ -53,7 +53,7 @@ export const InfoSection = ({
     useEffect(() => {
         const userData = authService.getUser();
         const officeId = (userData as any)?.office?.id;
-        
+
         if (officeId) {
             loadShelves(officeId);
         } else {
@@ -73,7 +73,6 @@ export const InfoSection = ({
     const [itemDescription, setItemDescription] = useState("");
     const [shelf, setShelf] = useState("");
     const [itemValue, setItemValue] = useState("");
-    const [pickUpCost, setPickUpCost] = useState("");
     const [homeDelivery, setHomeDelivery] = useState(false);
     const [deliveryCost, setDeliveryCost] = useState("");
     const [specialNotes, setSpecialNotes] = useState("");
@@ -95,10 +94,10 @@ export const InfoSection = ({
     const handlePhoneChange = (input: string) => {
         // Allow digits only, up to 10 digits (can start with 0)
         const digits = input.replace(/\D/g, "").substring(0, 10);
-        
+
         // Normalize: remove leading 0 and add +233
         const normalized = normalizePhoneNumber(digits);
-        
+
         setPhoneNumber(normalized);
         if (phoneError && validatePhoneNumber(normalized)) {
             setPhoneError("");
@@ -113,11 +112,7 @@ export const InfoSection = ({
             setPhoneError("Invalid phone number format. Use 0XXXXXXXXX or XXXXXXXXX");
             return false;
         }
-        // Validate driver phone if driver name is provided
-        if (driverName.trim() && !driverPhone.trim()) {
-            setPhoneError("Driver phone number is required when driver name is provided");
-            return false;
-        }
+        // Validate driver phone format if provided
         if (driverPhone.trim() && !validatePhoneNumber(driverPhone)) {
             setPhoneError("Invalid driver phone number format. Use 0XXXXXXXXX or XXXXXXXXX");
             return false;
@@ -151,7 +146,7 @@ export const InfoSection = ({
 
         // Find shelf name for display
         const selectedShelf = shelves.find(s => s.id === shelf);
-        
+
         // Add current parcel to session
         const parcelData: ParcelFormData = {
             driverName: currentDriverName || undefined,
@@ -166,7 +161,7 @@ export const InfoSection = ({
             shelfLocation: shelf, // Store shelf ID
             shelfName: selectedShelf?.name, // Store shelf name for display
             itemValue: itemValue ? parseFloat(itemValue) : 0,
-            pickUpCost: pickUpCost ? parseFloat(pickUpCost) : 0,
+            pickUpCost: 0, // Default to 0
             homeDelivery: homeDelivery,
             deliveryCost: homeDelivery && deliveryCost ? parseFloat(deliveryCost) : undefined,
             hasCalled: homeDelivery ? true : undefined,
@@ -188,7 +183,6 @@ export const InfoSection = ({
         setItemDescription("");
         setShelf("");
         setItemValue("");
-        setPickUpCost("");
         setHomeDelivery(false);
         setDeliveryCost("");
         setSpecialNotes("");
@@ -202,12 +196,12 @@ export const InfoSection = ({
 
         // Find shelf name for display
         const selectedShelf = shelves.find(s => s.id === shelf);
-        
+
         // Get driver info - use current form values if not locked, otherwise use session driver
         const currentDriverName = isDriverLocked ? sessionDriver?.driverName : driverName.trim();
         const currentDriverPhone = isDriverLocked ? sessionDriver?.driverPhone : driverPhone.trim();
         const currentVehicleNumber = isDriverLocked ? sessionDriver?.vehicleNumber : vehicleNumber.trim();
-        
+
         // Create parcel data from current form
         const parcelData: ParcelFormData = {
             driverName: currentDriverName || undefined,
@@ -222,7 +216,7 @@ export const InfoSection = ({
             shelfLocation: shelf, // Store shelf ID
             shelfName: selectedShelf?.name, // Store shelf name for display
             itemValue: itemValue ? parseFloat(itemValue) : 0,
-            pickUpCost: pickUpCost ? parseFloat(pickUpCost) : 0,
+            pickUpCost: 0, // Default to 0
             homeDelivery: homeDelivery,
             deliveryCost: homeDelivery && deliveryCost ? parseFloat(deliveryCost) : undefined,
             hasCalled: homeDelivery ? true : undefined,
@@ -240,12 +234,11 @@ export const InfoSection = ({
         setItemDescription("");
         setShelf("");
         setItemValue("");
-        setPickUpCost("");
         setHomeDelivery(false);
         setDeliveryCost("");
         setSpecialNotes("");
         setPhoneError("");
-        
+
         // If driver was locked, unlock it after saving
         if (isDriverLocked) {
             setIsDriverLocked(false);
@@ -255,7 +248,7 @@ export const InfoSection = ({
     const isFormValid = recipientName.trim() && phoneNumber.trim() && shelf.trim() && !phoneError && (!homeDelivery || (deliveryCost && parseFloat(deliveryCost) > 0));
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 pb-4">
             {/* Parcels List - Show if parcels exist */}
             {parcels.length > 0 && (
                 <Card className="border border-[#d1d1d1] bg-white shadow-sm">
@@ -329,22 +322,22 @@ export const InfoSection = ({
 
             {/* Main Form */}
             <Card className="w-full border border-[#d1d1d1] bg-white shadow-sm">
-                <CardContent className="p-6">
-                    <div className="mb-6">
-                        <h2 className="text-xl font-bold text-neutral-800 mb-1">Add New Parcel</h2>
-                        <p className="text-sm text-[#5d5d5d]">
+                <CardContent className="p-4 sm:p-6">
+                    <div className="mb-4">
+                        <h2 className="text-lg sm:text-xl font-bold text-neutral-800 mb-1">Add New Parcel</h2>
+                        <p className="text-xs sm:text-sm text-[#5d5d5d]">
                             {isDriverLocked && sessionDriver
                                 ? `Using driver: ${sessionDriver.driverName}`
                                 : "Fill in the details below to register a new parcel"}
                         </p>
                     </div>
 
-                    <div className="space-y-8">
+                    <div className="space-y-6">
                         {/* Driver Information Section */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             <div className="flex items-center gap-2 pb-2 border-b border-[#d1d1d1]">
-                                <Truck className="w-5 h-5 text-[#ea690c]" />
-                                <h3 className="font-semibold text-base text-neutral-800">
+                                <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#ea690c]" />
+                                <h3 className="font-semibold text-sm sm:text-base text-neutral-800">
                                     Driver Information
                                 </h3>
                                 {isDriverLocked && sessionDriver ? (
@@ -358,7 +351,7 @@ export const InfoSection = ({
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col gap-2">
                                     <Label className="text-sm font-semibold text-neutral-800">
-                                        Driver Name <span className="text-[#e22420]">*</span>
+                                        Driver Name
                                     </Label>
                                     <Input
                                         type="text"
@@ -367,7 +360,6 @@ export const InfoSection = ({
                                         placeholder="Enter driver name"
                                         className="w-full rounded-lg border border-[#d1d1d1] bg-white px-3 py-2"
                                         disabled={isDriverLocked}
-                                        required
                                     />
                                     {isDriverLocked && (
                                         <p className="text-xs text-blue-600">
@@ -378,7 +370,7 @@ export const InfoSection = ({
 
                                 <div className="flex flex-col gap-2">
                                     <Label className="text-sm font-semibold text-neutral-800">
-                                        Driver Phone <span className="text-[#e22420]">*</span>
+                                        Driver Phone
                                     </Label>
                                     <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-medium pointer-events-none z-10">
@@ -399,14 +391,13 @@ export const InfoSection = ({
                                             className="pl-14 pr-3 w-full rounded-lg border border-[#d1d1d1] bg-white py-2.5 [font-family:'Lato',Helvetica] font-normal text-neutral-700 placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#ea690c] focus:border-[#ea690c] disabled:opacity-50 disabled:cursor-not-allowed"
                                             maxLength={10}
                                             disabled={isDriverLocked}
-                                            required
                                         />
                                     </div>
                                 </div>
 
                                 <div className="flex flex-col gap-2">
                                     <Label className="text-sm font-semibold text-neutral-800">
-                                        Vehicle Number <span className="text-[#e22420]">*</span>
+                                        Vehicle Number
                                     </Label>
                                     <Input
                                         type="text"
@@ -415,17 +406,16 @@ export const InfoSection = ({
                                         placeholder="GR-123-24"
                                         className="w-full rounded-lg border border-[#d1d1d1] bg-white px-3 py-2"
                                         disabled={isDriverLocked}
-                                        required
                                     />
                                 </div>
                             </div>
                         </div>
 
                         {/* Sender Information Section */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             <div className="flex items-center gap-2 pb-2 border-b border-[#d1d1d1]">
-                                <User className="w-5 h-5 text-[#ea690c]" />
-                                <h3 className="font-semibold text-base text-neutral-800">
+                                <User className="w-4 h-4 sm:w-5 sm:h-5 text-[#ea690c]" />
+                                <h3 className="font-semibold text-sm sm:text-base text-neutral-800">
                                     Sender Information
                                 </h3>
                                 <span className="text-xs text-[#9a9a9a] ml-2">(Optional)</span>
@@ -469,10 +459,10 @@ export const InfoSection = ({
                         </div>
 
                         {/* Receiver Information Section */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             <div className="flex items-center gap-2 pb-2 border-b border-[#d1d1d1]">
-                                <Package className="w-5 h-5 text-[#ea690c]" />
-                                <h3 className="font-semibold text-base text-neutral-800">
+                                <Package className="w-4 h-4 sm:w-5 sm:h-5 text-[#ea690c]" />
+                                <h3 className="font-semibold text-sm sm:text-base text-neutral-800">
                                     Receiver Information
                                 </h3>
                             </div>
@@ -532,10 +522,10 @@ export const InfoSection = ({
                         </div>
 
                         {/* Parcel Details Section */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             <div className="flex items-center gap-2 pb-2 border-b border-[#d1d1d1]">
-                                <FileText className="w-5 h-5 text-[#ea690c]" />
-                                <h3 className="font-semibold text-base text-neutral-800">
+                                <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[#ea690c]" />
+                                <h3 className="font-semibold text-sm sm:text-base text-neutral-800">
                                     Parcel Details
                                 </h3>
                             </div>
@@ -587,22 +577,6 @@ export const InfoSection = ({
                                         min="0"
                                         step="0.01"
                                         className="w-full rounded-lg border border-[#d1d1d1] bg-white px-3 py-2"
-                                    />
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                    <Label className="text-sm font-semibold text-neutral-800">
-                                        Pick Up Cost (GHC) <span className="text-[#e22420]">*</span>
-                                    </Label>
-                                    <Input
-                                        type="number"
-                                        value={pickUpCost}
-                                        onChange={(e) => setPickUpCost(e.target.value)}
-                                        placeholder="0.00"
-                                        min="0"
-                                        step="0.01"
-                                        className="w-full rounded-lg border border-[#d1d1d1] bg-white px-3 py-2"
-                                        required
                                     />
                                 </div>
 
@@ -664,7 +638,7 @@ export const InfoSection = ({
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex gap-3 pt-4 border-t border-[#d1d1d1]">
+                        <div className="flex gap-3 pt-3 border-t border-[#d1d1d1]">
                             <Button
                                 onClick={handleAddAnotherSameDriver}
                                 disabled={!isFormValid || isSaving}

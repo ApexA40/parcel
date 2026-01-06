@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import {
   PackageIcon,
   CameraIcon,
-  AlertCircleIcon,
   SearchIcon,
   XIcon,
   FilterIcon,
@@ -95,16 +94,18 @@ export const ActiveDeliveries = (): JSX.Element => {
           
           if (response.success && response.data) {
             const assignments = response.data as DeliveryAssignmentResponse[];
-            const deliveryItems: DeliveryItem[] = assignments.map(assignment => ({
-              assignmentId: assignment.assignmentId,
-              parcelId: assignment.parcel.parcelId,
-              parcel: assignment.parcel,
-              status: assignment.status,
-              assignedAt: assignment.assignedAt,
-              acceptedAt: assignment.acceptedAt,
-              completedAt: assignment.completedAt,
-              riderName: assignment.riderName,
-            }));
+            const deliveryItems: DeliveryItem[] = assignments
+              .filter(assignment => assignment.status !== "DELIVERED" && assignment.status !== "CANCELLED") // Only show active assignments, exclude delivered and failed
+              .map(assignment => ({
+                assignmentId: assignment.assignmentId,
+                parcelId: assignment.parcel.parcelId,
+                parcel: assignment.parcel,
+                status: assignment.status,
+                assignedAt: assignment.assignedAt,
+                acceptedAt: assignment.acceptedAt,
+                completedAt: assignment.completedAt,
+                riderName: assignment.riderName,
+              }));
 
             // Create a single rider entry for the current rider
             const riderData: RiderWithAssignments = {
@@ -157,7 +158,7 @@ export const ActiveDeliveries = (): JSX.Element => {
               if (assignmentsResponse.success && assignmentsResponse.data) {
                 const assignments = assignmentsResponse.data as DeliveryAssignmentResponse[];
                 const deliveryItems: DeliveryItem[] = assignments
-                  .filter(assignment => assignment.status !== "DELIVERED") // Only show active assignments
+                  .filter(assignment => assignment.status !== "DELIVERED" && assignment.status !== "CANCELLED") // Only show active assignments, exclude delivered and failed
                   .map(assignment => ({
                     assignmentId: assignment.assignmentId,
                     parcelId: assignment.parcel.parcelId,
@@ -256,16 +257,18 @@ export const ActiveDeliveries = (): JSX.Element => {
         
         if (response.success && response.data) {
           const assignments = response.data as DeliveryAssignmentResponse[];
-          const deliveryItems: DeliveryItem[] = assignments.map(assignment => ({
-            assignmentId: assignment.assignmentId,
-            parcelId: assignment.parcel.parcelId,
-            parcel: assignment.parcel,
-            status: assignment.status,
-            assignedAt: assignment.assignedAt,
-            acceptedAt: assignment.acceptedAt,
-            completedAt: assignment.completedAt,
-            riderName: assignment.riderName,
-          }));
+          const deliveryItems: DeliveryItem[] = assignments
+            .filter(assignment => assignment.status !== "DELIVERED" && assignment.status !== "CANCELLED") // Only show active assignments, exclude delivered and failed
+            .map(assignment => ({
+              assignmentId: assignment.assignmentId,
+              parcelId: assignment.parcel.parcelId,
+              parcel: assignment.parcel,
+              status: assignment.status,
+              assignedAt: assignment.assignedAt,
+              acceptedAt: assignment.acceptedAt,
+              completedAt: assignment.completedAt,
+              riderName: assignment.riderName,
+            }));
 
           const riderData: RiderWithAssignments = {
             rider: {
@@ -310,7 +313,7 @@ export const ActiveDeliveries = (): JSX.Element => {
             if (assignmentsResponse.success && assignmentsResponse.data) {
               const assignments = assignmentsResponse.data as DeliveryAssignmentResponse[];
               const deliveryItems: DeliveryItem[] = assignments
-                .filter(assignment => assignment.status !== "DELIVERED")
+                .filter(assignment => assignment.status !== "DELIVERED" && assignment.status !== "CANCELLED") // Only show active assignments, exclude delivered and failed
                 .map(assignment => ({
                   assignmentId: assignment.assignmentId,
                   parcelId: assignment.parcel.parcelId,
@@ -474,16 +477,26 @@ export const ActiveDeliveries = (): JSX.Element => {
   };
 
   // Calculate statistics from all deliveries
-  const activeCount = allDeliveries.filter(
-    (d) => {
-      const uiStatus = mapAssignmentStatusToUI(d.status);
-      return uiStatus === "picked-up" || uiStatus === "out-for-delivery";
-    }
-  ).length;
   const pendingCount = allDeliveries.filter((d) => {
     const uiStatus = mapAssignmentStatusToUI(d.status);
     return uiStatus === "assigned";
   }).length;
+  const totalDeliveryFee = allDeliveries
+    .filter((d) => {
+      const uiStatus = mapAssignmentStatusToUI(d.status);
+      return uiStatus !== "delivered" && uiStatus !== "delivery-failed";
+    })
+    .reduce((sum, d) => {
+      return sum + (d.parcel.deliveryCost || 0);
+    }, 0);
+  const totalPickupCost = allDeliveries
+    .filter((d) => {
+      const uiStatus = mapAssignmentStatusToUI(d.status);
+      return uiStatus !== "delivered" && uiStatus !== "delivery-failed";
+    })
+    .reduce((sum, d) => {
+      return sum + (d.parcel.pickUpCost || 0);
+    }, 0);
   const expectedCollections = allDeliveries
     .filter((d) => {
       const uiStatus = mapAssignmentStatusToUI(d.status);
@@ -494,10 +507,6 @@ export const ActiveDeliveries = (): JSX.Element => {
       return sum + (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) + 
              (parcel.inboundCost || 0) + (parcel.storageCost || 0);
     }, 0);
-  const failedCount = allDeliveries.filter((d) => {
-    const uiStatus = mapAssignmentStatusToUI(d.status);
-    return uiStatus === "delivery-failed";
-  }).length;
 
   const getStatusBadge = (status: AssignmentStatus) => {
     const uiStatus = mapAssignmentStatusToUI(status);
@@ -544,22 +553,6 @@ export const ActiveDeliveries = (): JSX.Element => {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col">
-                    <span className="[font-family:'Lato',Helvetica] font-bold text-green-600 text-3xl">
-                      {activeCount}
-                    </span>
-                    <span className="[font-family:'Lato',Helvetica] font-normal text-[#5d5d5d] text-sm mt-1">
-                      Currently making deliveries
-                    </span>
-                  </div>
-                  <PackageIcon className="w-8 h-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col">
                     <span className="[font-family:'Lato',Helvetica] font-bold text-blue-600 text-3xl">
                       {pendingCount}
                     </span>
@@ -576,14 +569,14 @@ export const ActiveDeliveries = (): JSX.Element => {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col">
-                    <span className="[font-family:'Lato',Helvetica] font-bold text-[#ea690c] text-3xl">
-                      {formatCurrency(expectedCollections)}
+                    <span className="[font-family:'Lato',Helvetica] font-bold text-green-600 text-3xl">
+                      {formatCurrency(totalDeliveryFee)}
                     </span>
                     <span className="[font-family:'Lato',Helvetica] font-normal text-[#5d5d5d] text-sm mt-1">
-                      Expected collections
+                      Total Delivery Fee
                     </span>
                   </div>
-                  <CameraIcon className="w-8 h-8 text-[#ea690c]" />
+                  <PackageIcon className="w-8 h-8 text-green-600" />
                 </div>
               </CardContent>
             </Card>
@@ -592,14 +585,30 @@ export const ActiveDeliveries = (): JSX.Element => {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col">
-                    <span className="[font-family:'Lato',Helvetica] font-bold text-red-600 text-3xl">
-                      {failedCount}
+                    <span className="[font-family:'Lato',Helvetica] font-bold text-purple-600 text-3xl">
+                      {formatCurrency(totalPickupCost)}
                     </span>
                     <span className="[font-family:'Lato',Helvetica] font-normal text-[#5d5d5d] text-sm mt-1">
-                      Requires follow-up
+                      Total Pickup Cost
                     </span>
                   </div>
-                  <AlertCircleIcon className="w-8 h-8 text-red-600" />
+                  <PackageIcon className="w-8 h-8 text-purple-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col">
+                    <span className="[font-family:'Lato',Helvetica] font-bold text-[#ea690c] text-3xl">
+                      {formatCurrency(expectedCollections)}
+                    </span>
+                    <span className="[font-family:'Lato',Helvetica] font-normal text-[#5d5d5d] text-sm mt-1">
+                      Expected collections
+                    </span>
+                  </div>
+                  <CameraIcon className="w-8 h-8 text-[#ea690c]" />
                 </div>
               </CardContent>
             </Card>
@@ -638,8 +647,6 @@ export const ActiveDeliveries = (): JSX.Element => {
                   <option value="assigned">Assigned</option>
                   <option value="picked-up">Picked Up</option>
                   <option value="out-for-delivery">Out for Delivery</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="delivery-failed">Failed</option>
                 </select>
               </div>
             </CardContent>
@@ -876,12 +883,31 @@ export const ActiveDeliveries = (): JSX.Element => {
                             </Button>
                           )}
 
-                                        {uiStatus === "out-for-delivery" && (
-                            <div className="flex gap-2">
+                          {/* Show Mark Delivered and Mark Failed for assigned, picked-up, and out-for-delivery statuses */}
+                          {(uiStatus === "assigned" || uiStatus === "picked-up" || uiStatus === "out-for-delivery") && (
+                            <div className="flex flex-col gap-2 w-full">
                               <Button
-                                              onClick={() => handleStatusUpdate(delivery.assignmentId, delivery.parcelId, "delivery-failed", riderData.rider.userId)}
+                                onClick={() => handleStatusUpdate(delivery.assignmentId, delivery.parcelId, "delivered", riderData.rider.userId)}
+                                disabled={updatingStatus === delivery.assignmentId}
+                                className="bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 w-full"
+                              >
+                                {updatingStatus === delivery.assignmentId ? (
+                                  <>
+                                    <Loader className="w-4 h-4 animate-spin mr-2" />
+                                    Processing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircleIcon className="w-4 h-4 mr-2" />
+                                    Mark Delivered
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                onClick={() => handleStatusUpdate(delivery.assignmentId, delivery.parcelId, "delivery-failed", riderData.rider.userId)}
+                                disabled={updatingStatus === delivery.assignmentId}
                                 variant="outline"
-                                className="border-red-300 text-red-600 hover:bg-red-50"
+                                className="border-red-300 text-red-600 hover:bg-red-50 w-full"
                               >
                                 <XCircleIcon className="w-4 h-4 mr-2" />
                                 Mark Failed
@@ -893,13 +919,6 @@ export const ActiveDeliveries = (): JSX.Element => {
                             <Badge className="bg-green-100 text-green-800">
                               <CheckCircleIcon className="w-3 h-3 mr-1" />
                               Delivered
-                            </Badge>
-                          )}
-
-                                        {uiStatus === "delivery-failed" && (
-                            <Badge className="bg-red-100 text-red-800">
-                              <XCircleIcon className="w-3 h-3 mr-1" />
-                              Failed
                             </Badge>
                           )}
                         </div>

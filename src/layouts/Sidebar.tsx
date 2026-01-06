@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, InboxIcon, ClipboardListIcon, TruckIcon, DollarSignIcon, ClockIcon, LayoutDashboard, Layers, PhoneIcon, SearchIcon, Package, Users, Building2, BarChart3, LogOut } from "lucide-react";
+import { X, InboxIcon, ClipboardListIcon, TruckIcon, DollarSignIcon, ClockIcon, LayoutDashboard, Layers, PhoneIcon, SearchIcon, Package, Users, Building2, BarChart3, LogOut, Edit } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 
 interface SidebarProps {
@@ -27,6 +27,9 @@ const navItems = [
     // Station Manager & Front Desk - Management
     // { label: "Financial Dashboard", path: "/financial-dashboard", icon: LayoutDashboard, roles: ["MANAGER", "FRONTDESK"] },
     { label: "Shelf Management", path: "/shelf-management", icon: Layers, roles: ["MANAGER", "FRONTDESK"] },
+
+    // Manager Only - Parcel Editing
+    { label: "Edit Parcels", path: "/parcel-edit", icon: Edit, roles: ["MANAGER"] },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {

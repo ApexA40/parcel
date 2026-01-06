@@ -15,12 +15,12 @@ import { useFrontdeskParcel } from "../../contexts/FrontdeskParcelContext";
 export const CallCenter = (): JSX.Element => {
     const { currentUser } = useStation();
     const { showToast } = useToast();
-    const { 
-        parcels: allParcels, 
-        loading, 
-        pagination, 
-        loadParcelsIfNeeded, 
-        refreshParcels 
+    const {
+        parcels: allParcels,
+        loading,
+        pagination,
+        loadParcelsIfNeeded,
+        refreshParcels
     } = useFrontdeskParcel();
     const [viewMode, setViewMode] = useState<"uncontacted" | "contacted">("uncontacted");
     const [selectedParcel, setSelectedParcel] = useState<ParcelResponse | null>(null);
@@ -37,8 +37,8 @@ export const CallCenter = (): JSX.Element => {
     const parcels = useMemo(() => {
         if (viewMode === "uncontacted") {
             // Show parcels that haven't been called AND homeDelivery is false
-            return allParcels.filter(p => 
-                (p.hasCalled === false || p.hasCalled === null || p.hasCalled === undefined) && 
+            return allParcels.filter(p =>
+                (p.hasCalled === false || p.hasCalled === null || p.hasCalled === undefined) &&
                 (p.homeDelivery === false || p.homeDelivery === undefined)
             );
         } else {
@@ -49,15 +49,15 @@ export const CallCenter = (): JSX.Element => {
 
     // Calculate stats
     const { uncontacted: uncontactedCount, contacted: contactedCount, ready: readyCount } = useMemo(() => {
-        const uncontacted = allParcels.filter(p => 
-            (p.hasCalled === false || p.hasCalled === null || p.hasCalled === undefined) && 
+        const uncontacted = allParcels.filter(p =>
+            (p.hasCalled === false || p.hasCalled === null || p.hasCalled === undefined) &&
             (p.homeDelivery === false || p.homeDelivery === undefined)
         ).length;
         const contacted = allParcels.filter(p => p.hasCalled === true).length;
-        const readyForDelivery = allParcels.filter(p => 
+        const readyForDelivery = allParcels.filter(p =>
             p.hasCalled === true && p.homeDelivery === true
         ).length;
-        
+
         return {
             uncontacted,
             contacted,
@@ -94,10 +94,9 @@ export const CallCenter = (): JSX.Element => {
     };
 
     const handleMarkAsCalled = (parcel: ParcelResponse) => {
-        // When marking as called, automatically expand the form
+        // Show the same details modal as View/Edit button
         handleParcelSelect(parcel);
-        // Mark as called immediately
-        handleMarkContacted(parcel);
+        setShowDetailsModal(true);
     };
 
     const handleMarkContacted = async (parcel?: ParcelResponse) => {
@@ -153,15 +152,15 @@ export const CallCenter = (): JSX.Element => {
 
             if (response.success) {
                 showToast(`Preferences saved for ${selectedParcel.receiverName || selectedParcel.parcelId}`, "success");
-        // Refresh parcels list
+                // Refresh parcels list
                 await handleRefresh();
-        setSelectedParcel(null);
+                setSelectedParcel(null);
                 setExpandedParcelId(null);
                 setShowDetailsModal(false);
-        setDeliveryAddress("");
-        setDeliveryFee("");
-        setPreferredDate("");
-        setCallNotes("");
+                setDeliveryAddress("");
+                setDeliveryFee("");
+                setPreferredDate("");
+                setCallNotes("");
                 setDeliveryPreference("delivery");
             } else {
                 showToast(response.message || "Failed to save preferences", "error");
@@ -178,10 +177,10 @@ export const CallCenter = (): JSX.Element => {
 
     const totalToCollect = selectedParcel
         ? calculateTotalAmount(
-              selectedParcel.inboundCost || 0,
-              deliveryPreference === "delivery" ? parseFloat(deliveryFee || "0") : 0,
-              deliveryPreference
-          )
+            selectedParcel.inboundCost || 0,
+            deliveryPreference === "delivery" ? parseFloat(deliveryFee || "0") : 0,
+            deliveryPreference
+        )
         : 0;
 
     return (
@@ -205,9 +204,8 @@ export const CallCenter = (): JSX.Element => {
                                 className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-[#ea690c] focus:ring-offset-2"
                             >
                                 <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                        viewMode === "contacted" ? "translate-x-6" : "translate-x-1"
-                                    }`}
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${viewMode === "contacted" ? "translate-x-6" : "translate-x-1"
+                                        }`}
                                 />
                             </button>
                             <span className={`text-sm font-medium ${viewMode === "contacted" ? "text-[#ea690c]" : "text-[#5d5d5d]"}`}>
@@ -267,8 +265,8 @@ export const CallCenter = (): JSX.Element => {
                                 <div className="text-center py-12">
                                     <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-4 opacity-50" />
                                     <p className="text-sm text-[#5d5d5d]">
-                                        {viewMode === "uncontacted" 
-                                            ? "All parcels contacted!" 
+                                        {viewMode === "uncontacted"
+                                            ? "All parcels contacted!"
                                             : "No contacted parcels yet"}
                                     </p>
                                 </div>
@@ -283,9 +281,11 @@ export const CallCenter = (): JSX.Element => {
                                                 <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
                                                     Phone
                                                 </th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
-                                                    Parcel ID
-                                                </th>
+                                                {viewMode === "contacted" && (
+                                                    <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
+                                                        Delivery Type
+                                                    </th>
+                                                )}
                                                 <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
                                                     Status
                                                 </th>
@@ -298,25 +298,24 @@ export const CallCenter = (): JSX.Element => {
                                             {parcels.map((parcel) => {
                                                 const isExpanded = expandedParcelId === parcel.parcelId;
                                                 const isSelected = selectedParcel?.parcelId === parcel.parcelId;
-                                                
+
                                                 return (
                                                     <React.Fragment key={parcel.parcelId}>
-                                                        <tr 
-                                                            className={`transition-colors hover:bg-gray-50 ${
-                                                                isSelected ? 'bg-orange-50' : ''
-                                                            }`}
+                                                        <tr
+                                                            className={`transition-colors hover:bg-gray-50 ${isSelected ? 'bg-orange-50' : ''
+                                                                }`}
                                                         >
                                                             <td className="py-3 px-4 whitespace-nowrap">
                                                                 <div>
-                                                <p className="font-semibold text-neutral-800 text-sm">
+                                                                    <p className="font-semibold text-neutral-800 text-sm">
                                                                         {parcel.receiverName || "N/A"}
                                                                     </p>
                                                                     {parcel.senderName && (
                                                                         <p className="text-xs text-[#5d5d5d] mt-0.5">
                                                                             From: {parcel.senderName}
                                                                         </p>
-                                        )}
-                                    </div>
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                             <td className="py-3 px-4 whitespace-nowrap">
                                                                 <a
@@ -326,9 +325,21 @@ export const CallCenter = (): JSX.Element => {
                                                                     {parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : "N/A"}
                                                                 </a>
                                                             </td>
-                                                            <td className="py-3 px-4 whitespace-nowrap">
-                                                                <p className="text-sm text-neutral-700">{parcel.parcelId}</p>
-                                                            </td>
+                                                            {viewMode === "contacted" && (
+                                                                <td className="py-3 px-4 whitespace-nowrap">
+                                                                    {parcel.homeDelivery ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                                            <MapPin className="w-3.5 h-3.5" />
+                                                                            Home Delivery
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                                            <Package className="w-3.5 h-3.5" />
+                                                                            Customer Pickup
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            )}
                                                             <td className="py-3 px-4 whitespace-nowrap">
                                                                 {parcel.hasCalled ? (
                                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -337,7 +348,7 @@ export const CallCenter = (): JSX.Element => {
                                                                 ) : (
                                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                                                         Uncontacted
-                                                        </span>
+                                                                    </span>
                                                                 )}
                                                             </td>
                                                             <td className="py-3 px-4 whitespace-nowrap text-center">
@@ -375,172 +386,170 @@ export const CallCenter = (): JSX.Element => {
                                                         {/* Expanded Row with Form - Only for uncontacted parcels being marked as called */}
                                                         {isExpanded && !parcel.hasCalled && (
                                                             <tr>
-                                                                <td colSpan={5} className="px-4 py-6 bg-orange-50/30">
+                                                                <td colSpan={4} className="px-4 py-6 bg-orange-50/30">
                                                                     <div className="max-w-4xl mx-auto space-y-6">
                                                                         {/* Parcel Info */}
                                                                         <div className="grid grid-cols-2 gap-4 p-4 bg-white rounded-lg border border-[#d1d1d1]">
                                                                             <div>
                                                                                 <p className="text-xs text-[#5d5d5d] mb-1">Parcel ID</p>
                                                                                 <p className="font-semibold text-sm text-neutral-800">{parcel.parcelId}</p>
-                                            </div>
-                                                    <div>
+                                                                            </div>
+                                                                            <div>
                                                                                 <p className="text-xs text-[#5d5d5d] mb-1">Shelf</p>
                                                                                 <p className="font-semibold text-sm text-neutral-800">{parcel.shelfName || parcel.shelfNumber || "N/A"}</p>
-                                                    </div>
+                                                                            </div>
                                                                             {parcel.parcelDescription && (
                                                                                 <div className="col-span-2">
                                                                                     <p className="text-xs text-[#5d5d5d] mb-1">Item Description</p>
                                                                                     <p className="text-sm text-neutral-700">{parcel.parcelDescription}</p>
-                                                        </div>
-                                                    )}
+                                                                                </div>
+                                                                            )}
                                                                             {parcel.inboundCost && parcel.inboundCost > 0 && (
                                                                                 <div className="col-span-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <DollarSign className="w-4 h-4 text-[#ea690c]" />
-                                                            <span className="text-sm font-semibold text-[#ea690c]">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <DollarSign className="w-4 h-4 text-[#ea690c]" />
+                                                                                        <span className="text-sm font-semibold text-[#ea690c]">
                                                                                             GHC {parcel.inboundCost.toFixed(2)} to collect
-                                                            </span>
+                                                                                        </span>
                                                                                     </div>
-                                                        </div>
-                                                    )}
-                                            </div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
 
                                                                         {/* Delivery Preference & Form */}
                                                                         <div className="space-y-4 p-4 bg-white rounded-lg border border-[#d1d1d1]">
                                                                             <h3 className="font-semibold text-neutral-800 text-sm mb-3">
-                                                        Delivery Preference
-                                                    </h3>
+                                                                                Delivery Preference
+                                                                            </h3>
                                                                             <div className="grid grid-cols-2 gap-3 mb-4">
-                                                                                <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                                                                                    deliveryPreference === "pickup" 
-                                                                                        ? "border-[#ea690c] bg-orange-50" 
-                                                                                        : "border-[#d1d1d1] hover:bg-gray-50"
-                                                                                }`}>
-                                                            <input
-                                                                type="radio"
+                                                                                <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-colors ${deliveryPreference === "pickup"
+                                                                                    ? "border-[#ea690c] bg-orange-50"
+                                                                                    : "border-[#d1d1d1] hover:bg-gray-50"
+                                                                                    }`}>
+                                                                                    <input
+                                                                                        type="radio"
                                                                                         name={`delivery-${parcel.parcelId}`}
-                                                                value="pickup"
-                                                                checked={deliveryPreference === "pickup"}
+                                                                                        value="pickup"
+                                                                                        checked={deliveryPreference === "pickup"}
                                                                                         onChange={(e) => setDeliveryPreference(e.target.value as "pickup")}
                                                                                         className="w-4 h-4 text-[#ea690c]"
-                                                            />
-                                                            <div className="ml-3">
+                                                                                    />
+                                                                                    <div className="ml-3">
                                                                                         <p className="font-medium text-neutral-800 text-sm">Customer Pickup</p>
-                                                                <p className="text-xs text-[#5d5d5d]">No delivery fee</p>
-                                                            </div>
-                                                        </label>
+                                                                                        <p className="text-xs text-[#5d5d5d]">No delivery fee</p>
+                                                                                    </div>
+                                                                                </label>
 
-                                                                                <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                                                                                    deliveryPreference === "delivery" 
-                                                                                        ? "border-[#ea690c] bg-orange-50" 
-                                                                                        : "border-[#d1d1d1] hover:bg-gray-50"
-                                                                                }`}>
-                                                            <input
-                                                                type="radio"
+                                                                                <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-colors ${deliveryPreference === "delivery"
+                                                                                    ? "border-[#ea690c] bg-orange-50"
+                                                                                    : "border-[#d1d1d1] hover:bg-gray-50"
+                                                                                    }`}>
+                                                                                    <input
+                                                                                        type="radio"
                                                                                         name={`delivery-${parcel.parcelId}`}
-                                                                value="delivery"
-                                                                checked={deliveryPreference === "delivery"}
+                                                                                        value="delivery"
+                                                                                        checked={deliveryPreference === "delivery"}
                                                                                         onChange={(e) => setDeliveryPreference(e.target.value as "delivery")}
                                                                                         className="w-4 h-4 text-[#ea690c]"
-                                                            />
-                                                            <div className="ml-3">
+                                                                                    />
+                                                                                    <div className="ml-3">
                                                                                         <p className="font-medium text-neutral-800 text-sm">Home Delivery</p>
                                                                                         <p className="text-xs text-[#5d5d5d]">Delivery fee applies</p>
-                                                            </div>
-                                                        </label>
-                                                    </div>
+                                                                                    </div>
+                                                                                </label>
+                                                                            </div>
 
                                                                             {/* Delivery Form Fields */}
                                                                             <div className="space-y-4 pt-4 border-t border-[#d1d1d1]">
-                                                    {deliveryPreference === "delivery" && (
-                                                        <>
+                                                                                {deliveryPreference === "delivery" && (
+                                                                                    <>
                                                                                         <div className="grid grid-cols-2 gap-4">
-                                                            <div>
+                                                                                            <div>
                                                                                                 <Label className="text-sm font-semibold text-neutral-800 mb-2 block">
                                                                                                     Delivery Address <span className="text-[#e22420]">*</span>
-                                                                </Label>
-                                                                <Input
-                                                                    value={deliveryAddress}
-                                                                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                                                                    placeholder="Enter delivery address"
+                                                                                                </Label>
+                                                                                                <Input
+                                                                                                    value={deliveryAddress}
+                                                                                                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                                                                                                    placeholder="Enter delivery address"
                                                                                                     className="border border-[#d1d1d1]"
-                                                                />
-                                                            </div>
-                                                            <div>
+                                                                                                />
+                                                                                            </div>
+                                                                                            <div>
                                                                                                 <Label className="text-sm font-semibold text-neutral-800 mb-2 block">
                                                                                                     Delivery Fee (GHC) <span className="text-[#e22420]">*</span>
-                                                                </Label>
-                                                                <Input
-                                                                    type="number"
-                                                                    value={deliveryFee}
-                                                                    onChange={(e) => setDeliveryFee(e.target.value)}
-                                                                    placeholder="e.g., 15.00"
+                                                                                                </Label>
+                                                                                                <Input
+                                                                                                    type="number"
+                                                                                                    value={deliveryFee}
+                                                                                                    onChange={(e) => setDeliveryFee(e.target.value)}
+                                                                                                    placeholder="e.g., 15.00"
                                                                                                     className="border border-[#d1d1d1]"
-                                                                />
-                                                            </div>
+                                                                                                />
+                                                                                            </div>
                                                                                         </div>
-                                                            <div>
+                                                                                        <div>
                                                                                             <Label className="text-sm font-semibold text-neutral-800 mb-2 block">
-                                                                    Preferred Delivery Date
-                                                                </Label>
-                                                                <Input
-                                                                    type="date"
-                                                                    value={preferredDate}
-                                                                    onChange={(e) => setPreferredDate(e.target.value)}
+                                                                                                Preferred Delivery Date
+                                                                                            </Label>
+                                                                                            <Input
+                                                                                                type="date"
+                                                                                                value={preferredDate}
+                                                                                                onChange={(e) => setPreferredDate(e.target.value)}
                                                                                                 className="border border-[#d1d1d1]"
-                                                                />
-                                                            </div>
-                                                        </>
-                                                    )}
+                                                                                            />
+                                                                                        </div>
+                                                                                    </>
+                                                                                )}
 
-                                                    <div>
+                                                                                <div>
                                                                                     <Label className="text-sm font-semibold text-neutral-800 mb-2 block">
-                                                            Call Notes
-                                                        </Label>
-                                                        <textarea
-                                                            value={callNotes}
-                                                            onChange={(e) => setCallNotes(e.target.value)}
-                                                            placeholder="Record any special notes from the customer"
+                                                                                        Call Notes
+                                                                                    </Label>
+                                                                                    <textarea
+                                                                                        value={callNotes}
+                                                                                        onChange={(e) => setCallNotes(e.target.value)}
+                                                                                        placeholder="Record any special notes from the customer"
                                                                                         className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c] resize-none"
-                                                            rows={3}
-                                                        />
-                                                    </div>
+                                                                                        rows={3}
+                                                                                    />
+                                                                                </div>
 
-                                                    {/* Summary */}
+                                                                                {/* Summary */}
                                                                                 <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                                                        <p className="text-xs font-semibold text-[#5d5d5d] mb-2">
-                                                            TOTAL TO COLLECT
-                                                        </p>
-                                                        <div className="flex items-baseline justify-between">
-                                                            <span className="text-sm text-neutral-700">
-                                                                {deliveryPreference === "delivery"
-                                                                    ? `Delivery + Item Value`
-                                                                    : "Item Value"}
-                                                            </span>
-                                                            <span className="text-2xl font-bold text-[#ea690c]">
-                                                                GHC {totalToCollect.toFixed(2)}
-                                                            </span>
-                                                        </div>
-                                                    </div>
+                                                                                    <p className="text-xs font-semibold text-[#5d5d5d] mb-2">
+                                                                                        TOTAL TO COLLECT
+                                                                                    </p>
+                                                                                    <div className="flex items-baseline justify-between">
+                                                                                        <span className="text-sm text-neutral-700">
+                                                                                            {deliveryPreference === "delivery"
+                                                                                                ? `Delivery + Item Value`
+                                                                                                : "Item Value"}
+                                                                                        </span>
+                                                                                        <span className="text-2xl font-bold text-[#ea690c]">
+                                                                                            GHC {totalToCollect.toFixed(2)}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
 
                                                                                 {/* Action Buttons */}
                                                                                 <div className="flex gap-3 pt-2">
-                                                        <Button
+                                                                                    <Button
                                                                                         onClick={() => {
                                                                                             setExpandedParcelId(null);
                                                                                             setSelectedParcel(null);
                                                                                         }}
-                                                            variant="outline"
-                                                            className="flex-1 border border-[#d1d1d1]"
-                                                        >
+                                                                                        variant="outline"
+                                                                                        className="flex-1 border border-[#d1d1d1]"
+                                                                                    >
                                                                                         Cancel
-                                                        </Button>
-                                                        <Button
-                                                            onClick={handleSavePreferences}
-                                                            disabled={
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        onClick={handleSavePreferences}
+                                                                                        disabled={
                                                                                             updating ||
                                                                                             (deliveryPreference === "delivery" &&
-                                                                                            (!deliveryAddress || !deliveryFee))
+                                                                                                (!deliveryAddress || !deliveryFee))
                                                                                         }
                                                                                         className="flex-1 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                                                                                     >
@@ -552,8 +561,8 @@ export const CallCenter = (): JSX.Element => {
                                                                                         ) : (
                                                                                             "Save & Mark Ready"
                                                                                         )}
-                                                        </Button>
-                                                    </div>
+                                                                                    </Button>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -613,25 +622,25 @@ export const CallCenter = (): JSX.Element => {
                                         <div>
                                             <p className="text-xs font-medium text-blue-700 mb-1">Status</p>
                                             <Badge className={
-                                                selectedParcel.delivered 
+                                                selectedParcel.delivered
                                                     ? "bg-green-100 text-green-800"
                                                     : selectedParcel.parcelAssigned
-                                                    ? "bg-blue-100 text-blue-800"
-                                                    : selectedParcel.pod
-                                                    ? "bg-purple-100 text-purple-800"
-                                                    : selectedParcel.hasCalled
-                                                    ? "bg-orange-100 text-orange-800"
-                                                    : "bg-gray-100 text-gray-800"
+                                                        ? "bg-blue-100 text-blue-800"
+                                                        : selectedParcel.pod
+                                                            ? "bg-purple-100 text-purple-800"
+                                                            : selectedParcel.hasCalled
+                                                                ? "bg-orange-100 text-orange-800"
+                                                                : "bg-gray-100 text-gray-800"
                                             }>
-                                                {selectedParcel.delivered 
+                                                {selectedParcel.delivered
                                                     ? "Delivered"
                                                     : selectedParcel.parcelAssigned
-                                                    ? "Assigned"
-                                                    : selectedParcel.pod
-                                                    ? "POD"
-                                                    : selectedParcel.hasCalled
-                                                    ? "Contacted"
-                                                    : "Registered"}
+                                                        ? "Assigned"
+                                                        : selectedParcel.pod
+                                                            ? "POD"
+                                                            : selectedParcel.hasCalled
+                                                                ? "Contacted"
+                                                                : "Registered"}
                                             </Badge>
                                         </div>
                                         {selectedParcel.fragile !== undefined && (
@@ -799,11 +808,10 @@ export const CallCenter = (): JSX.Element => {
                                         </h3>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                        <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                                            deliveryPreference === "pickup" 
-                                                ? "border-[#ea690c] bg-orange-50 shadow-md" 
-                                                : "border-[#d1d1d1] hover:bg-gray-50 hover:border-gray-300"
-                                        }`}>
+                                        <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${deliveryPreference === "pickup"
+                                            ? "border-[#ea690c] bg-orange-50 shadow-md"
+                                            : "border-[#d1d1d1] hover:bg-gray-50 hover:border-gray-300"
+                                            }`}>
                                             <input
                                                 type="radio"
                                                 name={`delivery-modal-${selectedParcel.parcelId}`}
@@ -818,11 +826,10 @@ export const CallCenter = (): JSX.Element => {
                                             </div>
                                         </label>
 
-                                        <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                                            deliveryPreference === "delivery" 
-                                                ? "border-[#ea690c] bg-orange-50 shadow-md" 
-                                                : "border-[#d1d1d1] hover:bg-gray-50 hover:border-gray-300"
-                                        }`}>
+                                        <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${deliveryPreference === "delivery"
+                                            ? "border-[#ea690c] bg-orange-50 shadow-md"
+                                            : "border-[#d1d1d1] hover:bg-gray-50 hover:border-gray-300"
+                                            }`}>
                                             <input
                                                 type="radio"
                                                 name={`delivery-modal-${selectedParcel.parcelId}`}
@@ -933,7 +940,7 @@ export const CallCenter = (): JSX.Element => {
                                                 disabled={
                                                     updating ||
                                                     (deliveryPreference === "delivery" &&
-                                                    (!deliveryAddress || !deliveryFee))
+                                                        (!deliveryAddress || !deliveryFee))
                                                 }
                                                 className="flex-1 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 h-11 font-semibold shadow-md hover:shadow-lg transition-shadow"
                                             >
@@ -951,11 +958,11 @@ export const CallCenter = (): JSX.Element => {
                                             </Button>
                                         </div>
                                     </div>
-                        </div>
-                    </div>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
-            </div>
+                </div>
             )}
         </div>
     );

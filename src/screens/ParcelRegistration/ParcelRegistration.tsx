@@ -34,7 +34,7 @@ export const ParcelRegistration = (): JSX.Element => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Load from localStorage on mount
   const loadFromStorage = (): { parcels: ParcelFormData[]; sessionDriver: { driverName?: string; driverPhone?: string; vehicleNumber?: string } | null } => {
     try {
@@ -113,7 +113,7 @@ export const ParcelRegistration = (): JSX.Element => {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const link = target.closest('a[href]') as HTMLAnchorElement;
-      
+
       if (link && hasUnsavedParcels) {
         const href = link.getAttribute('href');
         if (href && href.startsWith('/') && href !== location.pathname) {
@@ -145,7 +145,7 @@ export const ParcelRegistration = (): JSX.Element => {
   const handleRemoveParcel = (index: number) => {
     const newParcels = parcels.filter((_, i) => i !== index);
     setParcels(newParcels);
-    
+
     // If no parcels left, clear session driver
     if (newParcels.length === 0) {
       setSessionDriver(null);
@@ -155,7 +155,7 @@ export const ParcelRegistration = (): JSX.Element => {
   const handleSaveAll = async (additionalParcel?: ParcelFormData) => {
     // Combine existing parcels with additional parcel if provided
     const parcelsToSave = additionalParcel ? [...parcels, additionalParcel] : parcels;
-    
+
     if (parcelsToSave.length === 0) {
       showToast("No parcels to save", "warning");
       return;
@@ -171,14 +171,10 @@ export const ParcelRegistration = (): JSX.Element => {
     }
 
     // Validate required fields for each parcel
-    const invalidParcels = parcelsToSave.filter(p => 
-      !p.recipientName || 
-      !p.recipientPhone || 
-      !p.shelfLocation || 
-      !p.driverName || 
-      !p.driverPhone || 
-      !p.vehicleNumber ||
-      p.pickUpCost === undefined ||
+    const invalidParcels = parcelsToSave.filter(p =>
+      !p.recipientName ||
+      !p.recipientPhone ||
+      !p.shelfLocation ||
       (p.homeDelivery && (!p.deliveryCost || p.deliveryCost === undefined))
     );
 
@@ -199,16 +195,16 @@ export const ParcelRegistration = (): JSX.Element => {
           receiverAddress: parcelData.receiverAddress || undefined,
           recieverPhoneNumber: parcelData.recipientPhone, // Note: API has typo "reciever"
           parcelDescription: parcelData.itemDescription || undefined,
-          driverName: parcelData.driverName!,
-          driverPhoneNumber: parcelData.driverPhone!,
+          driverName: parcelData.driverName || "",
+          driverPhoneNumber: parcelData.driverPhone || "",
           inboundCost: parcelData.itemValue > 0 ? parcelData.itemValue : undefined,
-          pickUpCost: parcelData.pickUpCost || 0,
+          pickUpCost: 0, // Default to 0
           deliveryCost: parcelData.deliveryCost || undefined,
           storageCost: undefined,
           shelfNumber: parcelData.shelfLocation, // shelfLocation now contains shelf ID
           hasCalled: parcelData.hasCalled || false,
           homeDelivery: parcelData.homeDelivery || false,
-          vehicleNumber: parcelData.vehicleNumber!,
+          vehicleNumber: parcelData.vehicleNumber || "",
           officeId: officeId,
           pod: false,
           delivered: false,
@@ -220,10 +216,10 @@ export const ParcelRegistration = (): JSX.Element => {
       });
 
       const results = await Promise.all(savePromises);
-      
+
       // Check if all saves were successful
       const failedSaves = results.filter(r => !r.success);
-      
+
       if (failedSaves.length > 0) {
         const errorMessages = failedSaves.map(r => r.message).join(", ");
         showToast(`Failed to save ${failedSaves.length} parcel(s): ${errorMessages}`, "error");
@@ -231,8 +227,8 @@ export const ParcelRegistration = (): JSX.Element => {
       }
 
       const parcelCount = parcelsToSave.length;
-      const driverInfo = sessionDriver?.driverName 
-        ? ` for driver ${sessionDriver.driverName}` 
+      const driverInfo = sessionDriver?.driverName
+        ? ` for driver ${sessionDriver.driverName}`
         : "";
 
       showToast(`Successfully saved ${parcelCount} parcel${parcelCount > 1 ? "s" : ""}${driverInfo}!`, "success");
@@ -281,11 +277,11 @@ export const ParcelRegistration = (): JSX.Element => {
   };
 
   return (
-    <div className="w-full bg-gray-50">
-      <div className="mx-auto max-w-6xl w-full px-4 py-6 sm:px-6 lg:px-8">
+    <div className="w-full h-full">
+      <div className="mx-auto max-w-6xl w-full h-full px-4 py-4 sm:px-6 lg:px-8 flex flex-col">
         {/* Session Banner - Only show if there's an active session - Sticky at top */}
         {sessionDriver && parcels.length > 0 && (
-          <Card className="mb-4 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 sticky top-0 z-10">
+          <Card className="mb-3 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 flex-shrink-0">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -311,7 +307,7 @@ export const ParcelRegistration = (): JSX.Element => {
 
         {/* Navigation Blocker Modal */}
         {showLeaveModal && (
-          <div className=" inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <Card className="w-full max-w-md rounded-lg border border-[#d1d1d1] bg-white shadow-lg">
               <CardContent className="p-6">
                 <div className="mb-4">
@@ -351,22 +347,24 @@ export const ParcelRegistration = (): JSX.Element => {
         )}
 
         {/* Content Area */}
-        <InfoSection
-          parcels={parcels}
-          sessionDriver={sessionDriver}
-          onAddParcel={(data) => {
-            handleAddParcel(data);
-            setIsSaved(false);
-          }}
-          onSaveAll={handleSaveAll}
-          onRemoveParcel={(index) => {
-            handleRemoveParcel(index);
-            if (parcels.length === 1) {
-              setIsSaved(true);
-            }
-          }}
-          isSaving={isSaving}
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <InfoSection
+            parcels={parcels}
+            sessionDriver={sessionDriver}
+            onAddParcel={(data) => {
+              handleAddParcel(data);
+              setIsSaved(false);
+            }}
+            onSaveAll={handleSaveAll}
+            onRemoveParcel={(index) => {
+              handleRemoveParcel(index);
+              if (parcels.length === 1) {
+                setIsSaved(true);
+              }
+            }}
+            isSaving={isSaving}
+          />
+        </div>
       </div>
     </div>
   );
