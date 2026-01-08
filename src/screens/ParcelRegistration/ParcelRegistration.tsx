@@ -277,11 +277,11 @@ export const ParcelRegistration = (): JSX.Element => {
   };
 
   return (
-    <div className="w-full h-full">
-      <div className="mx-auto max-w-6xl w-full h-full px-4 py-4 sm:px-6 lg:px-8 flex flex-col">
-        {/* Session Banner - Only show if there's an active session - Sticky at top */}
+    <div className="w-full min-h-screen">
+      <div className="mx-auto max-w-6xl w-full px-4 py-4 sm:px-6 lg:px-8">
+        {/* Session Banner - Only show if there's an active session */}
         {sessionDriver && parcels.length > 0 && (
-          <Card className="mb-3 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 flex-shrink-0">
+          <Card className="mb-4 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -347,24 +347,22 @@ export const ParcelRegistration = (): JSX.Element => {
         )}
 
         {/* Content Area */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <InfoSection
-            parcels={parcels}
-            sessionDriver={sessionDriver}
-            onAddParcel={(data) => {
-              handleAddParcel(data);
-              setIsSaved(false);
-            }}
-            onSaveAll={handleSaveAll}
-            onRemoveParcel={(index) => {
-              handleRemoveParcel(index);
-              if (parcels.length === 1) {
-                setIsSaved(true);
-              }
-            }}
-            isSaving={isSaving}
-          />
-        </div>
+        <InfoSection
+          parcels={parcels}
+          sessionDriver={sessionDriver}
+          onAddParcel={(data) => {
+            handleAddParcel(data);
+            setIsSaved(false);
+          }}
+          onSaveAll={handleSaveAll}
+          onRemoveParcel={(index) => {
+            handleRemoveParcel(index);
+            if (parcels.length === 1) {
+              setIsSaved(true);
+            }
+          }}
+          isSaving={isSaving}
+        />
       </div>
     </div>
   );

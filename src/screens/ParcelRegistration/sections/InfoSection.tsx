@@ -248,7 +248,7 @@ export const InfoSection = ({
     const isFormValid = recipientName.trim() && phoneNumber.trim() && shelf.trim() && !phoneError && (!homeDelivery || (deliveryCost && parseFloat(deliveryCost) > 0));
 
     return (
-        <div className="space-y-4 pb-4">
+        <div className="space-y-4 pb-6">
             {/* Parcels List - Show if parcels exist */}
             {parcels.length > 0 && (
                 <Card className="border border-[#d1d1d1] bg-white shadow-sm">
@@ -266,7 +266,7 @@ export const InfoSection = ({
                                 {isSaving ? "Saving..." : "Save All Parcels"}
                             </Button>
                         </div>
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                        <div className="space-y-2">
                             {parcels.map((parcel, index) => (
                                 <div
                                     key={index}
@@ -321,7 +321,7 @@ export const InfoSection = ({
             )}
 
             {/* Main Form */}
-            <Card className="w-full border border-[#d1d1d1] bg-white shadow-sm">
+            <Card className="w-full border border-[#d1d1d1] bg-white shadow-sm ">
                 <CardContent className="p-4 sm:p-6">
                     <div className="mb-4">
                         <h2 className="text-lg sm:text-xl font-bold text-neutral-800 mb-1">Add New Parcel</h2>

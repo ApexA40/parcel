@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { PhoneIcon, CheckCircleIcon, Clock, DollarSign, Loader, X, MapPin, Package, User, Truck } from "lucide-react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -6,23 +6,21 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
 import { useStation } from "../../contexts/StationContext";
-import { calculateTotalAmount } from "../../utils/dataHelpers";
+import { calculateTotalAmount, formatDateTime } from "../../utils/dataHelpers";
 import { formatPhoneNumber } from "../../utils/dataHelpers";
 import frontdeskService, { ParcelResponse } from "../../services/frontdeskService";
 import { useToast } from "../../components/ui/toast";
-import { useFrontdeskParcel } from "../../contexts/FrontdeskParcelContext";
-
 export const CallCenter = (): JSX.Element => {
     const { currentUser } = useStation();
     const { showToast } = useToast();
-    const {
-        parcels: allParcels,
-        loading,
-        pagination,
-        loadParcelsIfNeeded,
-        refreshParcels
-    } = useFrontdeskParcel();
-    const [viewMode, setViewMode] = useState<"uncontacted" | "contacted">("uncontacted");
+    const [parcels, setParcels] = useState<ParcelResponse[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [pagination, setPagination] = useState({
+        page: 0,
+        size: 20,
+        totalElements: 0,
+        totalPages: 0,
+    });
     const [selectedParcel, setSelectedParcel] = useState<ParcelResponse | null>(null);
     const [expandedParcelId, setExpandedParcelId] = useState<string | null>(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -33,49 +31,59 @@ export const CallCenter = (): JSX.Element => {
     const [callNotes, setCallNotes] = useState("");
     const [updating, setUpdating] = useState(false);
 
-    // Filter parcels based on view mode
-    const parcels = useMemo(() => {
-        if (viewMode === "uncontacted") {
-            // Show parcels that haven't been called AND homeDelivery is false
-            return allParcels.filter(p =>
-                (p.hasCalled === false || p.hasCalled === null || p.hasCalled === undefined) &&
-                (p.homeDelivery === false || p.homeDelivery === undefined)
-            );
-        } else {
-            // Show all contacted parcels (hasCalled === true)
-            return allParcels.filter(p => p.hasCalled === true);
-        }
-    }, [allParcels, viewMode]);
-
-    // Calculate stats
-    const { uncontacted: uncontactedCount, contacted: contactedCount, ready: readyCount } = useMemo(() => {
-        const uncontacted = allParcels.filter(p =>
-            (p.hasCalled === false || p.hasCalled === null || p.hasCalled === undefined) &&
-            (p.homeDelivery === false || p.homeDelivery === undefined)
-        ).length;
-        const contacted = allParcels.filter(p => p.hasCalled === true).length;
-        const readyForDelivery = allParcels.filter(p =>
-            p.hasCalled === true && p.homeDelivery === true
-        ).length;
-
-        return {
-            uncontacted,
-            contacted,
-            ready: readyForDelivery,
-        };
-    }, [allParcels]);
-
-    // Load parcels on mount and when view mode changes
+    // Load uncalled parcels on mount and when page changes
     useEffect(() => {
-        const hasCache = allParcels.length > 0;
-        // Load all parcels without filters - we'll filter client-side
-        loadParcelsIfNeeded({}, pagination.page, pagination.size, !hasCache);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        const fetchUncalledParcels = async () => {
+            setLoading(true);
+            try {
+                const response = await frontdeskService.getUncalledParcels(pagination.page, pagination.size);
+                if (response.success && response.data) {
+                    const data = response.data as any;
+                    const parcelsArray = Array.isArray(data.content) ? data.content : [];
+                    setParcels(parcelsArray);
+                    setPagination({
+                        page: data.number || 0,
+                        size: data.size || pagination.size,
+                        totalElements: data.totalElements || 0,
+                        totalPages: data.totalPages || 0,
+                    });
+                } else {
+                    showToast(response.message || "Failed to load uncalled parcels", "error");
+                    setParcels([]);
+                }
+            } catch (error) {
+                console.error("Failed to fetch uncalled parcels:", error);
+                showToast("Failed to load uncalled parcels. Please try again.", "error");
+                setParcels([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchUncalledParcels();
+    }, [pagination.page, pagination.size, showToast]);
 
     // Refresh parcels after updates
     const handleRefresh = async () => {
-        await refreshParcels({}, pagination.page, pagination.size);
+        setLoading(true);
+        try {
+            const response = await frontdeskService.getUncalledParcels(pagination.page, pagination.size);
+            if (response.success && response.data) {
+                const data = response.data as any;
+                const parcelsArray = Array.isArray(data.content) ? data.content : [];
+                setParcels(parcelsArray);
+                setPagination({
+                    page: data.number || 0,
+                    size: data.size || pagination.size,
+                    totalElements: data.totalElements || 0,
+                    totalPages: data.totalPages || 0,
+                });
+            }
+        } catch (error) {
+            console.error("Failed to refresh uncalled parcels:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleParcelSelect = (parcel: ParcelResponse) => {
@@ -97,37 +105,6 @@ export const CallCenter = (): JSX.Element => {
         // Show the same details modal as View/Edit button
         handleParcelSelect(parcel);
         setShowDetailsModal(true);
-    };
-
-    const handleMarkContacted = async (parcel?: ParcelResponse) => {
-        const parcelToUpdate = parcel || selectedParcel;
-        if (!parcelToUpdate || !currentUser) return;
-
-        setUpdating(true);
-        try {
-            // Update parcel to mark as contacted (hasCalled=true)
-            const response = await frontdeskService.updateParcel(parcelToUpdate.parcelId, {
-                hasCalled: true,
-            });
-
-            if (response.success) {
-                showToast(`Marked ${parcelToUpdate.receiverName || parcelToUpdate.parcelId} as contacted`, "success");
-                // Refresh parcels list
-                await handleRefresh();
-                // If this was called from handleMarkAsCalled, the form is already expanded
-                if (!parcel) {
-                    // If called from the button, expand the form
-                    setExpandedParcelId(parcelToUpdate.parcelId);
-                }
-            } else {
-                showToast(response.message || "Failed to mark as contacted", "error");
-            }
-        } catch (error) {
-            console.error("Mark contacted error:", error);
-            showToast("Failed to mark as contacted. Please try again.", "error");
-        } finally {
-            setUpdating(false);
-        }
     };
 
     const handleSavePreferences = async () => {
@@ -187,7 +164,7 @@ export const CallCenter = (): JSX.Element => {
         <div className="w-full">
             <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
                 <main className="flex-1 space-y-6">
-                    {/* Header with Toggle */}
+                    {/* Header */}
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-xl font-bold text-neutral-800">Call Center</h1>
@@ -195,63 +172,20 @@ export const CallCenter = (): JSX.Element => {
                                 Contact customers and manage delivery preferences
                             </p>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <span className={`text-sm font-medium ${viewMode === "uncontacted" ? "text-[#ea690c]" : "text-[#5d5d5d]"}`}>
-                                Uncontacted
-                            </span>
-                            <button
-                                onClick={() => setViewMode(viewMode === "uncontacted" ? "contacted" : "uncontacted")}
-                                className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-[#ea690c] focus:ring-offset-2"
-                            >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${viewMode === "contacted" ? "translate-x-6" : "translate-x-1"
-                                        }`}
-                                />
-                            </button>
-                            <span className={`text-sm font-medium ${viewMode === "contacted" ? "text-[#ea690c]" : "text-[#5d5d5d]"}`}>
-                                Contacted
-                            </span>
-                        </div>
                     </div>
 
-                    {/* Statistics Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card className="border border-[#d1d1d1] bg-white shadow-sm">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex flex-col gap-2">
-                                        <p className="text-sm text-[#5d5d5d]">Uncontacted</p>
-                                        <h3 className="text-3xl font-bold text-[#e22420]">{uncontactedCount}</h3>
-                                    </div>
-                                    <CheckCircleIcon className="w-12 h-12 text-[#e22420] opacity-20" />
+                    {/* Statistics Card */}
+                    <Card className="border border-[#d1d1d1] bg-white shadow-sm">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col gap-2">
+                                    <p className="text-sm text-[#5d5d5d]">Uncontacted Parcels</p>
+                                    <h3 className="text-3xl font-bold text-[#e22420]">{pagination.totalElements}</h3>
                                 </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border border-[#d1d1d1] bg-white shadow-sm">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex flex-col gap-2">
-                                        <p className="text-sm text-[#5d5d5d]">In Progress</p>
-                                        <h3 className="text-3xl font-bold text-orange-500">{contactedCount}</h3>
-                                    </div>
-                                    <Clock className="w-12 h-12 text-orange-500 opacity-20" />
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border border-[#d1d1d1] bg-white shadow-sm">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex flex-col gap-2">
-                                        <p className="text-sm text-[#5d5d5d]">Ready for Delivery</p>
-                                        <h3 className="text-3xl font-bold text-green-600">{readyCount}</h3>
-                                    </div>
-                                    <CheckCircleIcon className="w-12 h-12 text-green-600 opacity-20" />
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                                <CheckCircleIcon className="w-12 h-12 text-[#e22420] opacity-20" />
+                            </div>
+                        </CardContent>
+                    </Card>
 
                     {/* Parcels Table */}
                     <Card className="border border-[#d1d1d1] bg-white">
@@ -265,9 +199,7 @@ export const CallCenter = (): JSX.Element => {
                                 <div className="text-center py-12">
                                     <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-4 opacity-50" />
                                     <p className="text-sm text-[#5d5d5d]">
-                                        {viewMode === "uncontacted"
-                                            ? "All parcels contacted!"
-                                            : "No contacted parcels yet"}
+                                        All parcels contacted!
                                     </p>
                                 </div>
                             ) : (
@@ -281,11 +213,6 @@ export const CallCenter = (): JSX.Element => {
                                                 <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
                                                     Phone
                                                 </th>
-                                                {viewMode === "contacted" && (
-                                                    <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
-                                                        Delivery Type
-                                                    </th>
-                                                )}
                                                 <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
                                                     Status
                                                 </th>
@@ -315,6 +242,12 @@ export const CallCenter = (): JSX.Element => {
                                                                             From: {parcel.senderName}
                                                                         </p>
                                                                     )}
+                                                                    {parcel.createdAt !== null && parcel.createdAt !== undefined && (
+                                                                        <p className="text-xs text-blue-600 mt-0.5 flex items-center gap-1">
+                                                                            <Clock className="w-3 h-3" />
+                                                                            Registered: {formatDateTime(new Date(parcel.createdAt).toISOString())}
+                                                                        </p>
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                             <td className="py-3 px-4 whitespace-nowrap">
@@ -325,21 +258,6 @@ export const CallCenter = (): JSX.Element => {
                                                                     {parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : "N/A"}
                                                                 </a>
                                                             </td>
-                                                            {viewMode === "contacted" && (
-                                                                <td className="py-3 px-4 whitespace-nowrap">
-                                                                    {parcel.homeDelivery ? (
-                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                                            <MapPin className="w-3.5 h-3.5" />
-                                                                            Home Delivery
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                                            <Package className="w-3.5 h-3.5" />
-                                                                            Customer Pickup
-                                                                        </span>
-                                                                    )}
-                                                                </td>
-                                                            )}
                                                             <td className="py-3 px-4 whitespace-nowrap">
                                                                 {parcel.hasCalled ? (
                                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -574,6 +492,39 @@ export const CallCenter = (): JSX.Element => {
                                             })}
                                         </tbody>
                                     </table>
+                                </div>
+                            )}
+
+                            {/* Pagination */}
+                            {!loading && pagination.totalPages > 1 && (
+                                <div className="px-6 py-4 border-t border-[#d1d1d1] flex items-center justify-between">
+                                    <div className="text-sm text-neutral-700">
+                                        Showing {pagination.page * pagination.size + 1} to {Math.min((pagination.page + 1) * pagination.size, pagination.totalElements)} of {pagination.totalElements} parcels
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={() => {
+                                                setPagination(prev => ({ ...prev, page: prev.page - 1 }));
+                                            }}
+                                            disabled={pagination.page === 0 || loading}
+                                            variant="outline"
+                                            size="sm"
+                                            className="border border-[#d1d1d1]"
+                                        >
+                                            Previous
+                                        </Button>
+                                        <Button
+                                            onClick={() => {
+                                                setPagination(prev => ({ ...prev, page: prev.page + 1 }));
+                                            }}
+                                            disabled={pagination.page >= pagination.totalPages - 1 || loading}
+                                            variant="outline"
+                                            size="sm"
+                                            className="border border-[#d1d1d1]"
+                                        >
+                                            Next
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>

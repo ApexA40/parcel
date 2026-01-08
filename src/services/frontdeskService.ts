@@ -81,6 +81,8 @@ interface ParcelResponse {
     inboudPayed?: boolean | null;
     homeDelivery?: boolean;
     registeredDate?: number;
+    createdAt?: number | null;
+    updatedAt?: number | null;
 }
 
 interface PageParcelResponse {
@@ -237,11 +239,11 @@ class FrontdeskService {
     ): Promise<ApiResponse> {
         try {
             const params = new URLSearchParams();
-            
+
             // Add pagination
             params.append('page', (pageable.page || 0).toString());
             params.append('size', (pageable.size || 50).toString());
-            
+
             if (pageable.sort && pageable.sort.length > 0) {
                 pageable.sort.forEach(sort => {
                     params.append('sort', sort);
@@ -285,6 +287,81 @@ class FrontdeskService {
             return {
                 success: false,
                 message: error.response?.data?.message || 'Failed to retrieve parcels. Please try again.',
+            };
+        }
+    }
+
+    /**
+     * Get home delivery parcels for assignment
+     * Endpoint: GET /parcels/home-delivery
+     */
+    async getHomeDeliveryParcels(): Promise<ApiResponse> {
+        try {
+            const response = await this.apiClient.get<ParcelResponse[] | PageParcelResponse>('/parcels/home-delivery');
+
+            // Handle both array and paginated response formats
+            let parcels: ParcelResponse[] = [];
+            if (Array.isArray(response.data)) {
+                parcels = response.data;
+            } else if (response.data && typeof response.data === 'object' && 'content' in response.data) {
+                // Paginated response
+                parcels = (response.data as PageParcelResponse).content || [];
+            }
+
+            return {
+                success: true,
+                message: 'Home delivery parcels retrieved successfully',
+                data: parcels,
+            };
+        } catch (error: any) {
+            console.error('Get home delivery parcels error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to retrieve home delivery parcels. Please try again.',
+                data: [],
+            };
+        }
+    }
+
+    /**
+     * Get uncalled parcels for call center
+     * Endpoint: GET /parcels-uncalled
+     * Supports pagination with page and size parameters
+     */
+    async getUncalledParcels(page: number = 0, size: number = 20): Promise<ApiResponse> {
+        try {
+            const params = new URLSearchParams();
+            params.append('page', page.toString());
+            params.append('size', size.toString());
+
+            const response = await this.apiClient.get<PageParcelResponse>(`/parcels-uncalled?${params.toString()}`);
+
+            // Extract parcels from paginated response
+            const parcels: ParcelResponse[] = response.data?.content || [];
+
+            return {
+                success: true,
+                message: 'Uncalled parcels retrieved successfully',
+                data: {
+                    content: parcels,
+                    totalElements: response.data?.totalElements || 0,
+                    totalPages: response.data?.totalPages || 0,
+                    number: response.data?.number || 0,
+                    size: response.data?.size || size,
+                },
+            };
+        } catch (error: any) {
+            console.error('Get uncalled parcels error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to retrieve uncalled parcels. Please try again.',
+                data: {
+                    content: [],
+                    totalElements: 0,
+                    totalPages: 0,
+                    number: 0,
+                    size: size,
+                },
             };
         }
     }
