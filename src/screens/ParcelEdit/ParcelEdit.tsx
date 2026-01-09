@@ -38,6 +38,8 @@ export const ParcelEdit = (): JSX.Element => {
         vehicleNumber: "",
         senderPhoneNumber: "",
         senderName: "",
+        receiverName: "",
+        recieverPhoneNumber: "",
         receiverAddress: "",
         parcelDescription: "",
         inboundCost: "",
@@ -94,6 +96,8 @@ export const ParcelEdit = (): JSX.Element => {
             vehicleNumber: parcel.vehicleNumber || "",
             senderPhoneNumber: parcel.senderPhoneNumber || "",
             senderName: parcel.senderName || "",
+            receiverName: parcel.receiverName || "",
+            recieverPhoneNumber: parcel.recieverPhoneNumber || "",
             receiverAddress: parcel.receiverAddress || "",
             parcelDescription: parcel.parcelDescription || "",
             inboundCost: parcel.inboundCost?.toString() || "",
@@ -124,6 +128,8 @@ export const ParcelEdit = (): JSX.Element => {
             if (formData.vehicleNumber) updateData.vehicleNumber = formData.vehicleNumber;
             if (formData.senderPhoneNumber) updateData.senderPhoneNumber = formData.senderPhoneNumber;
             if (formData.senderName) updateData.senderName = formData.senderName;
+            if (formData.receiverName) updateData.receiverName = formData.receiverName;
+            if (formData.recieverPhoneNumber) updateData.recieverPhoneNumber = formData.recieverPhoneNumber;
             if (formData.receiverAddress) updateData.receiverAddress = formData.receiverAddress;
             if (formData.parcelDescription) updateData.parcelDescription = formData.parcelDescription;
 
@@ -346,22 +352,32 @@ export const ParcelEdit = (): JSX.Element => {
                                                 Recipient Name
                                             </Label>
                                             <Input
-                                                value={selectedParcel.receiverName || ""}
-                                                disabled
-                                                className="border border-[#d1d1d1] bg-gray-50"
+                                                value={formData.receiverName}
+                                                onChange={(e) =>
+                                                    setFormData({ ...formData, receiverName: e.target.value })
+                                                }
+                                                placeholder="Enter recipient name"
+                                                className="border border-[#d1d1d1]"
                                             />
-                                            <p className="text-xs text-[#5d5d5d] mt-1">This field cannot be edited</p>
+                                            <p className="text-xs text-[#5d5d5d] mt-1">
+                                                You can update the recipient name if needed
+                                            </p>
                                         </div>
                                         <div>
                                             <Label className="text-sm font-semibold text-neutral-800 mb-2 block">
                                                 Recipient Phone
                                             </Label>
                                             <Input
-                                                value={selectedParcel.recieverPhoneNumber || ""}
-                                                disabled
-                                                className="border border-[#d1d1d1] bg-gray-50"
+                                                value={formData.recieverPhoneNumber}
+                                                onChange={(e) =>
+                                                    setFormData({ ...formData, recieverPhoneNumber: e.target.value })
+                                                }
+                                                placeholder="Enter recipient phone"
+                                                className="border border-[#d1d1d1]"
                                             />
-                                            <p className="text-xs text-[#5d5d5d] mt-1">This field cannot be edited</p>
+                                            <p className="text-xs text-[#5d5d5d] mt-1">
+                                                You can update the recipient phone number if needed
+                                            </p>
                                         </div>
                                         <div className="col-span-1 md:col-span-2">
                                             <Label className="text-sm font-semibold text-neutral-800 mb-2 block flex items-center gap-1">

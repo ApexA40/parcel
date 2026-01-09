@@ -576,7 +576,7 @@ export const InfoSection = ({
                                         placeholder="0.00"
                                         min="0"
                                         step="0.01"
-                                        className="w-full rounded-lg border border-[#d1d1d1] bg-white px-3 py-2"
+                                        className="w-full rounded-lg border border-[#d1d1d1] bg-white px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                 </div>
 
@@ -614,7 +614,7 @@ export const InfoSection = ({
                                             placeholder="0.00"
                                             min="0"
                                             step="0.01"
-                                            className="w-full rounded-lg border border-[#d1d1d1] bg-white px-3 py-2"
+                                            className="w-full rounded-lg border border-[#d1d1d1] bg-white px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             required
                                         />
                                         <p className="text-xs text-blue-600">
