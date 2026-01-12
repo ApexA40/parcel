@@ -40,6 +40,7 @@ interface RiderParcelResponse {
     homeDelivery?: boolean;
     pod?: boolean;
     delivered?: boolean;
+    cancelled?: boolean;
     parcelAssigned?: boolean;
     fragile?: boolean;
 }
@@ -161,14 +162,14 @@ class RiderService {
                 // Handle both new format (receiverPhoneNumber, parcelAmount) and old format
                 const parcelAmount = parcelItem.parcelAmount;
                 const receiverPhone = parcelItem.receiverPhoneNumber || parcelItem.recieverPhoneNumber;
-                
+
                 // If parcelAmount is provided and individual cost fields are not, use parcelAmount as deliveryCost
                 // Otherwise, use individual cost fields if available
-                const hasIndividualCosts = parcelItem.deliveryCost !== undefined || 
-                                          parcelItem.pickUpCost !== undefined || 
-                                          parcelItem.inboundCost !== undefined || 
-                                          parcelItem.storageCost !== undefined;
-                
+                const hasIndividualCosts = parcelItem.deliveryCost !== undefined ||
+                    parcelItem.pickUpCost !== undefined ||
+                    parcelItem.inboundCost !== undefined ||
+                    parcelItem.storageCost !== undefined;
+
                 return {
                     parcelId: parcelItem.parcelId,
                     parcelDescription: parcelItem.parcelDescription,
@@ -194,6 +195,7 @@ class RiderService {
                     homeDelivery: parcelItem.homeDelivery,
                     pod: parcelItem.POD || parcelItem.pod,
                     delivered: parcelItem.delivered || parcelItem.payed || false,
+                    cancelled: parcelItem.cancelled || false,
                     parcelAssigned: parcelItem.parcelAssigned,
                     fragile: parcelItem.fragile,
                     inboudPayed: parcelItem.inboudPayed || parcelItem.payed,
@@ -209,7 +211,7 @@ class RiderService {
                     // New format: assignment with multiple parcels
                     const riderName = item.riderInfo?.riderName || item.riderName || "Rider";
                     const riderInfo = item.riderInfo || { riderId: item.riderId, riderName, riderPhoneNumber: item.riderPhoneNumber };
-                    
+
                     // Create one assignment per parcel (flattened)
                     item.parcels.forEach((parcelItem: any) => {
                         const mappedParcel = mapParcelFromNewFormat(parcelItem);

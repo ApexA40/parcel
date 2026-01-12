@@ -105,16 +105,14 @@ export const RiderHistory = (): JSX.Element => {
         fetchAssignments();
     }, [fetchAssignments]);
 
-    // Filter only completed/delivered assignments
+    // Filter only completed/delivered assignments based on parcel-level delivery status
+    // Backend assignment.status is unreliable, so we rely on parcel.delivered
     const completedAssignments = useMemo(() => {
         if (!Array.isArray(assignments)) {
             console.warn('Assignments is not an array:', assignments);
             return [];
         }
-        return assignments.filter(a => {
-            const uiStatus = mapAssignmentStatusToUI(a.status);
-            return uiStatus === "delivered" || uiStatus === "delivery-failed";
-        });
+        return assignments.filter(a => a.parcel?.delivered);
     }, [assignments]);
 
     return (

@@ -20,7 +20,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { formatPhoneNumber, formatDateTime, formatCurrency } from "../../utils/dataHelpers";
-import riderService, { RiderAssignmentResponse, AssignmentStatus } from "../../services/riderService";
+import riderService, { RiderAssignmentResponse, AssignmentStatus, RiderParcelResponse } from "../../services/riderService";
 import { useToast } from "../../components/ui/toast";
 import { generateAssignmentsPDF } from "../../utils/pdfGenerator";
 import { useStation } from "../../contexts/StationContext";
@@ -283,14 +283,16 @@ export const RiderDashboard = (): JSX.Element => {
         }
     };
 
-    // Filter assignments by status
+    // Filter assignments by parcel-level status
+    // Backend assignment.status is unreliable, so we rely on parcel flags
     const activeAssignments = useMemo(() => {
         console.log('Filtering assignments. Total:', assignments.length);
         const filtered = assignments.filter(a => {
-            const uiStatus = mapAssignmentStatusToUI(a.status);
-            const isActive = uiStatus !== "delivered" && uiStatus !== "delivery-failed";
+            const isDelivered = !!a.parcel?.delivered;
+            const isCancelled = !!a.parcel?.cancelled;
+            const isActive = !isDelivered && !isCancelled;
             if (!isActive) {
-                console.log('Filtered out assignment:', a.assignmentId, 'status:', a.status, 'uiStatus:', uiStatus);
+                console.log('Filtered out assignment:', a.assignmentId, 'parcel delivered:', a.parcel?.delivered, 'parcel cancelled:', a.parcel?.cancelled);
             }
             return isActive;
         });
@@ -337,24 +339,34 @@ export const RiderDashboard = (): JSX.Element => {
         }
     };
 
-    const getStatusBadge = (status: AssignmentStatus) => {
-        const uiStatus = mapAssignmentStatusToUI(status);
-        const statusConfig: Record<UIStatus, { label: string; color: string; borderColor: string }> = {
-            "assigned": { label: "Assigned", color: "bg-blue-100 text-blue-800", borderColor: "border-blue-300" },
-            "accepted": { label: "Accepted", color: "bg-indigo-100 text-indigo-800", borderColor: "border-indigo-300" },
-            "picked-up": { label: "Picked Up", color: "bg-purple-100 text-purple-800", borderColor: "border-purple-300" },
-            "out-for-delivery": { label: "Out for Delivery", color: "bg-purple-100 text-purple-800", borderColor: "border-purple-300" },
-            "delivered": { label: "Delivered", color: "bg-green-100 text-green-800", borderColor: "border-green-300" },
-            "delivery-failed": { label: "Failed", color: "bg-red-100 text-red-800", borderColor: "border-red-300" },
-        };
-        const config = statusConfig[uiStatus] || { label: status, color: "bg-gray-100 text-gray-800", borderColor: "border-gray-300" };
-        return <Badge className={`${config.color} ${config.borderColor} border font-semibold px-3 py-1 shadow-sm`}>{config.label}</Badge>;
+    // Get status badge based on parcel-level status fields (delivered, cancelled)
+    const getStatusBadge = (parcel: RiderParcelResponse) => {
+        let statusLabel: string;
+        let statusColor: string;
+        let borderColor: string;
+
+        if (parcel.cancelled) {
+            statusLabel = "Cancelled";
+            statusColor = "bg-red-100 text-red-800";
+            borderColor = "border-red-300";
+        } else if (parcel.delivered) {
+            statusLabel = "Delivered";
+            statusColor = "bg-green-100 text-green-800";
+            borderColor = "border-green-300";
+        } else {
+            // Default to "Assigned" for active parcels
+            statusLabel = "Assigned";
+            statusColor = "bg-blue-100 text-blue-800";
+            borderColor = "border-blue-300";
+        }
+
+        return <Badge className={`${statusColor} ${borderColor} border font-semibold px-3 py-1 shadow-sm`}>{statusLabel}</Badge>;
     };
 
     const getNextStatusAction = (assignment: RiderAssignmentResponse) => {
-        const uiStatus = mapAssignmentStatusToUI(assignment.status);
-        // Riders can only mark as delivered or failed, no pickup step needed
-        if (uiStatus === "assigned" || uiStatus === "accepted" || uiStatus === "picked-up") {
+        const parcel = assignment.parcel;
+        // Only show "Mark Delivered" button if parcel is not delivered and not cancelled
+        if (!parcel.delivered && !parcel.cancelled) {
             return { label: "Mark Delivered", status: "delivered" as UIStatus, color: "bg-green-600" };
         }
         return null;
@@ -506,7 +518,7 @@ export const RiderDashboard = (): JSX.Element => {
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
-                                                        {getStatusBadge(assignment.status)}
+                                                        {getStatusBadge(parcel)}
                                                     </td>
                                                     <td className="px-4 py-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-2">
@@ -759,7 +771,7 @@ export const RiderDashboard = (): JSX.Element => {
                                             <Badge className="bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 text-sm font-semibold px-3 py-1 shadow-sm">
                                                 {parcel.parcelId}
                                             </Badge>
-                                            {getStatusBadge(selectedAssignment.status)}
+                                            {getStatusBadge(selectedAssignment.parcel)}
                                         </div>
 
                                         {/* Recipient Information */}
@@ -787,26 +799,16 @@ export const RiderDashboard = (): JSX.Element => {
                                             </div>
                                         </div>
 
-                                        {/* Delivery/Pickup Location */}
-                                        {parcel.homeDelivery && parcel.receiverAddress ? (
-                                            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                                                <h4 className="text-sm font-bold text-green-900 mb-3 flex items-center gap-2">
-                                                    <MapPinIcon className="w-4 h-4" />
-                                                    Delivery Address
-                                                </h4>
-                                                <p className="text-sm text-neutral-800">{parcel.receiverAddress}</p>
-                                            </div>
-                                        ) : (
-                                            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                                                <h4 className="text-sm font-bold text-purple-900 mb-3 flex items-center gap-2">
-                                                    <PackageIcon className="w-4 h-4" />
-                                                    Pickup Location
-                                                </h4>
-                                                <p className="text-sm text-neutral-800">
-                                                    Shelf: <strong>{parcel.shelfName || "N/A"}</strong> (Customer Pickup)
-                                                </p>
-                                            </div>
-                                        )}
+                                        {/* Delivery Address */}
+                                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                            <h4 className="text-sm font-bold text-green-900 mb-3 flex items-center gap-2">
+                                                <MapPinIcon className="w-4 h-4" />
+                                                Delivery Address
+                                            </h4>
+                                            <p className="text-sm text-neutral-800">
+                                                {parcel.receiverAddress || "N/A"}
+                                            </p>
+                                        </div>
 
                                         {/* Sender Information */}
                                         {(parcel.senderName || parcel.senderPhoneNumber) && (
