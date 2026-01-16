@@ -23,7 +23,7 @@ const navItems = [
     { label: "Call Center", path: "/call-center", icon: PhoneIcon, roles: ["CALLER", "MANAGER", "FRONTDESK"] },
     { label: "Active Deliveries", path: "/active-deliveries", icon: TruckIcon, roles: ["MANAGER",] },
     { label: "Reconciliation", path: "/reconciliation", icon: DollarSignIcon, roles: ["CALLER", "MANAGER",] },
-
+    { label: "Reconciliation History", path: "/reconciliation-history", icon: DollarSignIcon, roles: ["MANAGER"] },
     // Station Manager & Front Desk - Management
     // { label: "Financial Dashboard", path: "/financial-dashboard", icon: LayoutDashboard, roles: ["MANAGER", "FRONTDESK"] },
     { label: "Shelf Management", path: "/shelf-management", icon: Layers, roles: ["MANAGER",] },
