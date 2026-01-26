@@ -379,7 +379,8 @@ export const Reconciliation = (): JSX.Element => {
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Rider</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Delivered Parcels</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Total Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Exp Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Deliverd Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Delivery Cost</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">Inbound Cost</th>
                       </tr>
@@ -436,6 +437,11 @@ export const Reconciliation = (): JSX.Element => {
                                   {group.totalDeliveredCount} / {group.totalParcelsCount}
                                 </div>
                                 <div className="text-xs text-gray-500">Delivered / Total</div>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
+                                <div className="text-sm font-bold text-[#ea690c]">
+                                  {formatCurrency(group.amount)}
+                                </div>
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap border-r border-gray-100">
                                 <div className="text-sm font-bold text-[#ea690c]">
