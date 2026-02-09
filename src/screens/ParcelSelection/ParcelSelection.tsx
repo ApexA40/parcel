@@ -9,19 +9,17 @@ import {
     UserIcon,
     AlertCircleIcon,
     X,
-    Calendar,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
 import { formatPhoneNumber, formatCurrency } from "../../utils/dataHelpers";
 import { ParcelResponse, RiderResponse } from "../../services/frontdeskService";
 import { useToast } from "../../components/ui/toast";
 import frontdeskService from "../../services/frontdeskService";
 import { useStation } from "../../contexts/StationContext";
+import { Label } from "@radix-ui/react-label";
 
 interface ParcelCardProps {
     parcel: ParcelResponse;
@@ -30,7 +28,6 @@ interface ParcelCardProps {
 }
 
 const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
-    // Determine status from API fields
     let statusLabel = "Ready";
     let statusColor = "bg-green-100 text-green-800";
     if (parcel.delivered) {
@@ -41,10 +38,8 @@ const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
         statusColor = "bg-blue-100 text-blue-800";
     }
 
-    // Calculate total amount from API fields
     const totalAmount = (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0) + (parcel.inboundCost || 0) + (parcel.storageCost || 0);
 
-    // Show delivery address if home delivery, otherwise show shelf for pickup
     const hasDeliveryAddress = parcel.receiverAddress && parcel.homeDelivery;
 
     return (
@@ -54,7 +49,6 @@ const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
         >
             <CardContent className="p-4">
                 <div className="flex flex-col gap-4">
-                    {/* Header with checkbox and package ID */}
                     <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
                             <button
@@ -81,7 +75,6 @@ const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
                         <Badge className={statusColor}>{statusLabel}</Badge>
                     </div>
 
-                    {/* Details */}
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
                             <PhoneIcon className="w-4 h-4 text-[#5d5d5d]" />
@@ -118,7 +111,6 @@ const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
                             </div>
                         )}
 
-                        {/* NEW: Rider information when parcel assigned to a rider */}
                         {parcel.riderInfo && (
                             <div className="flex items-center gap-2">
                                 <UserIcon className="w-4 h-4 text-[#5d5d5d]" />
@@ -142,7 +134,6 @@ const ParcelCard = ({ parcel, isSelected, onToggle }: ParcelCardProps) => {
                         </div>
                     </div>
 
-                    {/* Status message */}
                     <div className="rounded-lg border p-3 bg-green-50 border-green-200">
                         <div className="flex items-center gap-2">
                             <TruckIcon className="w-4 h-4 text-green-600" />
@@ -169,34 +160,15 @@ export const ParcelSelection = (): JSX.Element => {
     const [loadingRiders, setLoadingRiders] = useState(false);
     const [selectedRider, setSelectedRider] = useState<string | null>(null);
     const [isAssigning, setIsAssigning] = useState(false);
-    const [selectedDate, setSelectedDate] = useState<string>("");
+    const [filterMode, setFilterMode] = useState<'ready' | 'assigned'>('ready');
 
-    // Helper function to get today's date in YYYY-MM-DD format
-    const getTodayDate = (): string => {
-        const today = new Date();
-        return today.toISOString().split('T')[0];
-    };
-
-    // Helper function to convert timestamp to YYYY-MM-DD format
-    const formatDateFromTimestamp = (timestamp: number | null | undefined): string => {
-        if (!timestamp) {
-            return getTodayDate(); // Default to today if timestamp is missing
+    const filterParcelsByMode = (parcels: ParcelResponse[], mode: 'ready' | 'assigned') => {
+        if (mode === 'assigned') {
+            return parcels.filter(p => !!p.parcelAssigned || !!p.riderInfo);
         }
-        const date = new Date(timestamp);
-        return date.toISOString().split('T')[0];
+        return parcels.filter(p => !p.parcelAssigned && !p.riderInfo);
     };
 
-    // Filter parcels by selected date
-    const filterParcelsByDate = (parcels: ParcelResponse[], dateString: string): ParcelResponse[] => {
-        if (!dateString) return parcels;
-
-        return parcels.filter((parcel) => {
-            const parcelDate = formatDateFromTimestamp(parcel.createdAt);
-            return parcelDate === dateString;
-        });
-    };
-
-    // Load home delivery parcels on mount
     useEffect(() => {
         const fetchHomeDeliveryParcels = async () => {
             setLoading(true);
@@ -204,20 +176,12 @@ export const ParcelSelection = (): JSX.Element => {
                 const response = await frontdeskService.getHomeDeliveryParcels();
 
                 if (response.success && response.data) {
-                    // Ensure data is an array
                     const parcels = Array.isArray(response.data)
                         ? response.data as ParcelResponse[]
                         : [];
-
-                    // Filter out parcels with undefined createdAt
-                    const validParcels = parcels.filter(p => p.createdAt);
-
+                    const validParcels = parcels.filter(p => p.parcelId);
                     setAllParcels(validParcels);
-
-                    // Initialize with today's date
-                    const today = getTodayDate();
-                    setSelectedDate(today);
-                    setFilteredParcels(filterParcelsByDate(validParcels, today));
+                    setFilteredParcels(filterParcelsByMode(validParcels, filterMode));
                 } else {
                     showToast(response.message || "Failed to load parcels", "error");
                     setAllParcels([]);
@@ -234,32 +198,12 @@ export const ParcelSelection = (): JSX.Element => {
         };
 
         fetchHomeDeliveryParcels();
-    }, [showToast]);
+    }, [showToast, filterMode]);
 
-    // Handle date change
-    const handleDateChange = (newDate: string) => {
-        setSelectedDate(newDate);
-        setFilteredParcels(filterParcelsByDate(allParcels, newDate));
-        // Clear selections when date changes
+    useEffect(() => {
+        setFilteredParcels(filterParcelsByMode(allParcels, filterMode));
         setSelectedParcels(new Set());
-    };
-
-    // Get unique dates from parcels
-    const getUniqueDates = (): string[] => {
-        const dates = new Set<string>();
-        allParcels.forEach((parcel) => {
-            if (parcel.createdAt) { // Add null check
-                const dateStr = formatDateFromTimestamp(parcel.createdAt);
-                dates.add(dateStr);
-            }
-        });
-        return Array.from(dates).sort().reverse();
-    };
-
-    const uniqueDates = getUniqueDates();
-    const parcelCountByDate = (dateString: string): number => {
-        return filterParcelsByDate(allParcels, dateString).length;
-    };
+    }, [allParcels, filterMode]);
 
     const toggleParcel = (parcelId: string) => {
         const newSelected = new Set(selectedParcels);
@@ -278,7 +222,6 @@ export const ParcelSelection = (): JSX.Element => {
     const handleAssign = () => {
         if (selectedParcels.size > 0) {
             setShowRiderModal(true);
-            // Fetch riders when modal opens
             fetchRiders();
         }
     };
@@ -316,20 +259,17 @@ export const ParcelSelection = (): JSX.Element => {
             if (response.success) {
                 showToast(`Successfully assigned ${parcelIds.length} parcel(s) to rider!`, "success");
 
-                // Clear selections and close modal
                 setSelectedParcels(new Set());
                 setSelectedRider(null);
                 setShowRiderModal(false);
 
-                // Refresh parcels to update the list
                 const refreshResponse = await frontdeskService.getHomeDeliveryParcels();
                 if (refreshResponse.success && refreshResponse.data) {
                     const parcels = Array.isArray(refreshResponse.data)
                         ? refreshResponse.data as ParcelResponse[]
                         : [];
                     setAllParcels(parcels);
-                    // Re-filter with current selected date
-                    setFilteredParcels(filterParcelsByDate(parcels, selectedDate));
+                    setFilteredParcels(filterParcelsByMode(parcels, filterMode));
                 } else {
                     setAllParcels([]);
                     setFilteredParcels([]);
@@ -351,47 +291,36 @@ export const ParcelSelection = (): JSX.Element => {
         <div className="w-full">
             <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
                 <main className="flex-1 space-y-6">
-                    {/* Header */}
-
-
-                    {/* Date Filter */}
                     <Card className="w-full rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
                         <CardContent className="p-4">
-                            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-                                <div className="flex-1">
-                                    <Label className="block text-xs font-semibold text-[#5d5d5d] mb-2">Select Date</Label>
-                                    <Input
-                                        type="date"
-                                        value={selectedDate}
-                                        onChange={(e) => handleDateChange(e.target.value)}
-                                        className="w-full border border-[#d1d1d1]"
-                                        max={getTodayDate()}
-                                    />
+                            <div className="flex items-center gap-4">
+                                <Label className="block text-xs font-semibold text-[#5d5d5d]">Filter</Label>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => { setFilterMode('ready'); setSelectedParcels(new Set()); }}
+                                        className={`px-3 py-1 rounded ${filterMode === 'ready' ? 'bg-[#ea690c] text-white' : 'bg-white border border-[#d1d1d1] text-neutral-700'}`}
+                                    >
+                                        Ready
+                                    </button>
+                                    <button
+                                        onClick={() => { setFilterMode('assigned'); setSelectedParcels(new Set()); }}
+                                        className={`px-3 py-1 rounded ${filterMode === 'assigned' ? 'bg-[#ea690c] text-white' : 'bg-white border border-[#d1d1d1] text-neutral-700'}`}
+                                    >
+                                        Assigned
+                                    </button>
                                 </div>
-                                <Button
-                                    onClick={() => {
-                                        const today = getTodayDate();
-                                        handleDateChange(today);
-                                    }}
-                                    className="bg-[#ea690c] text-white hover:bg-[#ea690c]/90 w-full sm:w-auto"
-                                >
-                                    Today
-                                </Button>
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Banner */}
                     <div className="w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
                         <p className="[font-family:'Lato',Helvetica] font-normal text-blue-800 text-sm">
-                            <span className="font-semibold">{filteredParcels.length} Parcel(s)</span> available for
-                            <span className="font-semibold ml-1">{selectedDate ? new Date(selectedDate).toLocaleDateString() : 'selected date'}</span>
+                            <span className="font-semibold">{filteredParcels.length} Parcel(s)</span> ({filterMode === 'ready' ? 'Ready' : 'Assigned'})
                             {" - "}
                             <span className="font-semibold">{selectedParcels.size}</span> selected
                         </p>
                     </div>
 
-                    {/* Action Bar */}
                     <Card className="w-full rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
                         <CardContent className="flex flex-col sm:flex-row items-center gap-4 p-4">
                             <div className="flex items-center gap-2">
@@ -413,7 +342,6 @@ export const ParcelSelection = (): JSX.Element => {
                         </CardContent>
                     </Card>
 
-                    {/* Parcel Cards Grid */}
                     {loading ? (
                         <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
                             <CardContent className="p-12 text-center">
@@ -428,12 +356,12 @@ export const ParcelSelection = (): JSX.Element => {
                                 <p className="text-neutral-700 font-medium">
                                     {allParcels.length === 0
                                         ? "No parcels ready for assignment"
-                                        : `No parcels for ${new Date(selectedDate).toLocaleDateString()}`}
+                                        : `No parcels for the selected filter`}
                                 </p>
                                 <p className="text-sm text-[#5d5d5d] mt-2">
                                     {allParcels.length === 0
                                         ? "Parcels will appear here once customers are contacted and request home delivery"
-                                        : "Try selecting a different date"}
+                                        : "Try selecting a different filter"}
                                 </p>
                             </CardContent>
                         </Card>
@@ -454,7 +382,7 @@ export const ParcelSelection = (): JSX.Element => {
                                 <PackageIcon className="w-16 h-16 text-[#9a9a9a] mx-auto mb-4 opacity-50" />
                                 <p className="text-neutral-700 font-medium">No parcels available</p>
                                 <p className="text-sm text-[#5d5d5d] mt-2">
-                                    Try selecting a different date
+                                    Try selecting a different filter
                                 </p>
                             </CardContent>
                         </Card>
@@ -462,7 +390,6 @@ export const ParcelSelection = (): JSX.Element => {
                 </main>
             </div>
 
-            {/* Rider Selection Modal */}
             {showRiderModal && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <Card className="w-full max-w-4xl border border-[#d1d1d1] bg-white shadow-lg max-h-[90vh] overflow-y-auto">
@@ -483,7 +410,6 @@ export const ParcelSelection = (): JSX.Element => {
                                 </button>
                             </div>
 
-                            {/* Info Banner */}
                             {selectedParcels.size > 0 && (
                                 <div className="w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 mb-4">
                                     <p className="[font-family:'Lato',Helvetica] font-normal text-blue-800 text-sm">
