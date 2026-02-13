@@ -19,6 +19,7 @@ export const ParcelSearch = (): JSX.Element => {
     const {
         parcels,
         loading,
+        backgroundLoading,
         pagination,
         loadParcelsIfNeeded,
         refreshParcels
@@ -500,21 +501,28 @@ export const ParcelSearch = (): JSX.Element => {
                     ) : (
                         <>
                             <div className="flex items-center justify-between text-xs text-[#5d5d5d] mb-2">
-                                <span>Showing {filteredParcels.length} of {pagination.totalElements} parcel(s)</span>
+                                <span className="flex items-center gap-2">
+                                    Showing {filteredParcels.length} of {pagination.totalElements} parcel(s)
+                                    {backgroundLoading && (
+                                        <span className="inline-flex items-center gap-1.5 text-[#ea690c]">
+                                            <Loader className="w-4 h-4 animate-spin" />
+                                            Loading next page...
+                                        </span>
+                                    )}
+                                </span>
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs">Rows per page:</span>
                                     <select
                                         value={pagination.size}
                                         onChange={(e) => {
                                             const newSize = parseInt(e.target.value);
-                                            loadParcelsIfNeeded({}, 0, newSize, false);
+                                            loadParcelsIfNeeded({}, 0, newSize, true);
                                         }}
                                         className="text-xs border border-[#d1d1d1] rounded px-2 py-1"
                                     >
-                                        <option value={50}>50</option>
-                                        <option value={100}>100</option>
-                                        <option value={200}>200</option>
-                                        <option value={500}>500</option>
+                                        <option value={1000}>1000</option>
+                                        <option value={2000}>2000</option>
+                                        <option value={5000}>5000</option>
                                     </select>
                                 </div>
                             </div>
@@ -681,7 +689,7 @@ export const ParcelSearch = (): JSX.Element => {
                                                 const newPage = pagination.page - 1;
                                                 loadParcelsIfNeeded({}, newPage, pagination.size, false);
                                             }}
-                                            disabled={pagination.page === 0}
+                                            disabled={pagination.page === 0 || backgroundLoading}
                                             variant="outline"
                                             className="border border-[#d1d1d1]"
                                         >
@@ -692,7 +700,7 @@ export const ParcelSearch = (): JSX.Element => {
                                                 const newPage = pagination.page + 1;
                                                 loadParcelsIfNeeded({}, newPage, pagination.size, false);
                                             }}
-                                            disabled={pagination.page >= pagination.totalPages - 1}
+                                            disabled={pagination.page >= pagination.totalPages - 1 || backgroundLoading}
                                             variant="outline"
                                             className="border border-[#d1d1d1]"
                                         >
@@ -715,10 +723,13 @@ export const ParcelSearch = (): JSX.Element => {
                                                     const newPage = pagination.page - 1;
                                                     loadParcelsIfNeeded({}, newPage, pagination.size, false);
                                                 }}
-                                                disabled={pagination.page === 0}
+                                                disabled={pagination.page === 0 || backgroundLoading}
                                                 variant="outline"
                                                 className="border border-[#d1d1d1]"
                                             >
+                                                {backgroundLoading ? (
+                                                    <Loader className="w-4 h-4 animate-spin mr-2" />
+                                                ) : null}
                                                 Previous
                                             </Button>
                                             <Button
@@ -726,10 +737,13 @@ export const ParcelSearch = (): JSX.Element => {
                                                     const newPage = pagination.page + 1;
                                                     loadParcelsIfNeeded({}, newPage, pagination.size, false);
                                                 }}
-                                                disabled={pagination.page >= pagination.totalPages - 1}
+                                                disabled={pagination.page >= pagination.totalPages - 1 || backgroundLoading}
                                                 variant="outline"
                                                 className="border border-[#d1d1d1]"
                                             >
+                                                {backgroundLoading ? (
+                                                    <Loader className="w-4 h-4 animate-spin mr-2" />
+                                                ) : null}
                                                 Next
                                             </Button>
                                         </div>
