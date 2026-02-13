@@ -133,7 +133,7 @@ export const Login = (): JSX.Element => {
           // Admin user - no station
           setStation(null);
         }
-
+        // why is this needed?
         // Store remember me preference
         if (rememberMe) {
           localStorage.setItem("rememberMe", "true");
