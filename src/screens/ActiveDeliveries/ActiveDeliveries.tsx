@@ -75,10 +75,15 @@ export const ActiveDeliveries = (): JSX.Element => {
   const fetchRidersAndAssignments = async () => {
     setLoading(true);
     try {
+      console.log("[ActiveDeliveries] Fetching parcel assignments...");
       // Use the same endpoint as Reconciliation page
       const response = await frontdeskService.getParcelAssignments(0, 200);
 
       if (response.success && response.data) {
+        console.log(
+          "[ActiveDeliveries] Raw assignments response:",
+          response.data
+        );
         const rawAssignments = response.data.content || [];
 
         // Group assignments by rider and filter active parcels
@@ -172,6 +177,10 @@ export const ActiveDeliveries = (): JSX.Element => {
 
         setRidersWithAssignments(ridersData);
       } else {
+        console.warn(
+          "[ActiveDeliveries] Failed to load deliveries:",
+          response.message
+        );
         showToast(response.message || "Failed to load deliveries", "error");
       }
     } catch (error) {
@@ -183,6 +192,10 @@ export const ActiveDeliveries = (): JSX.Element => {
   };
 
   useEffect(() => {
+    console.log(
+      "[ActiveDeliveries] useEffect: fetching riders and assignments",
+      { userRole, riderId, currentUser }
+    );
     fetchRidersAndAssignments();
   }, [userRole, riderId, currentUser, showToast]);
 
@@ -232,6 +245,11 @@ export const ActiveDeliveries = (): JSX.Element => {
     if (!currentUser) return;
 
     if (newUIStatus === "delivered") {
+      console.log(
+        "[ActiveDeliveries] Mark delivered clicked",
+        assignmentId,
+        parcelId
+      );
       const riderData = ridersWithAssignments.find(r => r.rider.userId === riderUserId);
       // Find delivery by parcelId to get the correct parcel
       const delivery = riderData?.assignments.find((d) => d.parcelId === parcelId);
@@ -240,6 +258,11 @@ export const ActiveDeliveries = (): JSX.Element => {
       setShowDeliveryModal(true);
       return;
     } else if (newUIStatus === "delivery-failed") {
+      console.log(
+        "[ActiveDeliveries] Mark delivery failed clicked",
+        assignmentId,
+        parcelId
+      );
       const riderData = ridersWithAssignments.find(r => r.rider.userId === riderUserId);
       // Find delivery by parcelId to get the correct parcel
       const delivery = riderData?.assignments.find((d) => d.parcelId === parcelId);
@@ -263,10 +286,18 @@ export const ActiveDeliveries = (): JSX.Element => {
       const response = await frontdeskService.updateParcel(parcelId, updateData);
 
       if (response.success) {
+        console.log(
+          "[ActiveDeliveries] Parcel status updated successfully",
+          { parcelId, updateData }
+        );
         showToast("Status updated successfully", "success");
         // Refresh all riders and assignments
         await fetchRidersAndAssignments();
       } else {
+        console.warn(
+          "[ActiveDeliveries] Failed to update status",
+          response.message
+        );
         showToast(response.message || "Failed to update status", "error");
       }
     } catch (error) {
@@ -279,6 +310,12 @@ export const ActiveDeliveries = (): JSX.Element => {
 
   const handleDeliveryComplete = async () => {
     if (!selectedDelivery || !currentUser || !paymentMethod) return;
+
+    console.log("[ActiveDeliveries] Completing delivery", {
+      assignmentId: selectedDelivery.assignmentId,
+      parcelId: selectedDelivery.parcelId,
+      paymentMethod,
+    });
 
     setUpdatingStatus(selectedDelivery.assignmentId);
     try {
@@ -293,6 +330,7 @@ export const ActiveDeliveries = (): JSX.Element => {
       );
 
       if (response.success) {
+        console.log("[ActiveDeliveries] Delivery completed response:", response);
         showToast(
           `Delivery completed! Payment method: ${paymentMethod}`,
           "success"
@@ -305,6 +343,10 @@ export const ActiveDeliveries = (): JSX.Element => {
         // Refresh all riders and assignments
         await fetchRidersAndAssignments();
       } else {
+        console.warn(
+          "[ActiveDeliveries] Failed to complete delivery",
+          response.message
+        );
         showToast(response.message || "Failed to complete delivery", "error");
       }
     } catch (error) {
@@ -318,6 +360,12 @@ export const ActiveDeliveries = (): JSX.Element => {
   const handleDeliveryFailed = async () => {
     if (!selectedDelivery || !currentUser || !failureReason.trim()) return;
 
+    console.log("[ActiveDeliveries] Marking delivery as failed", {
+      assignmentId: selectedDelivery.assignmentId,
+      parcelId: selectedDelivery.parcelId,
+      failureReason,
+    });
+
     setUpdatingStatus(selectedDelivery.assignmentId);
     try {
       // Update parcel - mark as not delivered, but we can add failure reason in parcelDescription or create a note
@@ -327,6 +375,7 @@ export const ActiveDeliveries = (): JSX.Element => {
       });
 
       if (response.success) {
+        console.log("[ActiveDeliveries] Delivery failure recorded:", response);
         showToast("Delivery failure recorded", "success");
 
         setShowFailedModal(false);
@@ -336,6 +385,10 @@ export const ActiveDeliveries = (): JSX.Element => {
         // Refresh all riders and assignments
         await fetchRidersAndAssignments();
       } else {
+        console.warn(
+          "[ActiveDeliveries] Failed to record failure",
+          response.message
+        );
         showToast(response.message || "Failed to record failure", "error");
       }
     } catch (error) {

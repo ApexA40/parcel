@@ -52,6 +52,25 @@ export const UserManagement = (): JSX.Element => {
     const [selectedOfficeForAdd, setSelectedOfficeForAdd] = useState<string>("");
     const [isAddingToStation, setIsAddingToStation] = useState(false);
 
+    // Helper function to get office name from officeId
+    const getOfficeName = (user: any): string => {
+        // If office object exists with name, use it
+        if (user.office?.name) {
+            return user.office.name;
+        }
+        // If only officeId exists, look it up in stations
+        if (user.officeId) {
+            const station = stations.find(s => s.id === user.officeId);
+            return station?.name || user.officeId; // Show ID if station not found
+        }
+        return "N/A";
+    };
+
+    // Helper function to get office ID for filtering
+    const getUserOfficeId = (user: any): string | undefined => {
+        return user.office?.id || user.officeId;
+    };
+
     // Load users when component mounts
     useEffect(() => {
         refreshUsers(pagination.page, pagination.size);
@@ -60,7 +79,7 @@ export const UserManagement = (): JSX.Element => {
 
     const filteredUsers = users.filter((user) => {
         if (filterRole && user.role !== filterRole) return false;
-        if (filterStation && user.office?.id !== filterStation) return false;
+        if (filterStation && getUserOfficeId(user) !== filterStation) return false;
         return true;
     });
 
@@ -631,7 +650,7 @@ export const UserManagement = (): JSX.Element => {
                                                                     <div className="flex items-center gap-1.5">
                                                                         <Building2 size={12} className="sm:w-[14px] sm:h-[14px] text-[#9a9a9a] flex-shrink-0" />
                                                                         <span className="text-xs sm:text-sm text-neutral-700 truncate">
-                                                                            {user.office?.name || "N/A"}
+                                                                            {getOfficeName(user)}
                                                                         </span>
                                                                     </div>
                                                                 </td>
@@ -643,7 +662,7 @@ export const UserManagement = (): JSX.Element => {
                                                                     >
                                                                         <Trash2 size={16} />
                                                                     </button>
-                                                                    {!user.office && (
+                                                                    {(user.role === "RIDER" || !getUserOfficeId(user)) && (
                                                                         <button
                                                                             onClick={() => handleInitiateAddToStation({ userId: user.userId, name: user.name, phoneNumber: user.phoneNumber })}
                                                                             className="text-[#ea690c] hover:bg-orange-50 p-2 rounded transition-colors"
