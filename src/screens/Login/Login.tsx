@@ -386,7 +386,7 @@ export const Login = (): JSX.Element => {
               </Button>
 
               {/* Demo Call Center Login */}
-              <Button
+              {/* <Button
                 type="button"
                 variant="outline"
                 disabled={loading}
@@ -394,7 +394,7 @@ export const Login = (): JSX.Element => {
                 className="w-full border border-[#d1d1d1] text-[#ea690c] hover:bg-orange-50 text-sm flex items-center justify-center gap-2"
               >
                 <span>Login as Call Center (Demo)</span>
-              </Button>
+              </Button> */}
             </form>
 
             {/* Version */}
