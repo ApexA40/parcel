@@ -8,7 +8,6 @@ import { ShelfProvider } from "./contexts/ShelfContext";
 import { ToastProvider } from "./components/ui/toast";
 import { MainLayout } from "./layouts/MainLayout";
 import { RiderLayout } from "./layouts/RiderLayout";
-import { CallCenterLayout } from "./layouts/CallCenterLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Login } from "./screens/Login";
 import { ForgotPassword } from "./screens/ForgotPassword";
@@ -39,6 +38,7 @@ import { FinancialReports } from "./screens/Admin/FinancialReports/FinancialRepo
 import { AdminReconciliation } from "./screens/Admin/AdminReconciliation/AdminReconciliation";
 import { Preferences } from "./screens/Preferences/Preferences";
 import { Help } from "./screens/Help/Help";
+import { ParcelTransfer } from "./screens/ParcelTransfer";
 
 export const App = (): JSX.Element => {
   return (
@@ -82,6 +82,16 @@ export const App = (): JSX.Element => {
                         }
                       />
                       <Route
+                        path="/parcel-transfer"
+                        element={
+                          <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", "ADMIN"]}>
+                            <MainLayout>
+                              <ParcelTransfer />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
                         path="/pickup-request"
                         element={
                           <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", ]}>
@@ -95,10 +105,19 @@ export const App = (): JSX.Element => {
                         path="/call-center"
                         element={
                           <ProtectedRoute allowedRoles={["CALLER"]}>
-                            <CallCenterLayout>
+                            <MainLayout>
                               <CallCenter />
-                            </CallCenterLayout>
+                            </MainLayout>
                           </ProtectedRoute>
+                        }
+                      />
+                      {/* Call Center demo page (no auth, UI only) */}
+                      <Route
+                        path="/call-center-demo"
+                        element={
+                          <MainLayout>
+                            <CallCenter />
+                          </MainLayout>
                         }
                       />
                       <Route
