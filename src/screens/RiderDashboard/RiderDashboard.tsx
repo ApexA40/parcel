@@ -348,6 +348,35 @@ export const RiderDashboard = (): JSX.Element => {
         }, 0);
     }, [activeAssignments]);
 
+    // Calculate total amount collected for today's completed assignments
+    const todayCollected = useMemo(() => {
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+        const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).getTime();
+
+        return assignments.reduce((total, assignment) => {
+            const parcel = assignment.parcel;
+            if (!parcel?.delivered) return total;
+
+            const timestamp = assignment.completedAt
+                ? new Date(assignment.completedAt).getTime()
+                : assignment.assignedAt
+                    ? new Date(assignment.assignedAt).getTime()
+                    : null;
+
+            if (timestamp === null) return total;
+            if (timestamp < startOfDay || timestamp > endOfDay) return total;
+
+            const parcelAmount =
+                (parcel.deliveryCost || 0) +
+                (parcel.pickUpCost || 0) +
+                (parcel.inboundCost || 0) +
+                (parcel.storageCost || 0);
+
+            return total + parcelAmount;
+        }, 0);
+    }, [assignments]);
+
 
     const handleDownloadPDF = () => {
         try {
@@ -421,7 +450,7 @@ export const RiderDashboard = (): JSX.Element => {
                 </div>
 
                 {/* Statistics Cards */}
-                <div className="flex flex-row gap-3 sm:gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                     <Card className="rounded-lg border border-gray-200 bg-white shadow-sm flex-1 min-w-0">
                         <CardContent className="p-4">
                             <div className="flex items-center justify-between">
@@ -442,6 +471,23 @@ export const RiderDashboard = (): JSX.Element => {
                                     <p className="text-xl sm:text-2xl font-bold text-[#ea690c] truncate">{formatCurrency(totalAmountToCollect)}</p>
                                 </div>
                                 <DollarSignIcon className="w-6 h-6 sm:w-8 sm:h-8 text-[#ea690c] opacity-50 flex-shrink-0 ml-2" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="rounded-lg border border-gray-200 bg-white shadow-sm flex-1 min-w-0">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-xs text-gray-600 mb-1">Today&apos;s Collected Amount</p>
+                                    <p className="text-xl sm:text-2xl font-bold text-green-600 truncate">
+                                        {formatCurrency(todayCollected)}
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] text-gray-500">
+                                        Based on assignments completed today
+                                    </p>
+                                </div>
+                                <CheckCircleIcon className="w-6 h-6 sm:w-8 sm:h-8 text-green-500 opacity-50 flex-shrink-0 ml-2" />
                             </div>
                         </CardContent>
                     </Card>
