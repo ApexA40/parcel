@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { LogOut, Menu, X, User, Package, History } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
+import { UpdateNotificationPopup } from "../components/UpdateNotificationPopup";
 
 interface RiderLayoutProps {
     children: React.ReactNode;
@@ -30,6 +31,7 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
 
     return (
         <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+            <UpdateNotificationPopup />
             {/* Professional Header */}
             <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50 backdrop-blur-sm bg-white/95">
                 <div className="px-4 py-3.5">
