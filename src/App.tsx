@@ -38,6 +38,7 @@ import { FinancialReports } from "./screens/Admin/FinancialReports/FinancialRepo
 import { AdminReconciliation } from "./screens/Admin/AdminReconciliation/AdminReconciliation";
 import { Preferences } from "./screens/Preferences/Preferences";
 import { Help } from "./screens/Help/Help";
+import { TrackParcel } from "./screens/TrackParcel/TrackParcel";
 import { ParcelTransfer } from "./screens/ParcelTransfer";
 
 export const App = (): JSX.Element => {
@@ -56,6 +57,9 @@ export const App = (): JSX.Element => {
                       <Route path="/forgot-password" element={<ForgotPassword />} />
                       <Route path="/password-request-sent" element={<PasswordRequestSent />} />
                       <Route path="/reset-password" element={<ResetPassword />} />
+
+                      {/* Public: Customer parcel lookup (no login) */}
+                      <Route path="/track" element={<TrackParcel />} />
 
                       {/* Root - Redirect to login */}
                       <Route path="/" element={<Navigate to="/login" replace />} />
