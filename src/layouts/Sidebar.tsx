@@ -20,6 +20,7 @@ const navItems = [
     // Station Manager & Front Desk - Core Operations
     { label: "Parcel Search", path: "/parcel-search", icon: SearchIcon, roles: ["FRONTDESK", "MANAGER"] },
     { label: "Parcel Intake", path: "/parcel-intake", icon: InboxIcon, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Parcel Transfer", path: "/parcel-transfer", icon: ClipboardListIcon, roles: ["FRONTDESK", "MANAGER"] },
     { label: "Pickup Request", path: "/pickup-request", icon: MapPin, roles: ["FRONTDESK", "MANAGER", ] },
     { label: "Package Assignments", path: "/package-assignments", icon: ClipboardListIcon, roles: ["MANAGER", "FRONTDESK"] },
     // Call Center is CALLER-only - separate entity, no station access

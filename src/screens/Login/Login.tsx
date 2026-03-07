@@ -169,6 +169,13 @@ export const Login = (): JSX.Element => {
     }
   };
 
+  const handleDemoCallerLogin = () => {
+    // Pure UI demo: no auth, no token, no context changes.
+    // This route is not protected, so it will always load.
+    setError("");
+    navigate("/call-center-demo", { replace: true });
+  };
+
   // Load remembered credentials
   useEffect(() => {
     const rememberMe = localStorage.getItem("rememberMe") === "true";
@@ -224,7 +231,7 @@ export const Login = (): JSX.Element => {
                 <div className="w-12 h-12 bg-[#ea690c] rounded-lg flex items-center justify-center">
                   <PackageIcon className="w-8 h-8 text-white" />
                 </div>
-                <span className="text-[#ea690c] font-bold text-xl">DELIVERY</span>
+                {/* <span className="text-[#ea690c] font-bold text-xl">DELIVERY</span> */}
               </div>
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-1">
@@ -377,11 +384,23 @@ export const Login = (): JSX.Element => {
                   </>
                 )}
               </Button>
+
+              {/* Demo Call Center Login */}
+              {/* <Button
+                type="button"
+                variant="outline"
+                disabled={loading}
+                onClick={handleDemoCallerLogin}
+                className="w-full border border-[#d1d1d1] text-[#ea690c] hover:bg-orange-50 text-sm flex items-center justify-center gap-2"
+              >
+                <span>Login as Call Center (Demo)</span>
+              </Button> */}
             </form>
 
             {/* Version */}
             <p className="text-center text-[#9a9a9a] text-xs mt-4">
-              Version 1.0.0 | Secure API Integration
+              Version 1.0.0 
+              {/* | Secure API Integration */}
             </p>
           </CardContent>
         </Card>
