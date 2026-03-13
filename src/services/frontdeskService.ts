@@ -750,6 +750,56 @@ class FrontdeskService {
             };
         }
     }
+
+    /**
+     * Get addresses stored for the current office.
+     * Endpoint: GET /addresses
+     * Optional query: name (filter by address name).
+     */
+    async getAddresses(name?: string): Promise<ApiResponse> {
+        try {
+            const params = new URLSearchParams();
+            if (name != null && name.trim() !== '') params.append('name', name.trim());
+            const url = params.toString() ? `/addresses?${params.toString()}` : '/addresses';
+            const response = await this.apiClient.get<Address[]>(url);
+            const list = Array.isArray(response.data) ? response.data : [];
+            return {
+                success: true,
+                message: 'Addresses retrieved successfully',
+                data: list,
+            };
+        } catch (error: any) {
+            console.error('Get addresses error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to retrieve addresses.',
+                data: [],
+            };
+        }
+    }
+
+    /**
+     * Save an address for the current office.
+     * Endpoint: POST /addresses
+     * Body: { name, cost }
+     */
+    async addAddress(name: string, cost: number): Promise<ApiResponse> {
+        try {
+            const body = { name: name.trim(), cost: Number(cost) || 0 };
+            const response = await this.apiClient.post<Address>('/addresses', body);
+            return {
+                success: true,
+                message: 'Address saved successfully',
+                data: response.data,
+            };
+        } catch (error: any) {
+            console.error('Add address error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to save address. Please try again.',
+            };
+        }
+    }
 }
 
 export default new FrontdeskService();
