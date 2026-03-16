@@ -460,26 +460,26 @@ export const RiderDashboard = (): JSX.Element => {
                 </div>
 
                 {/* Stats Row */}
-                <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 text-center">
+                <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
+                    <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 text-center flex-shrink-0 min-w-[100px]">
                         <div className="w-8 h-8 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-1">
                             <TruckIcon className="w-4 h-4 text-blue-500" />
                         </div>
                         <p className="text-xl font-bold text-blue-600">{activeAssignments.length}</p>
                         <p className="text-[10px] text-gray-500 leading-tight">Active</p>
                     </div>
-                    <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 text-center">
+                    <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 text-center flex-shrink-0 min-w-[130px]">
                         <div className="w-8 h-8 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-1">
                             <DollarSignIcon className="w-4 h-4 text-[#ea690c]" />
                         </div>
-                        <p className="text-sm font-bold text-[#ea690c] truncate">{formatCurrency(totalAmountToCollect)}</p>
+                        <p className="text-sm font-bold text-[#ea690c] whitespace-nowrap">{formatCurrency(totalAmountToCollect)}</p>
                         <p className="text-[10px] text-gray-500 leading-tight">To Collect</p>
                     </div>
-                    <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 text-center">
+                    <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 text-center flex-shrink-0 min-w-[130px]">
                         <div className="w-8 h-8 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-1">
                             <CheckCircleIcon className="w-4 h-4 text-green-500" />
                         </div>
-                        <p className="text-sm font-bold text-green-600 truncate">{formatCurrency(todayCollected)}</p>
+                        <p className="text-sm font-bold text-green-600 whitespace-nowrap">{formatCurrency(todayCollected)}</p>
                         <p className="text-[10px] text-gray-500 leading-tight">Collected</p>
                     </div>
                 </div>
