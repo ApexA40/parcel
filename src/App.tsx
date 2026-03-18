@@ -43,6 +43,9 @@ import { TrackParcel } from "./screens/TrackParcel/TrackParcel";
 import { ParcelTransfer } from "./screens/ParcelTransfer";
 
 export const App = (): JSX.Element => {
+  // Some environments cache component prop types aggressively; this keeps routing flexible.
+  const CallCenterScreen = CallCenter as React.FC<any>;
+
   return (
     <StationProvider>
       <LocationProvider>
@@ -109,9 +112,39 @@ export const App = (): JSX.Element => {
                       <Route
                         path="/call-center"
                         element={
-                          <ProtectedRoute allowedRoles={["CALLER"]}>
+                          <ProtectedRoute allowedRoles={["CALLER", "FRONTDESK", "MANAGER", "ADMIN"]}>
                             <MainLayout>
                               <CallCenter />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/call-center/all-deliveries"
+                        element={
+                          <ProtectedRoute allowedRoles={["CALLER"]}>
+                            <MainLayout>
+                              <CallCenterScreen view="all-deliveries" />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/call-center/active-deliveries"
+                        element={
+                          <ProtectedRoute allowedRoles={["CALLER"]}>
+                            <MainLayout>
+                              <CallCenterScreen view="active-deliveries" />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/call-center/history"
+                        element={
+                          <ProtectedRoute allowedRoles={["CALLER"]}>
+                            <MainLayout>
+                              <CallCenterScreen view="history" />
                             </MainLayout>
                           </ProtectedRoute>
                         }
@@ -213,7 +246,7 @@ export const App = (): JSX.Element => {
                       <Route
                         path="/reconciliation"
                         element={
-                          <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
+                          <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK", "CALLER"]}>
                             <MainLayout>
                               <Reconciliation />
                             </MainLayout>

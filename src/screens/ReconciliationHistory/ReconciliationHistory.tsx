@@ -16,6 +16,7 @@ import { Badge } from "../../components/ui/badge";
 import { formatPhoneNumber, formatCurrency } from "../../utils/dataHelpers";
 import frontdeskService from "../../services/frontdeskService";
 import { useToast } from "../../components/ui/toast";
+import { useLocationContext } from "../../contexts/LocationContext";
 
 interface ReconciliationParcel {
   parcelId: string;
@@ -53,6 +54,7 @@ interface ReconciliationHistoryProps {
 
 export const ReconciliationHistory = ({ embedded = false }: ReconciliationHistoryProps): JSX.Element => {
   const { showToast } = useToast();
+  const { locations } = useLocationContext();
   const [rawAssignments, setRawAssignments] = useState<any[]>([]);
   const [expandedRiders, setExpandedRiders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -61,6 +63,8 @@ export const ReconciliationHistory = ({ embedded = false }: ReconciliationHistor
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("ALL");
+  const [selectedOfficeId, setSelectedOfficeId] = useState<string>("ALL");
   const [monthlySummaries, setMonthlySummaries] = useState<
     Record<
       string,
@@ -81,7 +85,16 @@ export const ReconciliationHistory = ({ embedded = false }: ReconciliationHistor
     return `${year}-${month}-${day}`;
   };
 
-  // Fetch reconciliations by date
+  // Get filtered offices based on selected location
+  const filteredOffices = useMemo(() => {
+    if (selectedLocationId === "ALL") {
+      return locations.flatMap(loc => (loc.offices || []).map(office => ({ ...office, locationId: loc.locationId, locationName: loc.locationName })));
+    }
+    const location = locations.find(loc => loc.locationId === selectedLocationId);
+    return (location?.offices || []).map(office => ({ ...office, locationId: location!.locationId, locationName: location!.locationName }));
+  }, [locations, selectedLocationId]);
+
+  // Fetch reconciliations by date and office filter
   const fetchAssignments = async (date: Date) => {
     setLoading(true);
     try {
@@ -90,13 +103,22 @@ export const ReconciliationHistory = ({ embedded = false }: ReconciliationHistor
       startOfDay.setHours(0, 0, 0, 0);
       const dateInMillis = startOfDay.getTime();
 
-      console.log('Fetching reconciliation history for date:', startOfDay.toDateString(), 'Millis:', dateInMillis);
+      console.log('Fetching reconciliation history for date:', startOfDay.toDateString(), 'Millis:', dateInMillis, 'Office:', selectedOfficeId);
 
       const response = await frontdeskService.getReconciliationsByDate(dateInMillis);
 
       if (response.success && response.data) {
         const data = response.data as any;
-        const allAssignments = Array.isArray(data) ? data : (data.content || []);
+        let allAssignments = Array.isArray(data) ? data : (data.content || []);
+        
+        // Filter by office if selectedOfficeId is not "ALL"
+        if (selectedOfficeId !== "ALL") {
+          allAssignments = allAssignments.filter((assignment: any) => {
+            const officeId = assignment.officeInfo?.officeId || assignment.officeId;
+            return officeId === selectedOfficeId;
+          });
+        }
+        
         console.log('Fetched reconciliation history:', allAssignments.length);
         setRawAssignments(allAssignments);
       } else {
@@ -115,7 +137,7 @@ export const ReconciliationHistory = ({ embedded = false }: ReconciliationHistor
   useEffect(() => {
     fetchAssignments(selectedDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+  }, [selectedDate, selectedOfficeId]);
 
   // Load monthly overview (based on selectedMonth)
   useEffect(() => {
@@ -363,6 +385,58 @@ export const ReconciliationHistory = ({ embedded = false }: ReconciliationHistor
           </div>
         </div>
       )}
+
+      {/* Location and Office Filters */}
+      <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
+        <CardContent className="p-3 sm:p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Location Filter */}
+            <div>
+              <label htmlFor="location-filter" className="text-sm font-medium text-gray-700 mb-2 block">
+                <MapPinIcon className="w-4 h-4 inline mr-2" />
+                Location
+              </label>
+              <select
+                id="location-filter"
+                value={selectedLocationId}
+                onChange={(e) => {
+                  setSelectedLocationId(e.target.value);
+                  setSelectedOfficeId("ALL");
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-1 focus:ring-[#ea690c]"
+              >
+                <option value="ALL">All Locations</option>
+                {locations.map(location => (
+                  <option key={location.locationId} value={location.locationId}>
+                    {location.locationName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Office/Station Filter */}
+            <div>
+              <label htmlFor="office-filter" className="text-sm font-medium text-gray-700 mb-2 block">
+                <MapPinIcon className="w-4 h-4 inline mr-2" />
+                Station/Office
+              </label>
+              <select
+                id="office-filter"
+                value={selectedOfficeId}
+                onChange={(e) => setSelectedOfficeId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-1 focus:ring-[#ea690c]"
+              >
+                <option value="ALL">All Stations</option>
+                {filteredOffices.map(office => (
+                  <option key={office.officeId} value={office.officeId}>
+                    {office.officeName || office.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
           {/* Monthly Calendar Overview (current month) */}
           <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
