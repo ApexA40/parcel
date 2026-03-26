@@ -16,7 +16,7 @@ import { Badge } from "../../components/ui/badge";
 import { formatPhoneNumber, formatCurrency } from "../../utils/dataHelpers";
 import frontdeskService from "../../services/frontdeskService";
 import { useToast } from "../../components/ui/toast";
-import { useLocationContext } from "../../contexts/LocationContext";
+import { useLocation } from "../../contexts/LocationContext";
 
 interface ReconciliationParcel {
   parcelId: string;
@@ -54,7 +54,7 @@ interface ReconciliationHistoryProps {
 
 export const ReconciliationHistory = ({ embedded = false }: ReconciliationHistoryProps): JSX.Element => {
   const { showToast } = useToast();
-  const { locations } = useLocationContext();
+  const { locations } = useLocation();
   const [rawAssignments, setRawAssignments] = useState<any[]>([]);
   const [expandedRiders, setExpandedRiders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
