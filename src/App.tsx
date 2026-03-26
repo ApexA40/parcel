@@ -42,6 +42,8 @@ import { Preferences } from "./screens/Preferences/Preferences";
 import { Help } from "./screens/Help/Help";
 import { TrackParcel } from "./screens/TrackParcel/TrackParcel";
 import { ParcelTransfer } from "./screens/ParcelTransfer";
+import { DriverInboundReconciliation } from "./screens/DriverInboundReconciliation/DriverInboundReconciliation";
+import { SystemLogs } from "./screens/Admin/SystemLogs/SystemLogs";
 
 export const App = (): JSX.Element => {
   // Some environments cache component prop types aggressively; this keeps routing flexible.
@@ -243,6 +245,16 @@ export const App = (): JSX.Element => {
                           </ProtectedRoute>
                         }
                       />
+                      <Route
+                        path="/driver-tracker"
+                        element={
+                          <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
+                            <MainLayout>
+                              <DriverInboundReconciliation />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
                       <Route path="/reconciliation-history" element={<Navigate to="/reconciliation" replace />} />
                       <Route
                         path="/reconciliation"
@@ -357,6 +369,17 @@ export const App = (): JSX.Element => {
                           <ProtectedRoute allowedRoles={["ADMIN"]}>
                             <MainLayout>
                               <AdminFinancialDashboard />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      <Route
+                        path="/admin/system-logs"
+                        element={
+                          <ProtectedRoute allowedRoles={["ADMIN"]}>
+                            <MainLayout>
+                              <SystemLogs />
                             </MainLayout>
                           </ProtectedRoute>
                         }
