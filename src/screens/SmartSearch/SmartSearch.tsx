@@ -1,58 +1,65 @@
 import { useState } from "react";
-import { SearchIcon, Loader, Eye, X } from "lucide-react";
-import { Card, CardContent } from "../../components/ui/card";
+import {
+    SearchIcon, PhoneIcon, PackageIcon, CheckCircleIcon,
+    ClockIcon, MapPinIcon, UserIcon, BanknoteIcon,
+    Loader2Icon, AlertCircleIcon, Home, X, Loader,
+} from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { Card, CardContent } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
+import { Label } from "../../components/ui/label";
+import { useToast } from "../../components/ui/toast";
 import { searchParcelsByPhone, type CustomerParcel } from "../../services/customerService";
 import frontdeskService from "../../services/frontdeskService";
 import { formatPhoneNumber } from "../../utils/dataHelpers";
-import { useToast } from "../../components/ui/toast";
 
-type Tab = "all" | "pending" | "pickedup" | "delivered";
-
-function getStatusLabel(p: CustomerParcel): string {
-    if (p.delivered)            return "Delivered";
-    if ((p as any).pickedUp)    return "Picked Up";
-    if (p.pod)                  return "POD";
-    if (p.parcelAssigned)       return "Assigned";
-    if ((p as any).hasCalled)   return "Called";
-    return "Registered";
+function formatDate(ts: number | null | undefined): string {
+    if (ts == null) return "—";
+    return new Date(ts).toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
-function getStatusColor(label: string): string {
-    if (label === "Delivered")  return "bg-green-100 text-green-800";
-    if (label === "Picked Up")  return "bg-orange-100 text-orange-800";
-    if (label === "Assigned")   return "bg-blue-100 text-blue-800";
-    if (label === "POD")        return "bg-purple-100 text-purple-800";
-    if (label === "Called")     return "bg-yellow-100 text-yellow-800";
-    return "bg-gray-100 text-gray-800";
+function formatCurrency(amount: number | null | undefined): string {
+    if (amount == null || Number.isNaN(amount)) return "—";
+    return `GHC ${Math.round(amount).toLocaleString()}`;
 }
 
-export const SmartSearch = (): JSX.Element => {
+function getAmountToPay(p: CustomerParcel): number | null {
+    if (p.parcelAmount != null && !Number.isNaN(p.parcelAmount)) return Math.round(p.parcelAmount);
+    const total = (Number(p.inboundCost) || 0) + (Number(p.deliveryCost) || 0) + (Number(p.storageCost) || 0) + (Number(p.pickUpCost) || 0);
+    return total > 0 ? total : null;
+}
+
+export const SmartSearch = () => {
     const { showToast } = useToast();
-    const [phoneInput, setPhoneInput]   = useState("");
-    const [loading, setLoading]         = useState(false);
-    const [parcels, setParcels]         = useState<CustomerParcel[]>([]);
-    const [searched, setSearched]       = useState(false);
-    const [error, setError]             = useState("");
-    const [selectedParcel, setSelectedParcel] = useState<CustomerParcel | null>(null);
-    const [activeTab, setActiveTab]     = useState<Tab>("all");
-    const [markPickupLoading, setMarkPickupLoading] = useState(false);
+    const [phoneNumber, setPhoneNumber] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [parcels, setParcels] = useState<CustomerParcel[]>([]);
+    const [searched, setSearched] = useState(false);
 
-    const handleSearch = async (e?: React.FormEvent) => {
-        e?.preventDefault();
-        const q = phoneInput.trim();
-        if (!q) { setError("Please enter a phone number."); return; }
-        setError(""); setParcels([]); setSelectedParcel(null); setSearched(false); setLoading(true);
+    // Delivery request modal
+    const [deliveryParcel, setDeliveryParcel] = useState<CustomerParcel | null>(null);
+    const [deliveryAddress, setDeliveryAddress] = useState("");
+    const [deliveryCost, setDeliveryCost] = useState("");
+    const [savingDelivery, setSavingDelivery] = useState(false);
+
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
+        setParcels([]);
+        setSearched(false);
+        const trimmed = phoneNumber.trim();
+        if (!trimmed) { setError("Please enter a phone number."); return; }
+        setLoading(true);
         try {
-            const res = await searchParcelsByPhone(q);
+            const result = await searchParcelsByPhone(trimmed);
             setSearched(true);
-            if (res.success && res.data) {
-                setParcels(res.data);
-                if (res.data.length === 0) setError("No parcels found for this number.");
+            if (result.success && result.data) {
+                setParcels(result.data);
+                if (result.data.length === 0) setError("No parcels found for this phone number.");
             } else {
-                setError(res.message || "Search failed. Please try again.");
+                setError(result.message || "Search failed. Please try again.");
             }
         } catch {
             setSearched(true);
@@ -62,399 +69,230 @@ export const SmartSearch = (): JSX.Element => {
         }
     };
 
-    const handleMarkPickedUp = async () => {
-        if (!selectedParcel) return;
-        setMarkPickupLoading(true);
+    const openDeliveryModal = (parcel: CustomerParcel) => {
+        setDeliveryParcel(parcel);
+        setDeliveryAddress(parcel.receiverAddress || "");
+        setDeliveryCost(parcel.deliveryCost ? String(parcel.deliveryCost) : "");
+    };
+
+    const handleRequestDelivery = async () => {
+        if (!deliveryParcel) return;
+        if (!deliveryAddress.trim()) { showToast("Please enter a delivery address", "warning"); return; }
+        setSavingDelivery(true);
         try {
-            const res = await frontdeskService.updateParcel(selectedParcel.parcelId, {
-                pickedUp: true,
+            const response = await frontdeskService.updateParcel(deliveryParcel.parcelId, {
+                homeDelivery: true,
                 hasCalled: true,
+                receiverAddress: deliveryAddress.trim(),
+                deliveryCost: parseFloat(deliveryCost) || 0,
             });
-            if (res.success) {
-                showToast("Parcel marked as picked up", "success");
-                const updated = { ...selectedParcel, pickedUp: true, hasCalled: true } as any;
-                setParcels(prev => prev.map(p => p.parcelId === selectedParcel.parcelId ? updated : p));
-                setSelectedParcel(updated);
+            if (response.success) {
+                showToast("Home delivery requested successfully", "success");
+                setParcels(prev => prev.map(p =>
+                    p.parcelId === deliveryParcel.parcelId
+                        ? { ...p, homeDelivery: true, receiverAddress: deliveryAddress, deliveryCost: parseFloat(deliveryCost) || 0 }
+                        : p
+                ));
+                setDeliveryParcel(null);
             } else {
-                showToast(res.message || "Failed to update parcel", "error");
+                showToast(response.message || "Failed to request delivery", "error");
             }
         } catch {
-            showToast("Failed to update parcel. Please try again.", "error");
+            showToast("Failed to request delivery", "error");
         } finally {
-            setMarkPickupLoading(false);
+            setSavingDelivery(false);
         }
     };
 
-    const tabParcels: Record<Tab, CustomerParcel[]> = {
-        all:       parcels,
-        pending:   parcels.filter(p => !p.delivered && !(p as any).pickedUp),
-        pickedup:  parcels.filter(p => (p as any).pickedUp && !p.delivered),
-        delivered: parcels.filter(p => p.delivered),
-    };
-
-    const tabs: { key: Tab; label: string }[] = [
-        { key: "all",       label: `All (${parcels.length})` },
-        { key: "pending",   label: `Pending (${tabParcels.pending.length})` },
-        { key: "pickedup",  label: `Picked Up (${tabParcels.pickedup.length})` },
-        { key: "delivered", label: `Delivered (${tabParcels.delivered.length})` },
-    ];
-
-    const visibleParcels = tabParcels[activeTab];
+    const isNoResults = searched && parcels.length === 0 && error?.toLowerCase().includes("no parcels");
+    const isApiError = error && !isNoResults;
 
     return (
         <div className="w-full">
-            <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-                <main className="flex-1 space-y-6">
+            <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+                <header>
+                    <h1 className="text-xl font-bold text-neutral-800">Smart Search</h1>
+                    <p className="text-xs text-[#5d5d5d] mt-0.5">
+                        Look up a customer's parcels by phone number and manage delivery preferences.
+                    </p>
+                </header>
 
-                    {/* Search bar */}
-                    <Card className="border border-[#d1d1d1] bg-white">
-                        <CardContent className="p-3 sm:p-4">
-                            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
-                                <div className="flex-1 relative">
-                                    <SearchIcon className="absolute left-3 top-3 w-5 h-5 text-[#5d5d5d]" />
-                                    <Input
-                                        placeholder="Search by receiver or sender phone number..."
-                                        value={phoneInput}
-                                        onChange={e => { setPhoneInput(e.target.value); setError(""); }}
-                                        className="pl-10 border border-[#d1d1d1]"
-                                        disabled={loading}
-                                    />
-                                </div>
-                                <Button
-                                    type="submit"
+                {/* Search */}
+                <Card className="border border-[#d1d1d1] bg-white">
+                    <CardContent className="p-4 sm:p-5">
+                        <form onSubmit={handleSearch} className="flex gap-3">
+                            <div className="flex-1 relative">
+                                <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                <Input
+                                    type="tel"
+                                    inputMode="numeric"
+                                    value={phoneNumber}
+                                    onChange={e => { setPhoneNumber(e.target.value); setError(""); }}
+                                    placeholder="Enter phone number (e.g. 0541234567)"
+                                    className="pl-9 border-[#d1d1d1]"
                                     disabled={loading}
-                                    className="bg-[#ea690c] text-white hover:bg-[#ea690c]/90 flex items-center gap-2"
-                                >
-                                    {loading
-                                        ? <><Loader className="w-4 h-4 animate-spin" />Searching...</>
-                                        : <><SearchIcon className="w-4 h-4" />Search</>}
-                                </Button>
-                            </form>
-
-                            {error && (
-                                <p className="mt-2 text-xs text-red-600">{error}</p>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* Empty state before search */}
-                    {!searched && !loading && (
-                        <div className="text-center py-16">
-                            <SearchIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-sm text-[#5d5d5d]">Enter a phone number above to find parcels.</p>
-                        </div>
-                    )}
-
-                    {/* Loading */}
-                    {loading && (
-                        <div className="text-center py-8">
-                            <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
-                            <p className="text-sm text-neutral-700">Searching parcels...</p>
-                        </div>
-                    )}
-
-                    {/* Results */}
-                    {!loading && searched && parcels.length > 0 && (
-                        <>
-                            {/* Tabs */}
-                            <div className="flex gap-0 border-b border-[#d1d1d1]">
-                                {tabs.map(tab => (
-                                    <button
-                                        key={tab.key}
-                                        onClick={() => { setActiveTab(tab.key); setSelectedParcel(null); }}
-                                        className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
-                                            activeTab === tab.key
-                                                ? "border-[#ea690c] text-[#ea690c]"
-                                                : "border-transparent text-[#5d5d5d] hover:text-neutral-800"
-                                        }`}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                ))}
+                                />
                             </div>
+                            <Button type="submit" disabled={loading} className="bg-[#ea690c] hover:bg-[#d45d0a] text-white px-5">
+                                {loading ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <SearchIcon className="w-4 h-4" />}
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
 
-                            {/* Count */}
-                            <div className="flex items-center justify-between text-xs text-[#5d5d5d] -mt-4">
-                                <span>Showing {visibleParcels.length} of {parcels.length} parcel(s)</span>
-                            </div>
+                {/* Error */}
+                {isApiError && (
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-100 text-red-800 text-sm">
+                        <AlertCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                        <span>{error}</span>
+                    </div>
+                )}
 
-                            {/* Table */}
-                            <Card className="border border-[#d1d1d1] bg-white overflow-hidden">
-                                <CardContent className="p-0">
-                                    <div className="overflow-x-auto max-h-[calc(100vh-300px)] overflow-y-auto">
-                                        <table className="w-full divide-y divide-[#d1d1d1] text-sm">
-                                            <thead className="bg-gray-50 sticky top-0 z-10">
-                                                <tr>
-                                                    <th className="py-2 px-2 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider whitespace-nowrap">Recipient</th>
-                                                    <th className="py-2 px-2 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider whitespace-nowrap">Phone</th>
-                                                    <th className="py-2 px-2 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider whitespace-nowrap">Address</th>
-                                                    <th className="py-2 px-2 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider whitespace-nowrap">Sender</th>
-                                                    <th className="py-2 px-2 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider whitespace-nowrap">Shelf</th>
-                                                    <th className="py-2 px-2 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider whitespace-nowrap">Date</th>
-                                                    <th className="py-2 px-2 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider whitespace-nowrap">Status</th>
-                                                    <th className="py-2 px-2 text-center text-xs font-semibold text-neutral-800 uppercase tracking-wider whitespace-nowrap">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white divide-y divide-[#d1d1d1]">
-                                                {visibleParcels.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={8} className="py-8 px-4 text-center">
-                                                            <p className="text-xs text-neutral-700">No parcels in this category.</p>
-                                                        </td>
-                                                    </tr>
-                                                ) : visibleParcels.map((parcel, index) => {
-                                                    const statusLabel = getStatusLabel(parcel);
-                                                    const statusColor = getStatusColor(statusLabel);
+                {/* No results */}
+                {isNoResults && (
+                    <div className="text-center py-12">
+                        <PackageIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm font-semibold text-neutral-800">No parcels found</p>
+                        <p className="text-xs text-[#5d5d5d] mt-1">No parcels linked to this number.</p>
+                    </div>
+                )}
 
-                                                    return (
-                                                        <tr
-                                                            key={parcel.parcelId}
-                                                            className={`transition-colors hover:bg-gray-50 ${index % 2 === 0 ? "bg-white" : "bg-gray-50/50"} align-middle`}
-                                                        >
-                                                            <td className="py-1.5 px-2 whitespace-nowrap">
-                                                                <p className="font-medium text-neutral-800 text-sm">{parcel.receiverName || "N/A"}</p>
-                                                                {parcel.senderName && (
-                                                                    <p className="text-[#5d5d5d] text-xs mt-0.5">From: {parcel.senderName}</p>
-                                                                )}
-                                                            </td>
-                                                            <td className="py-1.5 px-2 whitespace-nowrap">
-                                                                <div className="text-neutral-700 text-sm">
-                                                                    {parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : "N/A"}
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-1.5 px-2">
-                                                                <div className="text-neutral-700 text-sm max-w-[180px] truncate">
-                                                                    {parcel.receiverAddress || "—"}
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-1.5 px-2 whitespace-nowrap">
-                                                                <div className="text-neutral-700 text-sm">
-                                                                    {parcel.senderName || "—"}
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-1.5 px-2 whitespace-nowrap">
-                                                                <span className="text-neutral-700 text-sm">{parcel.shelfName || "—"}</span>
-                                                            </td>
-                                                            <td className="py-1.5 px-2 whitespace-nowrap">
-                                                                <div className="text-neutral-700 text-sm">
-                                                                    {parcel.createdAt ? new Date(parcel.createdAt).toLocaleString() : "—"}
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-1.5 px-2 whitespace-nowrap">
-                                                                <Badge className={`${statusColor} text-xs px-1.5 py-0.5`}>
-                                                                    {statusLabel}
-                                                                </Badge>
-                                                            </td>
-                                                            <td className="py-1.5 px-2 whitespace-nowrap text-center">
-                                                                <Button
-                                                                    onClick={() => setSelectedParcel(parcel)}
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    className="border border-[#ea690c] text-[#ea690c] hover:bg-orange-50 h-7 px-2 text-xs"
-                                                                >
-                                                                    <Eye className="w-3 h-3 mr-1" />
-                                                                    <span className="hidden sm:inline">View</span>
-                                                                </Button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </>
-                    )}
-
-                    {/* No results */}
-                    {!loading && searched && parcels.length === 0 && !error && (
-                        <div className="text-center py-8">
-                            <p className="text-xs text-neutral-700">No parcels found for this phone number.</p>
+                {/* Results */}
+                {searched && parcels.length > 0 && (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-neutral-800">{parcels.length} parcel{parcels.length !== 1 ? "s" : ""} found</p>
+                            <button onClick={() => { setPhoneNumber(""); setParcels([]); setSearched(false); setError(""); }} className="text-xs text-[#ea690c] hover:underline">
+                                Clear
+                            </button>
                         </div>
-                    )}
 
-                </main>
+                        {parcels.map(p => {
+                            const canRequestDelivery = !p.delivered && !p.parcelAssigned && !p.homeDelivery;
+                            const hasDeliveryPending = !p.delivered && !p.parcelAssigned && p.homeDelivery;
+
+                            return (
+                                <Card key={p.parcelId} className="border border-[#d1d1d1] bg-white">
+                                    <CardContent className="p-4">
+                                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                                            <div className="flex-1 space-y-2">
+                                                {/* Name + status */}
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="font-semibold text-neutral-800">{p.receiverName || "—"}</span>
+                                                    {p.delivered ? (
+                                                        <Badge className="bg-green-100 text-green-800 border-green-200 text-xs flex items-center gap-1">
+                                                            <CheckCircleIcon className="w-3 h-3" /> Delivered
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-xs flex items-center gap-1">
+                                                            <ClockIcon className="w-3 h-3" /> In Progress
+                                                        </Badge>
+                                                    )}
+                                                    {p.homeDelivery && (
+                                                        <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs flex items-center gap-1">
+                                                            <Home className="w-3 h-3" /> Home Delivery
+                                                        </Badge>
+                                                    )}
+                                                </div>
+
+                                                {p.parcelDescription && <p className="text-sm text-gray-600">{p.parcelDescription}</p>}
+
+                                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                                                    {p.shelfName && (
+                                                        <span className="flex items-center gap-1"><PackageIcon className="w-3.5 h-3.5" /> Shelf: {p.shelfName}</span>
+                                                    )}
+                                                    {p.senderName && (
+                                                        <span className="flex items-center gap-1"><UserIcon className="w-3.5 h-3.5" /> From: {p.senderName}</span>
+                                                    )}
+                                                    {p.receiverAddress && (
+                                                        <span className="flex items-center gap-1"><MapPinIcon className="w-3.5 h-3.5" /> {p.receiverAddress}</span>
+                                                    )}
+                                                    {p.updatedAt && (
+                                                        <span>Updated: {formatDate(p.updatedAt)}</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Amount */}
+                                                {getAmountToPay(p) != null && (
+                                                    <div className="flex items-center gap-1.5 text-sm">
+                                                        <BanknoteIcon className="w-4 h-4 text-[#ea690c]" />
+                                                        <span className="font-bold text-[#ea690c]">{formatCurrency(getAmountToPay(p))}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Actions */}
+                                            <div className="flex flex-col gap-2 flex-shrink-0">
+                                                {canRequestDelivery && (
+                                                    <Button
+                                                        onClick={() => openDeliveryModal(p)}
+                                                        size="sm"
+                                                        className="bg-[#ea690c] text-white hover:bg-[#d45d0a] text-xs h-8"
+                                                    >
+                                                        <Home className="w-3.5 h-3.5 mr-1.5" />
+                                                        Request Delivery
+                                                    </Button>
+                                                )}
+                                                {hasDeliveryPending && (
+                                                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs text-center px-3 py-1.5">
+                                                        Delivery Requested
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
-            {/* Parcel Details Modal — identical structure to ParcelSearch */}
-            {selectedParcel && (
+            {/* Request Delivery Modal */}
+            {deliveryParcel && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <Card className="w-full max-w-2xl border border-[#d1d1d1] bg-white shadow-lg max-h-[90vh] overflow-y-auto">
+                    <Card className="w-full max-w-md border border-[#d1d1d1] bg-white shadow-xl">
                         <CardContent className="p-6">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-lg font-bold text-neutral-800">Parcel Details</h3>
-                                <button
-                                    onClick={() => setSelectedParcel(null)}
-                                    className="text-[#9a9a9a] hover:text-neutral-800"
-                                >
+                            <div className="flex items-start justify-between mb-4 pb-4 border-b border-[#d1d1d1]">
+                                <div>
+                                    <h3 className="text-base font-bold text-neutral-800">Request Home Delivery</h3>
+                                    <p className="text-xs text-[#5d5d5d] mt-0.5">{deliveryParcel.receiverName || deliveryParcel.parcelId}</p>
+                                </div>
+                                <button onClick={() => setDeliveryParcel(null)} className="text-gray-400 hover:text-neutral-800 p-1 hover:bg-gray-100 rounded">
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
-
-                            <div className="space-y-6">
-
-                                {/* Basic Information */}
+                            <div className="space-y-4">
                                 <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Basic Information</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Parcel ID</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.parcelId}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Status</p>
-                                            <Badge className={getStatusColor(getStatusLabel(selectedParcel))}>
-                                                {getStatusLabel(selectedParcel)}
-                                            </Badge>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Shelf Location</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.shelfName || "Not set"}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Type</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.typeofParcel || "—"}</p>
-                                        </div>
-                                    </div>
+                                    <Label className="text-sm font-semibold text-neutral-800 mb-1.5 block">
+                                        Delivery Address <span className="text-[#e22420]">*</span>
+                                    </Label>
+                                    <Input
+                                        value={deliveryAddress}
+                                        onChange={e => setDeliveryAddress(e.target.value)}
+                                        placeholder="Enter full delivery address"
+                                        className="border-[#d1d1d1] focus:border-[#ea690c]"
+                                    />
                                 </div>
-
-                                {/* Recipient Information */}
                                 <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Recipient Information</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Recipient Name</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.receiverName || "N/A"}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Phone Number</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">
-                                                {selectedParcel.recieverPhoneNumber ? formatPhoneNumber(selectedParcel.recieverPhoneNumber) : "N/A"}
-                                            </p>
-                                        </div>
-                                        {selectedParcel.receiverAddress && (
-                                            <div className="col-span-2">
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Delivery Address</p>
-                                                <p className="text-sm text-neutral-700">{selectedParcel.receiverAddress}</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <Label className="text-sm font-semibold text-neutral-800 mb-1.5 block">Delivery Fee (GHC)</Label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={deliveryCost}
+                                        onChange={e => setDeliveryCost(e.target.value)}
+                                        placeholder="e.g. 15.00"
+                                        className="border-[#d1d1d1] focus:border-[#ea690c]"
+                                    />
                                 </div>
-
-                                {/* Sender Information */}
-                                {(selectedParcel.senderName || selectedParcel.senderPhoneNumber) && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Sender Information</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            {selectedParcel.senderName && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Sender Name</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.senderName}</p>
-                                                </div>
-                                            )}
-                                            {selectedParcel.senderPhoneNumber && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Sender Phone</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">{formatPhoneNumber(selectedParcel.senderPhoneNumber)}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Costs */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Costs</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {selectedParcel.inboundCost != null && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Inbound Cost</p>
-                                                <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.inboundCost.toFixed(2)}</p>
-                                            </div>
-                                        )}
-                                        {selectedParcel.storageCost != null && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Storage Cost</p>
-                                                <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.storageCost.toFixed(2)}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Item Description */}
-                                {selectedParcel.parcelDescription && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Item Description</h4>
-                                        <p className="text-sm text-neutral-700">{selectedParcel.parcelDescription}</p>
-                                    </div>
-                                )}
-
-                                {/* Additional Information */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Additional Information</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Has Called</p>
-                                            <Badge className={(selectedParcel as any).hasCalled ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                                                {(selectedParcel as any).hasCalled ? "Yes" : "No"}
-                                            </Badge>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Inbound Paid</p>
-                                            <Badge className={(selectedParcel as any).inboudPayed ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                                                {(selectedParcel as any).inboudPayed ? "Yes" : "No"}
-                                            </Badge>
-                                        </div>
-                                        {selectedParcel.homeDelivery != null && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Home Delivery</p>
-                                                <Badge className={selectedParcel.homeDelivery ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}>
-                                                    {selectedParcel.homeDelivery ? "Yes" : "No"}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                        {selectedParcel.createdAt && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Registered Date</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">
-                                                    {new Date(selectedParcel.createdAt).toLocaleString()}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Pickup status + action */}
-                                <div className="flex items-center justify-between gap-4">
-                                    <div className="flex items-center gap-3">
-                                        {(selectedParcel as any).pickedUp ? (
-                                            <Badge className="bg-green-100 text-green-800">Picked Up</Badge>
-                                        ) : (
-                                            <Badge className="bg-yellow-100 text-yellow-800">Not Picked Up</Badge>
-                                        )}
-                                        <span className="text-sm text-[#5d5d5d]">
-                                            Has Called: {(selectedParcel as any).hasCalled ? "Yes" : "No"}
-                                        </span>
-                                    </div>
-                                    {!(selectedParcel as any).pickedUp && (
-                                        <Button
-                                            onClick={handleMarkPickedUp}
-                                            disabled={markPickupLoading}
-                                            className="bg-[#ea690c] text-white hover:bg-[#ea690c]/90"
-                                        >
-                                            {markPickupLoading ? "Updating..." : "Mark Picked Up"}
-                                        </Button>
-                                    )}
-                                </div>
-
-                                <div className="pt-4 border-t border-[#d1d1d1] flex gap-3">
+                                <div className="flex gap-3 pt-1">
+                                    <Button onClick={() => setDeliveryParcel(null)} variant="outline" className="flex-1 border-[#d1d1d1]" disabled={savingDelivery}>Cancel</Button>
                                     <Button
-                                        onClick={() => setSelectedParcel(null)}
-                                        variant="outline"
-                                        className="flex-1 border border-[#d1d1d1]"
+                                        onClick={handleRequestDelivery}
+                                        disabled={savingDelivery || !deliveryAddress.trim()}
+                                        className="flex-1 bg-[#ea690c] text-white hover:bg-[#d45d0a] disabled:opacity-50"
                                     >
-                                        Close
+                                        {savingDelivery ? <><Loader className="w-4 h-4 animate-spin mr-2" />Saving...</> : "Confirm Request"}
                                     </Button>
                                 </div>
                             </div>

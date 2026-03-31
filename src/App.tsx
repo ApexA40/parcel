@@ -30,7 +30,6 @@ import { FinancialDashboard } from "./screens/FinancialDashboard/FinancialDashbo
 import { ShelfManagement } from "./screens/ShelfManagement/ShelfManagement";
 import { PreDeliveryQueue } from "./screens/CallCenter/PreDeliveryQueue/PreDeliveryQueue";
 import { PostDeliveryFollowUp } from "./screens/CallCenter/PostDeliveryFollowUp/PostDeliveryFollowUp";
-import { HomeDeliveryWatchlist } from "./screens/CallCenter/HomeDeliveryWatchlist/HomeDeliveryWatchlist";
 import { ParcelSearch } from "./screens/ParcelSearch/ParcelSearch";
 import { ParcelEdit } from "./screens/ParcelEdit";
 import { AdminDashboard } from "./screens/Admin/AdminDashboard/AdminDashboard";
@@ -46,6 +45,7 @@ import { TrackParcel } from "./screens/TrackParcel/TrackParcel";
 import { ParcelTransfer } from "./screens/ParcelTransfer";
 import { DriverInboundReconciliation } from "./screens/DriverInboundReconciliation/DriverInboundReconciliation";
 import { SystemLogs } from "./screens/Admin/SystemLogs/SystemLogs";
+import { HomeDeliveryWatchlist } from "./screens/CallCenter/HomeDeliveryWatchlist/HomeDeliveryWatchlist";
 import { SmartSearch } from "./screens/SmartSearch/SmartSearch";
 
 export const App = (): JSX.Element => {
