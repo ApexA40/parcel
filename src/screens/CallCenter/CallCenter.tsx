@@ -97,17 +97,44 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
         totalElements: 0,
         totalPages: 0,
     });
+    // Pre-delivery queue (not-delivered-uncalled)
+    const [preDeliveryParcels, setPreDeliveryParcels] = useState<ParcelResponse[]>([]);
+    const [preDeliveryLoading, setPreDeliveryLoading] = useState(false);
+    const [preDeliveryPagination, setPreDeliveryPagination] = useState({
+        page: 0,
+        size: 20,
+        totalElements: 0,
+        totalPages: 0,
+    });
+    const [preDeliveryFilters, setPreDeliveryFilters] = useState({
+        officeId: "",
+        fromDate: "",
+        toDate: "",
+        parcelId: "",
+        receiverName: "",
+        receiverPhone: "",
+    });
+
     const [deliveredFilters, setDeliveredFilters] = useState<{
         officeId: string;
         fromDate: string;
         toDate: string;
         followUpStatus: "PENDING" | "FOLLOWED_UP" | "ALL";
+        parcelId: string;
+        receiverName: string;
+        receiverPhone: string;
     }>({
         officeId: "",
         fromDate: "",
         toDate: "",
         followUpStatus: view === "all-deliveries" ? "ALL" : "PENDING",
+        parcelId: "",
+        receiverName: "",
+        receiverPhone: "",
     });
+
+    // Track active tab for queue view
+    const [activeQueueTab, setActiveQueueTab] = useState<"pre-delivery" | "post-delivery">("post-delivery");
     const [showFollowUpModal, setShowFollowUpModal] = useState(false);
     const [followUpParcel, setFollowUpParcel] = useState<ParcelResponse | null>(null);
     const [remarkType, setRemarkType] = useState<string>("NO_COMMENT");
@@ -164,6 +191,9 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
                     toDate,
                     followUpStatus:
                         deliveredFilters.followUpStatus === "ALL" ? undefined : deliveredFilters.followUpStatus,
+                    parcelId: deliveredFilters.parcelId || undefined,
+                    receiverName: deliveredFilters.receiverName || undefined,
+                    receiverPhone: deliveredFilters.receiverPhone || undefined,
                 });
 
                 if (response.success && response.data) {
@@ -198,6 +228,76 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
         deliveredFilters.fromDate,
         deliveredFilters.toDate,
         deliveredFilters.followUpStatus,
+        deliveredFilters.parcelId,
+        deliveredFilters.receiverName,
+        deliveredFilters.receiverPhone,
+        showToast,
+    ]);
+
+    // Load pre-delivery uncalled parcels
+    useEffect(() => {
+        if (view !== "follow-up" && view !== "all-deliveries") return;
+        if (isDemoMode) {
+            setPreDeliveryLoading(false);
+            setPreDeliveryParcels([]);
+            return;
+        }
+
+        const fetchPreDelivery = async () => {
+            setPreDeliveryLoading(true);
+            try {
+                const fromDate = preDeliveryFilters.fromDate
+                    ? new Date(preDeliveryFilters.fromDate).setHours(0, 0, 0, 0)
+                    : undefined;
+                const toDate = preDeliveryFilters.toDate
+                    ? new Date(preDeliveryFilters.toDate).setHours(23, 59, 59, 999)
+                    : undefined;
+
+                const response = await callCenterService.getNotDeliveredUncalled({
+                    page: preDeliveryPagination.page,
+                    size: preDeliveryPagination.size,
+                    officeId: preDeliveryFilters.officeId || undefined,
+                    fromDate,
+                    toDate,
+                    parcelId: preDeliveryFilters.parcelId || undefined,
+                    receiverName: preDeliveryFilters.receiverName || undefined,
+                    receiverPhone: preDeliveryFilters.receiverPhone || undefined,
+                });
+
+                if (response.success && response.data) {
+                    const data = response.data as any;
+                    const list = Array.isArray(data.content) ? data.content : [];
+                    setPreDeliveryParcels(list);
+                    setPreDeliveryPagination((prev) => ({
+                        ...prev,
+                        totalElements: data.totalElements ?? 0,
+                        totalPages: data.totalPages ?? 0,
+                        page: data.number ?? prev.page,
+                    }));
+                } else {
+                    showToast(response.message || "Failed to load pre-delivery parcels", "error");
+                    setPreDeliveryParcels([]);
+                }
+            } catch (error) {
+                console.error("Failed to fetch pre-delivery parcels:", error);
+                showToast("Failed to load pre-delivery parcels. Please try again.", "error");
+                setPreDeliveryParcels([]);
+            } finally {
+                setPreDeliveryLoading(false);
+            }
+        };
+
+        fetchPreDelivery();
+    }, [
+        view,
+        preDeliveryPagination.page,
+        preDeliveryPagination.size,
+        preDeliveryFilters.officeId,
+        preDeliveryFilters.fromDate,
+        preDeliveryFilters.toDate,
+        preDeliveryFilters.parcelId,
+        preDeliveryFilters.receiverName,
+        preDeliveryFilters.receiverPhone,
         showToast,
     ]);
 
@@ -254,6 +354,9 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
                 toDate,
                 followUpStatus:
                     deliveredFilters.followUpStatus === "ALL" ? undefined : deliveredFilters.followUpStatus,
+                parcelId: deliveredFilters.parcelId || undefined,
+                receiverName: deliveredFilters.receiverName || undefined,
+                receiverPhone: deliveredFilters.receiverPhone || undefined,
             });
 
             if (response.success && response.data) {
@@ -271,6 +374,45 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
             console.error("Failed to refresh delivered parcels:", error);
         } finally {
             setDeliveredLoading(false);
+        }
+    };
+
+    const handleRefreshPreDelivery = async () => {
+        setPreDeliveryLoading(true);
+        try {
+            const fromDate = preDeliveryFilters.fromDate
+                ? new Date(preDeliveryFilters.fromDate).setHours(0, 0, 0, 0)
+                : undefined;
+            const toDate = preDeliveryFilters.toDate
+                ? new Date(preDeliveryFilters.toDate).setHours(23, 59, 59, 999)
+                : undefined;
+
+            const response = await callCenterService.getNotDeliveredUncalled({
+                page: preDeliveryPagination.page,
+                size: preDeliveryPagination.size,
+                officeId: preDeliveryFilters.officeId || undefined,
+                fromDate,
+                toDate,
+                parcelId: preDeliveryFilters.parcelId || undefined,
+                receiverName: preDeliveryFilters.receiverName || undefined,
+                receiverPhone: preDeliveryFilters.receiverPhone || undefined,
+            });
+
+            if (response.success && response.data) {
+                const data = response.data as any;
+                const list = Array.isArray(data.content) ? data.content : [];
+                setPreDeliveryParcels(list);
+                setPreDeliveryPagination((prev) => ({
+                    ...prev,
+                    totalElements: data.totalElements ?? 0,
+                    totalPages: data.totalPages ?? 0,
+                    page: data.number ?? prev.page,
+                }));
+            }
+        } catch (error) {
+            console.error("Failed to refresh pre-delivery parcels:", error);
+        } finally {
+            setPreDeliveryLoading(false);
         }
     };
 
@@ -470,14 +612,43 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
 
                             <Card className="border border-[#d1d1d1] bg-white shadow-sm">
                                 <CardContent className="p-6">
+                                    {/* Tab Navigation */}
+                                    <div className="mb-6 flex gap-2 border-b border-[#d1d1d1]">
+                                        <button
+                                            onClick={() => setActiveQueueTab("post-delivery")}
+                                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                                activeQueueTab === "post-delivery"
+                                                    ? "border-[#ea690c] text-[#ea690c]"
+                                                    : "border-transparent text-[#5d5d5d] hover:text-neutral-800"
+                                            }`}
+                                        >
+                                            Post-Delivery Follow-Up
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveQueueTab("pre-delivery")}
+                                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                                activeQueueTab === "pre-delivery"
+                                                    ? "border-[#ea690c] text-[#ea690c]"
+                                                    : "border-transparent text-[#5d5d5d] hover:text-neutral-800"
+                                            }`}
+                                        >
+                                            Pre-Delivery Queue
+                                        </button>
+                                    </div>
+
+                                    {/* Filters Section */}
                                     <div className="flex flex-wrap items-end gap-4">
                                         <div>
                                             <Label className="text-xs text-[#5d5d5d] block mb-1">Station</Label>
                                             <select
-                                                value={deliveredFilters.officeId}
-                                                onChange={(e) =>
-                                                    setDeliveredFilters((f) => ({ ...f, officeId: e.target.value }))
-                                                }
+                                                value={activeQueueTab === "post-delivery" ? deliveredFilters.officeId : preDeliveryFilters.officeId}
+                                                onChange={(e) => {
+                                                    if (activeQueueTab === "post-delivery") {
+                                                        setDeliveredFilters((f) => ({ ...f, officeId: e.target.value }));
+                                                    } else {
+                                                        setPreDeliveryFilters((f) => ({ ...f, officeId: e.target.value }));
+                                                    }
+                                                }}
                                                 className="h-9 min-w-[180px] rounded border border-[#d1d1d1] px-3 text-sm"
                                             >
                                                 <option value="">All stations</option>
@@ -489,13 +660,65 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
                                             </select>
                                         </div>
                                         <div>
+                                            <Label className="text-xs text-[#5d5d5d] block mb-1">Parcel ID</Label>
+                                            <Input
+                                                type="text"
+                                                placeholder="Search..."
+                                                value={activeQueueTab === "post-delivery" ? deliveredFilters.parcelId : preDeliveryFilters.parcelId}
+                                                onChange={(e) => {
+                                                    if (activeQueueTab === "post-delivery") {
+                                                        setDeliveredFilters((f) => ({ ...f, parcelId: e.target.value }));
+                                                    } else {
+                                                        setPreDeliveryFilters((f) => ({ ...f, parcelId: e.target.value }));
+                                                    }
+                                                }}
+                                                className="h-9 w-40"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-[#5d5d5d] block mb-1">Receiver Name</Label>
+                                            <Input
+                                                type="text"
+                                                placeholder="Search..."
+                                                value={activeQueueTab === "post-delivery" ? deliveredFilters.receiverName : preDeliveryFilters.receiverName}
+                                                onChange={(e) => {
+                                                    if (activeQueueTab === "post-delivery") {
+                                                        setDeliveredFilters((f) => ({ ...f, receiverName: e.target.value }));
+                                                    } else {
+                                                        setPreDeliveryFilters((f) => ({ ...f, receiverName: e.target.value }));
+                                                    }
+                                                }}
+                                                className="h-9 w-40"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-[#5d5d5d] block mb-1">Phone Number</Label>
+                                            <Input
+                                                type="text"
+                                                placeholder="Search..."
+                                                value={activeQueueTab === "post-delivery" ? deliveredFilters.receiverPhone : preDeliveryFilters.receiverPhone}
+                                                onChange={(e) => {
+                                                    if (activeQueueTab === "post-delivery") {
+                                                        setDeliveredFilters((f) => ({ ...f, receiverPhone: e.target.value }));
+                                                    } else {
+                                                        setPreDeliveryFilters((f) => ({ ...f, receiverPhone: e.target.value }));
+                                                    }
+                                                }}
+                                                className="h-9 w-40"
+                                            />
+                                        </div>
+                                        <div>
                                             <Label className="text-xs text-[#5d5d5d] block mb-1">From date</Label>
                                             <Input
                                                 type="date"
-                                                value={deliveredFilters.fromDate}
-                                                onChange={(e) =>
-                                                    setDeliveredFilters((f) => ({ ...f, fromDate: e.target.value }))
-                                                }
+                                                value={activeQueueTab === "post-delivery" ? deliveredFilters.fromDate : preDeliveryFilters.fromDate}
+                                                onChange={(e) => {
+                                                    if (activeQueueTab === "post-delivery") {
+                                                        setDeliveredFilters((f) => ({ ...f, fromDate: e.target.value }));
+                                                    } else {
+                                                        setPreDeliveryFilters((f) => ({ ...f, fromDate: e.target.value }));
+                                                    }
+                                                }}
                                                 className="h-9 w-40"
                                             />
                                         </div>
@@ -503,32 +726,38 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
                                             <Label className="text-xs text-[#5d5d5d] block mb-1">To date</Label>
                                             <Input
                                                 type="date"
-                                                value={deliveredFilters.toDate}
-                                                onChange={(e) =>
-                                                    setDeliveredFilters((f) => ({ ...f, toDate: e.target.value }))
-                                                }
+                                                value={activeQueueTab === "post-delivery" ? deliveredFilters.toDate : preDeliveryFilters.toDate}
+                                                onChange={(e) => {
+                                                    if (activeQueueTab === "post-delivery") {
+                                                        setDeliveredFilters((f) => ({ ...f, toDate: e.target.value }));
+                                                    } else {
+                                                        setPreDeliveryFilters((f) => ({ ...f, toDate: e.target.value }));
+                                                    }
+                                                }}
                                                 className="h-9 w-40"
                                             />
                                         </div>
-                                        <div>
-                                            <Label className="text-xs text-[#5d5d5d] block mb-1">Follow-up status</Label>
-                                            <select
-                                                value={deliveredFilters.followUpStatus}
-                                                onChange={(e) =>
-                                                    setDeliveredFilters((f) => ({
-                                                        ...f,
-                                                        followUpStatus: e.target.value as "PENDING" | "FOLLOWED_UP" | "ALL",
-                                                    }))
-                                                }
-                                                className="h-9 min-w-[140px] rounded border border-[#d1d1d1] px-3 text-sm"
-                                            >
-                                                <option value="PENDING">Pending</option>
-                                                <option value="FOLLOWED_UP">Followed up</option>
-                                                <option value="ALL">All</option>
-                                            </select>
-                                        </div>
+                                        {activeQueueTab === "post-delivery" && (
+                                            <div>
+                                                <Label className="text-xs text-[#5d5d5d] block mb-1">Follow-up status</Label>
+                                                <select
+                                                    value={deliveredFilters.followUpStatus}
+                                                    onChange={(e) =>
+                                                        setDeliveredFilters((f) => ({
+                                                            ...f,
+                                                            followUpStatus: e.target.value as "PENDING" | "FOLLOWED_UP" | "ALL",
+                                                        }))
+                                                    }
+                                                    className="h-9 min-w-[140px] rounded border border-[#d1d1d1] px-3 text-sm"
+                                                >
+                                                    <option value="PENDING">Pending</option>
+                                                    <option value="FOLLOWED_UP">Followed up</option>
+                                                    <option value="ALL">All</option>
+                                                </select>
+                                            </div>
+                                        )}
                                         <Button
-                                            onClick={handleRefreshDelivered}
+                                            onClick={activeQueueTab === "post-delivery" ? handleRefreshDelivered : handleRefreshPreDelivery}
                                             variant="outline"
                                             size="sm"
                                             className="border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
@@ -541,139 +770,258 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
 
                             <Card className="border border-[#d1d1d1] bg-white">
                                 <CardContent className="p-0">
-                                    {deliveredLoading ? (
-                                        <div className="text-center py-12">
-                                            <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
-                                            <p className="text-sm text-[#5d5d5d]">Loading delivered parcels...</p>
-                                        </div>
-                                    ) : deliveredParcels.length === 0 ? (
-                                        <div className="text-center py-12">
-                                            <Package className="w-16 h-16 text-[#5d5d5d] mx-auto mb-4 opacity-50" />
-                                            <p className="text-sm text-[#5d5d5d]">No delivered parcels found.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full divide-y divide-[#d1d1d1]">
-                                                <thead className="bg-gray-50">
-                                                    <tr>
-                                                        <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Recipient</th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Phone</th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Destination</th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Delivery Date</th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Station</th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Follow-up</th>
-                                                <th className="py-3 px-4 text-center text-xs font-semibold text-neutral-800 uppercase tracking-wider">Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="bg-white divide-y divide-[#d1d1d1]">
-                                                    {deliveredParcels.map((p) => {
-                                                        const officeName = typeof p.officeId === "object" && p.officeId
-                                                            ? (p.officeId as { name?: string }).name
-                                                            : p.officeName ?? "N/A";
-                                                        const deliveryTs = p.deliveryDate ?? p.updatedAt ?? p.createdAt;
-                                                        const isFollowedUp = p.followUpStatus === "FOLLOWED_UP";
+                                    {activeQueueTab === "post-delivery" ? (
+                                        <>
+                                            {deliveredLoading ? (
+                                                <div className="text-center py-12">
+                                                    <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                                                    <p className="text-sm text-[#5d5d5d]">Loading delivered parcels...</p>
+                                                </div>
+                                            ) : deliveredParcels.length === 0 ? (
+                                                <div className="text-center py-12">
+                                                    <Package className="w-16 h-16 text-[#5d5d5d] mx-auto mb-4 opacity-50" />
+                                                    <p className="text-sm text-[#5d5d5d]">No delivered parcels found.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full divide-y divide-[#d1d1d1]">
+                                                        <thead className="bg-gray-50">
+                                                            <tr>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Recipient</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Phone</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Destination</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Delivery Date</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Station</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Follow-up</th>
+                                                                <th className="py-3 px-4 text-center text-xs font-semibold text-neutral-800 uppercase tracking-wider">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="bg-white divide-y divide-[#d1d1d1]">
+                                                            {deliveredParcels.map((p) => {
+                                                                const officeName = typeof p.officeId === "object" && p.officeId
+                                                                    ? (p.officeId as { name?: string }).name
+                                                                    : p.officeName ?? "N/A";
+                                                                const deliveryTs = p.deliveryDate ?? p.updatedAt ?? p.createdAt;
+                                                                const isFollowedUp = p.followUpStatus === "FOLLOWED_UP";
 
-                                                        return (
-                                                            <tr key={p.parcelId} className="hover:bg-gray-50">
-                                                                <td className="py-3 px-4">
-                                                                    <p className="font-semibold text-neutral-800 text-sm">{p.receiverName || "N/A"}</p>
-                                                                </td>
-                                                                <td className="py-3 px-4">
-                                                                    <a
-                                                                        href={`tel:${p.recieverPhoneNumber}`}
-                                                                        className="text-[#ea690c] hover:underline font-medium text-sm"
-                                                                    >
-                                                                        {p.recieverPhoneNumber ? formatPhoneNumber(p.recieverPhoneNumber) : "N/A"}
-                                                                    </a>
-                                                                </td>
-                                                                <td className="py-3 px-4 text-sm text-neutral-700 max-w-[200px] truncate" title={p.receiverAddress}>
-                                                                    {p.receiverAddress || "N/A"}
-                                                                </td>
-                                                                <td className="py-3 px-4 text-sm text-neutral-700">
-                                                                    {deliveryTs ? formatDate(new Date(deliveryTs).toISOString()) : "N/A"}
-                                                                </td>
-                                                                <td className="py-3 px-4 text-sm text-neutral-700">{officeName}</td>
-                                                                <td className="py-3 px-4">
-                                                                    {isFollowedUp ? (
-                                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                                            {p.followUpRemarkType ? p.followUpRemarkType.replace(/_/g, " ") : "Followed up"}
-                                                                            {p.followUpAt && (
-                                                                                <span className="ml-1 text-green-600">
-                                                                                    ({formatDate(new Date(p.followUpAt).toISOString())})
+                                                                return (
+                                                                    <tr key={p.parcelId} className="hover:bg-gray-50">
+                                                                        <td className="py-3 px-4">
+                                                                            <p className="font-semibold text-neutral-800 text-sm">{p.receiverName || "N/A"}</p>
+                                                                        </td>
+                                                                        <td className="py-3 px-4">
+                                                                            <a
+                                                                                href={`tel:${p.recieverPhoneNumber}`}
+                                                                                className="text-[#ea690c] hover:underline font-medium text-sm"
+                                                                            >
+                                                                                {p.recieverPhoneNumber ? formatPhoneNumber(p.recieverPhoneNumber) : "N/A"}
+                                                                            </a>
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-sm text-neutral-700 max-w-[200px] truncate" title={p.receiverAddress}>
+                                                                            {p.receiverAddress || "N/A"}
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-sm text-neutral-700">
+                                                                            {deliveryTs ? formatDate(new Date(deliveryTs).toISOString()) : "N/A"}
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-sm text-neutral-700">{officeName}</td>
+                                                                        <td className="py-3 px-4">
+                                                                            {isFollowedUp ? (
+                                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                                                    {p.followUpRemarkType ? p.followUpRemarkType.replace(/_/g, " ") : "Followed up"}
+                                                                                    {p.followUpAt && (
+                                                                                        <span className="ml-1 text-green-600">
+                                                                                            ({formatDate(new Date(p.followUpAt).toISOString())})
+                                                                                        </span>
+                                                                                    )}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                                                                    Pending
                                                                                 </span>
                                                                             )}
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                                                            Pending
-                                                                        </span>
-                                                                    )}
-                                                                </td>
-                                                                <td className="py-3 px-4 text-center">
-                                                                    <div className="flex items-center justify-center gap-2">
-                                                                        <a
-                                                                            href={`tel:${p.recieverPhoneNumber}`}
-                                                                            className="inline-flex items-center justify-center h-8 w-8 rounded border border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
-                                                                            title="Call"
-                                                                        >
-                                                                            <PhoneCall className="w-4 h-4" />
-                                                                        </a>
-                                                                        <Button
-                                                                            onClick={() => openFollowUpModal(p)}
-                                                                            size="sm"
-                                                                            className="bg-[#ea690c] text-white hover:bg-[#d45d0a] text-xs h-8 px-3"
-                                                                        >
-                                                                            <MessageSquare className="w-3.5 h-3.5 mr-1" />
-                                                                            {isFollowedUp ? "Add note" : "Record follow-up"}
-                                                                        </Button>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-center">
+                                                                            <div className="flex items-center justify-center gap-2">
+                                                                                <a
+                                                                                    href={`tel:${p.recieverPhoneNumber}`}
+                                                                                    className="inline-flex items-center justify-center h-8 w-8 rounded border border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
+                                                                                    title="Call"
+                                                                                >
+                                                                                    <PhoneCall className="w-4 h-4" />
+                                                                                </a>
+                                                                                <Button
+                                                                                    onClick={() => openFollowUpModal(p)}
+                                                                                    size="sm"
+                                                                                    className="bg-[#ea690c] text-white hover:bg-[#d45d0a] text-xs h-8 px-3"
+                                                                                >
+                                                                                    <MessageSquare className="w-3.5 h-3.5 mr-1" />
+                                                                                    {isFollowedUp ? "Add note" : "Record follow-up"}
+                                                                                </Button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
 
-                                    {!deliveredLoading && deliveredPagination.totalPages > 1 && (
-                                        <div className="px-6 py-4 border-t border-[#d1d1d1] flex items-center justify-between">
-                                            <div className="text-sm text-neutral-700">
-                                                Showing {deliveredPagination.page * deliveredPagination.size + 1} to{" "}
-                                                {Math.min(
-                                                    (deliveredPagination.page + 1) * deliveredPagination.size,
-                                                    deliveredPagination.totalElements
-                                                )}{" "}
-                                                of {deliveredPagination.totalElements} parcels
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    onClick={() =>
-                                                        setDeliveredPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                                                    }
-                                                    disabled={deliveredPagination.page === 0 || deliveredLoading}
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="border border-[#d1d1d1]"
-                                                >
-                                                    Previous
-                                                </Button>
-                                                <Button
-                                                    onClick={() =>
-                                                        setDeliveredPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                                                    }
-                                                    disabled={
-                                                        deliveredPagination.page >= deliveredPagination.totalPages - 1 ||
-                                                        deliveredLoading
-                                                    }
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="border border-[#d1d1d1]"
-                                                >
-                                                    Next
-                                                </Button>
-                                            </div>
-                                        </div>
+                                            {!deliveredLoading && deliveredPagination.totalPages > 1 && (
+                                                <div className="px-6 py-4 border-t border-[#d1d1d1] flex items-center justify-between">
+                                                    <div className="text-sm text-neutral-700">
+                                                        Showing {deliveredPagination.page * deliveredPagination.size + 1} to{" "}
+                                                        {Math.min(
+                                                            (deliveredPagination.page + 1) * deliveredPagination.size,
+                                                            deliveredPagination.totalElements
+                                                        )}{" "}
+                                                        of {deliveredPagination.totalElements} parcels
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            onClick={() =>
+                                                                setDeliveredPagination((prev) => ({ ...prev, page: prev.page - 1 }))
+                                                            }
+                                                            disabled={deliveredPagination.page === 0 || deliveredLoading}
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="border border-[#d1d1d1]"
+                                                        >
+                                                            Previous
+                                                        </Button>
+                                                        <Button
+                                                            onClick={() =>
+                                                                setDeliveredPagination((prev) => ({ ...prev, page: prev.page + 1 }))
+                                                            }
+                                                            disabled={
+                                                                deliveredPagination.page >= deliveredPagination.totalPages - 1 ||
+                                                                deliveredLoading
+                                                            }
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="border border-[#d1d1d1]"
+                                                        >
+                                                            Next
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {preDeliveryLoading ? (
+                                                <div className="text-center py-12">
+                                                    <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                                                    <p className="text-sm text-[#5d5d5d]">Loading pre-delivery parcels...</p>
+                                                </div>
+                                            ) : preDeliveryParcels.length === 0 ? (
+                                                <div className="text-center py-12">
+                                                    <Package className="w-16 h-16 text-[#5d5d5d] mx-auto mb-4 opacity-50" />
+                                                    <p className="text-sm text-[#5d5d5d]">No undelivered parcels awaiting calls.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full divide-y divide-[#d1d1d1]">
+                                                        <thead className="bg-gray-50">
+                                                            <tr>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Parcel ID</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Recipient</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Phone</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Destination</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Station</th>
+                                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Registered Date</th>
+                                                                <th className="py-3 px-4 text-center text-xs font-semibold text-neutral-800 uppercase tracking-wider">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="bg-white divide-y divide-[#d1d1d1]">
+                                                            {preDeliveryParcels.map((p) => {
+                                                                const officeName = typeof p.officeId === "object" && p.officeId
+                                                                    ? (p.officeId as { name?: string }).name
+                                                                    : p.officeName ?? "N/A";
+                                                                const registeredTs = p.createdAt;
+
+                                                                return (
+                                                                    <tr key={p.parcelId} className="hover:bg-gray-50">
+                                                                        <td className="py-3 px-4">
+                                                                            <p className="font-mono text-neutral-800 text-sm font-semibold">{p.parcelId}</p>
+                                                                        </td>
+                                                                        <td className="py-3 px-4">
+                                                                            <p className="font-semibold text-neutral-800 text-sm">{p.receiverName || "N/A"}</p>
+                                                                        </td>
+                                                                        <td className="py-3 px-4">
+                                                                            <a
+                                                                                href={`tel:${p.recieverPhoneNumber}`}
+                                                                                className="text-[#ea690c] hover:underline font-medium text-sm"
+                                                                            >
+                                                                                {p.recieverPhoneNumber ? formatPhoneNumber(p.recieverPhoneNumber) : "N/A"}
+                                                                            </a>
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-sm text-neutral-700 max-w-[200px] truncate" title={p.receiverAddress}>
+                                                                            {p.receiverAddress || "N/A"}
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-sm text-neutral-700">{officeName}</td>
+                                                                        <td className="py-3 px-4 text-sm text-neutral-700">
+                                                                            {registeredTs ? formatDate(new Date(registeredTs).toISOString()) : "N/A"}
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-center">
+                                                                            <div className="flex items-center justify-center gap-2">
+                                                                                <a
+                                                                                    href={`tel:${p.recieverPhoneNumber}`}
+                                                                                    className="inline-flex items-center justify-center h-8 w-8 rounded border border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
+                                                                                    title="Call"
+                                                                                >
+                                                                                    <PhoneCall className="w-4 h-4" />
+                                                                                </a>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+
+                                            {!preDeliveryLoading && preDeliveryPagination.totalPages > 1 && (
+                                                <div className="px-6 py-4 border-t border-[#d1d1d1] flex items-center justify-between">
+                                                    <div className="text-sm text-neutral-700">
+                                                        Showing {preDeliveryPagination.page * preDeliveryPagination.size + 1} to{" "}
+                                                        {Math.min(
+                                                            (preDeliveryPagination.page + 1) * preDeliveryPagination.size,
+                                                            preDeliveryPagination.totalElements
+                                                        )}{" "}
+                                                        of {preDeliveryPagination.totalElements} parcels
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            onClick={() =>
+                                                                setPreDeliveryPagination((prev) => ({ ...prev, page: prev.page - 1 }))
+                                                            }
+                                                            disabled={preDeliveryPagination.page === 0 || preDeliveryLoading}
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="border border-[#d1d1d1]"
+                                                        >
+                                                            Previous
+                                                        </Button>
+                                                        <Button
+                                                            onClick={() =>
+                                                                setPreDeliveryPagination((prev) => ({ ...prev, page: prev.page + 1 }))
+                                                            }
+                                                            disabled={
+                                                                preDeliveryPagination.page >= preDeliveryPagination.totalPages - 1 ||
+                                                                preDeliveryLoading
+                                                            }
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="border border-[#d1d1d1]"
+                                                        >
+                                                            Next
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </CardContent>
                             </Card>
