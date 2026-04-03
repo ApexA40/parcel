@@ -1,16 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-    PhoneIcon, CheckCircleIcon, Clock, Loader, X, Package,
-    PhoneCall, MessageSquare, PhoneOff, Truck, PieChart, BuildingIcon,
+    CheckCircleIcon, Loader, Package, PhoneOff, Truck,
 } from "lucide-react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
 import { Label } from "../../components/ui/label";
-import { useStation } from "../../contexts/StationContext";
+import { Input } from "../../components/ui/input";
 import { useLocation } from "../../contexts/LocationContext";
-import { formatDate } from "../../utils/dataHelpers";
-import { formatPhoneNumber } from "../../utils/dataHelpers";
+import { formatDate, formatPhoneNumber } from "../../utils/dataHelpers";
 import { useToast } from "../../components/ui/toast";
 import callCenterService, { type CallCenterStatsResponse } from "../../services/callCenterService";
 
@@ -50,29 +47,39 @@ const OUTCOME_OPTIONS: { value: CallOutcome; label: string; color: string }[] = 
     { value: "DELIVERED", label: "Confirmed Delivered", color: "bg-blue-100 text-blue-800 border-blue-300" },
 ];
 
-export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) => {
-    const { currentUser } = useStation();
+export const CallCenter: React.FC<CallCenterProps> = () => {
     const { stations } = useLocation();
     const { showToast } = useToast();
 
-    // Station selector — auto-select user's own office or first station
-    const [selectedOfficeId, setSelectedOfficeId] = useState<string>("");
+    // Active queue tab
+    const [activeQueueTab, setActiveQueueTab] = useState<"pre-delivery" | "post-delivery">("post-delivery");
 
-    // Auto-select on mount: prefer user's own office, else first station
-    useEffect(() => {
-        if (selectedOfficeId) return; // already set
-        const userOfficeId = (currentUser as any)?.office?.id || (currentUser as any)?.stationId;
-        if (userOfficeId) {
-            setSelectedOfficeId(userOfficeId);
-        } else if (stations.length > 0) {
-            setSelectedOfficeId(stations[0].id);
-        }
-    }, [stations, currentUser, selectedOfficeId]);
+    // Pre-delivery queue
+    const [preDeliveryParcels, setPreDeliveryParcels] = useState<UncalledParcel[]>([]);
+    const [preDeliveryLoading, setPreDeliveryLoading] = useState(false);
+    const [preDeliveryPagination, setPreDeliveryPagination] = useState({ page: 0, size: 20, totalElements: 0, totalPages: 0 });
+    const [preDeliveryFilters, setPreDeliveryFilters] = useState({
+        officeId: "",
+        fromDate: "",
+        toDate: "",
+        parcelId: "",
+        receiverName: "",
+        receiverPhone: "",
+    });
 
-    // Uncalled parcels queue
-    const [parcels, setParcels] = useState<UncalledParcel[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [pagination, setPagination] = useState({ page: 0, size: 20, totalElements: 0, totalPages: 0 });
+    // Post-delivery queue
+    const [postDeliveryParcels, setPostDeliveryParcels] = useState<UncalledParcel[]>([]);
+    const [postDeliveryLoading, setPostDeliveryLoading] = useState(false);
+    const [postDeliveryPagination, setPostDeliveryPagination] = useState({ page: 0, size: 20, totalElements: 0, totalPages: 0 });
+    const [postDeliveryFilters, setPostDeliveryFilters] = useState({
+        officeId: "",
+        fromDate: "",
+        toDate: "",
+        parcelId: "",
+        receiverName: "",
+        receiverPhone: "",
+        followUpStatus: "PENDING" as "PENDING" | "FOLLOWED_UP" | "ALL",
+    });
 
     // Stats
     const [stats, setStats] = useState<CallCenterStatsResponse | null>(null);
@@ -84,31 +91,92 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
     const [remark, setRemark] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    const fetchParcels = useCallback(async (page = 0) => {
-        setLoading(true);
+    const fetchPreDelivery = useCallback(async (page = 0) => {
+        setPreDeliveryLoading(true);
         try {
-            const response = await callCenterService.getUncalledParcels(selectedOfficeId || undefined);
+            const fromDate = preDeliveryFilters.fromDate
+                ? new Date(preDeliveryFilters.fromDate).setHours(0, 0, 0, 0)
+                : undefined;
+            const toDate = preDeliveryFilters.toDate
+                ? new Date(preDeliveryFilters.toDate).setHours(23, 59, 59, 999)
+                : undefined;
+
+            const response = await callCenterService.getNotDeliveredUncalled({
+                page,
+                size: preDeliveryPagination.size,
+                officeId: preDeliveryFilters.officeId || undefined,
+                fromDate,
+                toDate,
+                parcelId: preDeliveryFilters.parcelId || undefined,
+                receiverName: preDeliveryFilters.receiverName || undefined,
+                receiverPhone: preDeliveryFilters.receiverPhone || undefined,
+            });
+
             if (response.success && response.data) {
                 const data = response.data as any;
-                const content: UncalledParcel[] = Array.isArray(data.content) ? data.content : Array.isArray(data) ? data : [];
-                setParcels(content);
-                setPagination(prev => ({
+                const content: UncalledParcel[] = Array.isArray(data.content) ? data.content : [];
+                setPreDeliveryParcels(content);
+                setPreDeliveryPagination(prev => ({
                     ...prev,
                     page: data.number ?? page,
                     totalElements: data.totalElements ?? content.length,
                     totalPages: data.totalPages ?? 1,
                 }));
             } else {
-                showToast(response.message || "Failed to load parcels", "error");
-                setParcels([]);
+                showToast(response.message || "Failed to load pre-delivery parcels", "error");
+                setPreDeliveryParcels([]);
             }
         } catch {
-            showToast("Failed to load parcels. Please try again.", "error");
-            setParcels([]);
+            showToast("Failed to load pre-delivery parcels. Please try again.", "error");
+            setPreDeliveryParcels([]);
         } finally {
-            setLoading(false);
+            setPreDeliveryLoading(false);
         }
-    }, [showToast, selectedOfficeId]);
+    }, [preDeliveryFilters, preDeliveryPagination.size, showToast]);
+
+    const fetchPostDelivery = useCallback(async (page = 0) => {
+        setPostDeliveryLoading(true);
+        try {
+            const fromDate = postDeliveryFilters.fromDate
+                ? new Date(postDeliveryFilters.fromDate).setHours(0, 0, 0, 0)
+                : undefined;
+            const toDate = postDeliveryFilters.toDate
+                ? new Date(postDeliveryFilters.toDate).setHours(23, 59, 59, 999)
+                : undefined;
+
+            const response = await callCenterService.getDeliveredUncalled({
+                page,
+                size: postDeliveryPagination.size,
+                officeId: postDeliveryFilters.officeId || undefined,
+                fromDate,
+                toDate,
+                followUpStatus: postDeliveryFilters.followUpStatus === "ALL" ? undefined : postDeliveryFilters.followUpStatus,
+                parcelId: postDeliveryFilters.parcelId || undefined,
+                receiverName: postDeliveryFilters.receiverName || undefined,
+                receiverPhone: postDeliveryFilters.receiverPhone || undefined,
+            });
+
+            if (response.success && response.data) {
+                const data = response.data as any;
+                const content: UncalledParcel[] = Array.isArray(data.content) ? data.content : [];
+                setPostDeliveryParcels(content);
+                setPostDeliveryPagination(prev => ({
+                    ...prev,
+                    page: data.number ?? page,
+                    totalElements: data.totalElements ?? content.length,
+                    totalPages: data.totalPages ?? 1,
+                }));
+            } else {
+                showToast(response.message || "Failed to load post-delivery parcels", "error");
+                setPostDeliveryParcels([]);
+            }
+        } catch {
+            showToast("Failed to load post-delivery parcels. Please try again.", "error");
+            setPostDeliveryParcels([]);
+        } finally {
+            setPostDeliveryLoading(false);
+        }
+    }, [postDeliveryFilters, postDeliveryPagination.size, showToast]);
 
     const fetchStats = useCallback(async () => {
         setStatsLoading(true);
@@ -123,72 +191,20 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
     }, []);
 
     useEffect(() => {
-        if (!selectedOfficeId) return;
-        fetchParcels(0);
+        fetchPreDelivery(0);
+        fetchPostDelivery(0);
         fetchStats();
-    }, [fetchParcels, fetchStats, selectedOfficeId]);
+    }, [fetchPreDelivery, fetchPostDelivery, fetchStats]);
 
-    const openOutcomeModal = (parcel: UncalledParcel) => {
-        setOutcomeParcel(parcel);
-        setSelectedOutcome("REACHED");
-        setRemark("");
-    };
-
-    const handleSubmitOutcome = async () => {
-        if (!outcomeParcel) return;
-        setSubmitting(true);
-        try {
-            const response = await callCenterService.updateCallOutcome(
-                outcomeParcel.parcelId,
-                selectedOutcome,
-                remark.trim() || undefined
-            );
-            if (response.success) {
-                showToast(`Outcome recorded: ${selectedOutcome}`, "success");
-                setOutcomeParcel(null);
-                // Remove from uncalled list since it's now been called
-                setParcels(prev => prev.filter(p => p.parcelId !== outcomeParcel.parcelId));
-                setPagination(prev => ({ ...prev, totalElements: Math.max(0, prev.totalElements - 1) }));
-                fetchStats();
-            } else {
-                showToast(response.message || "Failed to record outcome", "error");
-            }
-        } catch {
-            showToast("Failed to record outcome. Please try again.", "error");
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const getOfficeName = (p: UncalledParcel) =>
-        typeof p.officeId === "object" && p.officeId ? (p.officeId as { name?: string }).name : p.officeName ?? "N/A";
 
     return (
         <div className="w-full">
             <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
                 <header className="space-y-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div>
-                            <h1 className="text-xl font-bold text-neutral-800">Call Center</h1>
-                            <p className="text-xs text-[#5d5d5d]">
-                                Parcels awaiting call center follow-up — record outcomes after speaking with recipients.
-                            </p>
-                        </div>
-                        {/* Station selector */}
-                        <div className="flex items-center gap-2">
-                            <BuildingIcon className="w-4 h-4 text-[#5d5d5d] flex-shrink-0" />
-                            <select
-                                value={selectedOfficeId}
-                                onChange={e => setSelectedOfficeId(e.target.value)}
-                                className="px-3 py-2 border border-[#d1d1d1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#ea690c] min-w-[180px]"
-                            >
-                                <option value="">All Stations</option>
-                                {stations.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
+                    <h1 className="text-xl font-bold text-neutral-800">Call Center</h1>
+                    <p className="text-xs text-[#5d5d5d]">
+                        Pre-delivery and post-delivery call center operations — record outcomes after speaking with recipients.
+                    </p>
                 </header>
 
                 <main className="flex-1 space-y-6">
@@ -197,11 +213,11 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
                         <Card className="border-none bg-[#ffefe5]">
                             <CardContent className="flex items-center justify-between p-4">
                                 <div>
-                                    <p className="text-[11px] font-medium text-[#8b4a1f] uppercase tracking-wide">Uncalled Queue</p>
+                                    <p className="text-[11px] font-medium text-[#8b4a1f] uppercase tracking-wide">Pre-Delivery Queue</p>
                                     <p className="mt-2 text-2xl font-bold text-[#ea690c]">
-                                        {loading ? "—" : pagination.totalElements}
+                                        {preDeliveryLoading ? "—" : preDeliveryPagination.totalElements}
                                     </p>
-                                    <p className="mt-1 text-[11px] text-[#8b4a1f]">Parcels not yet called</p>
+                                    <p className="mt-1 text-[11px] text-[#8b4a1f]">Awaiting first contact</p>
                                 </div>
                                 <Package className="w-8 h-8 text-[#f5a76a]" />
                             </CardContent>
@@ -233,96 +249,277 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
                         <Card className="border-none bg-[#e5f0ff]">
                             <CardContent className="flex items-center justify-between p-4">
                                 <div>
-                                    <p className="text-[11px] font-medium text-blue-700 uppercase tracking-wide">Delivered (Yesterday)</p>
+                                    <p className="text-[11px] font-medium text-blue-700 uppercase tracking-wide">Post-Delivery Queue</p>
                                     <p className="mt-2 text-2xl font-bold text-blue-700">
-                                        {statsLoading ? "—" : (stats?.totalDeliveredYesterday ?? "—")}
+                                        {postDeliveryLoading ? "—" : postDeliveryPagination.totalElements}
                                     </p>
-                                    <p className="mt-1 text-[11px] text-blue-600">Total delivered yesterday</p>
+                                    <p className="mt-1 text-[11px] text-blue-600">Follow-up needed</p>
                                 </div>
                                 <Truck className="w-8 h-8 text-blue-500 opacity-70" />
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Uncalled parcels table */}
+                    {/* Queue tabs and filters */}
                     <Card className="border border-[#d1d1d1] bg-white">
-                        <CardContent className="p-0">
-                            <div className="flex items-center justify-between px-4 py-3 border-b border-[#d1d1d1]">
-                                <p className="text-sm font-semibold text-neutral-800">Uncalled Parcels</p>
+                        <CardContent className="p-6">
+                            {/* Tab Navigation */}
+                            <div className="mb-6 flex gap-2 border-b border-[#d1d1d1]">
+                                <button
+                                    onClick={() => setActiveQueueTab("post-delivery")}
+                                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                        activeQueueTab === "post-delivery"
+                                            ? "border-[#ea690c] text-[#ea690c]"
+                                            : "border-transparent text-[#5d5d5d] hover:text-neutral-800"
+                                    }`}
+                                >
+                                    Post-Delivery Follow-Up
+                                </button>
+                                <button
+                                    onClick={() => setActiveQueueTab("pre-delivery")}
+                                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                        activeQueueTab === "pre-delivery"
+                                            ? "border-[#ea690c] text-[#ea690c]"
+                                            : "border-transparent text-[#5d5d5d] hover:text-neutral-800"
+                                    }`}
+                                >
+                                    Pre-Delivery Queue
+                                </button>
+                            </div>
+
+                            {/* Filters Section */}
+                            <div className="flex flex-wrap items-end gap-3">
+                                <div>
+                                    <Label className="text-xs text-[#5d5d5d] block mb-1">Station</Label>
+                                    <select
+                                        value={activeQueueTab === "post-delivery" ? postDeliveryFilters.officeId : preDeliveryFilters.officeId}
+                                        onChange={(e) => {
+                                            if (activeQueueTab === "post-delivery") {
+                                                setPostDeliveryFilters((f) => ({ ...f, officeId: e.target.value }));
+                                            } else {
+                                                setPreDeliveryFilters((f) => ({ ...f, officeId: e.target.value }));
+                                            }
+                                        }}
+                                        className="h-9 min-w-[140px] rounded border border-[#d1d1d1] px-2 text-sm"
+                                    >
+                                        <option value="">All stations</option>
+                                        {stations.map((s) => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-[#5d5d5d] block mb-1">Parcel ID</Label>
+                                    <Input
+                                        type="text"
+                                        placeholder="Search..."
+                                        value={activeQueueTab === "post-delivery" ? postDeliveryFilters.parcelId : preDeliveryFilters.parcelId}
+                                        onChange={(e) => {
+                                            if (activeQueueTab === "post-delivery") {
+                                                setPostDeliveryFilters((f) => ({ ...f, parcelId: e.target.value }));
+                                            } else {
+                                                setPreDeliveryFilters((f) => ({ ...f, parcelId: e.target.value }));
+                                            }
+                                        }}
+                                        className="h-9 w-32"
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-[#5d5d5d] block mb-1">Receiver Name</Label>
+                                    <Input
+                                        type="text"
+                                        placeholder="Search..."
+                                        value={activeQueueTab === "post-delivery" ? postDeliveryFilters.receiverName : preDeliveryFilters.receiverName}
+                                        onChange={(e) => {
+                                            if (activeQueueTab === "post-delivery") {
+                                                setPostDeliveryFilters((f) => ({ ...f, receiverName: e.target.value }));
+                                            } else {
+                                                setPreDeliveryFilters((f) => ({ ...f, receiverName: e.target.value }));
+                                            }
+                                        }}
+                                        className="h-9 w-32"
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-[#5d5d5d] block mb-1">Phone Number</Label>
+                                    <Input
+                                        type="text"
+                                        placeholder="Search..."
+                                        value={activeQueueTab === "post-delivery" ? postDeliveryFilters.receiverPhone : preDeliveryFilters.receiverPhone}
+                                        onChange={(e) => {
+                                            if (activeQueueTab === "post-delivery") {
+                                                setPostDeliveryFilters((f) => ({ ...f, receiverPhone: e.target.value }));
+                                            } else {
+                                                setPreDeliveryFilters((f) => ({ ...f, receiverPhone: e.target.value }));
+                                            }
+                                        }}
+                                        className="h-9 w-32"
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-[#5d5d5d] block mb-1">From Date</Label>
+                                    <Input
+                                        type="date"
+                                        value={activeQueueTab === "post-delivery" ? postDeliveryFilters.fromDate : preDeliveryFilters.fromDate}
+                                        onChange={(e) => {
+                                            if (activeQueueTab === "post-delivery") {
+                                                setPostDeliveryFilters((f) => ({ ...f, fromDate: e.target.value }));
+                                            } else {
+                                                setPreDeliveryFilters((f) => ({ ...f, fromDate: e.target.value }));
+                                            }
+                                        }}
+                                        className="h-9 w-32"
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-[#5d5d5d] block mb-1">To Date</Label>
+                                    <Input
+                                        type="date"
+                                        value={activeQueueTab === "post-delivery" ? postDeliveryFilters.toDate : preDeliveryFilters.toDate}
+                                        onChange={(e) => {
+                                            if (activeQueueTab === "post-delivery") {
+                                                setPostDeliveryFilters((f) => ({ ...f, toDate: e.target.value }));
+                                            } else {
+                                                setPreDeliveryFilters((f) => ({ ...f, toDate: e.target.value }));
+                                            }
+                                        }}
+                                        className="h-9 w-32"
+                                    />
+                                </div>
+                                {activeQueueTab === "post-delivery" && (
+                                    <div>
+                                        <Label className="text-xs text-[#5d5d5d] block mb-1">Follow-up Status</Label>
+                                        <select
+                                            value={postDeliveryFilters.followUpStatus}
+                                            onChange={(e) =>
+                                                setPostDeliveryFilters((f) => ({
+                                                    ...f,
+                                                    followUpStatus: e.target.value as "PENDING" | "FOLLOWED_UP" | "ALL",
+                                                }))
+                                            }
+                                            className="h-9 min-w-[100px] rounded border border-[#d1d1d1] px-2 text-sm"
+                                        >
+                                            <option value="PENDING">Pending</option>
+                                            <option value="FOLLOWED_UP">Followed up</option>
+                                            <option value="ALL">All</option>
+                                        </select>
+                                    </div>
+                                )}
                                 <Button
-                                    onClick={() => fetchParcels(pagination.page)}
+                                    onClick={() => (activeQueueTab === "post-delivery" ? fetchPostDelivery(0) : fetchPreDelivery(0))}
                                     variant="outline"
                                     size="sm"
                                     className="border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
-                                    disabled={loading}
                                 >
-                                    {loading ? <Loader className="w-4 h-4 animate-spin" /> : "Refresh"}
+                                    Refresh
                                 </Button>
                             </div>
+                        </CardContent>
+                    </Card>
 
-                            {loading ? (
+                    {/* Parcel tables - context-aware */}
+                    <Card className="border border-[#d1d1d1] bg-white">
+                        <CardContent className="p-0">
+                            <div className="px-4 py-3 border-b border-[#d1d1d1]">
+                                <p className="text-sm font-semibold text-neutral-800">
+                                    {activeQueueTab === "post-delivery" ? "Post-Delivery Follow-Up Queue" : "Pre-Delivery Queue"}
+                                </p>
+                            </div>
+
+                            {activeQueueTab === "post-delivery" && postDeliveryLoading ? (
                                 <div className="text-center py-12">
                                     <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
                                     <p className="text-sm text-[#5d5d5d]">Loading parcels...</p>
                                 </div>
-                            ) : parcels.length === 0 ? (
+                            ) : activeQueueTab === "pre-delivery" && preDeliveryLoading ? (
+                                <div className="text-center py-12">
+                                    <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                                    <p className="text-sm text-[#5d5d5d]">Loading parcels...</p>
+                                </div>
+                            ) : (activeQueueTab === "post-delivery" ? postDeliveryParcels : preDeliveryParcels).length === 0 ? (
                                 <div className="text-center py-12">
                                     <CheckCircleIcon className="w-16 h-16 text-green-400 mx-auto mb-4" />
                                     <p className="text-sm font-semibold text-neutral-800">All caught up!</p>
-                                    <p className="text-xs text-[#5d5d5d] mt-1">No parcels awaiting call center follow-up.</p>
+                                    <p className="text-xs text-[#5d5d5d] mt-1">
+                                        {activeQueueTab === "post-delivery" 
+                                            ? "No parcels awaiting post-delivery follow-up."
+                                            : "No parcels awaiting initial calls."}
+                                    </p>
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto">
                                     <table className="w-full divide-y divide-[#d1d1d1]">
                                         <thead className="bg-gray-50">
                                             <tr>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Recipient</th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Phone</th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Address</th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Station</th>
-                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">Registered</th>
-                                                <th className="py-3 px-4 text-center text-xs font-semibold text-neutral-800 uppercase tracking-wider">Actions</th>
+                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
+                                                    Parcel ID
+                                                </th>
+                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
+                                                    Recipient
+                                                </th>
+                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
+                                                    Phone
+                                                </th>
+                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
+                                                    Address
+                                                </th>
+                                                <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
+                                                    Station
+                                                </th>
+                                                {activeQueueTab === "post-delivery" && (
+                                                    <th className="py-3 px-4 text-left text-xs font-semibold text-neutral-800 uppercase tracking-wider">
+                                                        Delivered
+                                                    </th>
+                                                )}
+                                                <th className="py-3 px-4 text-center text-xs font-semibold text-neutral-800 uppercase tracking-wider">
+                                                    Actions
+                                                </th>
                                             </tr>
                                         </thead>
-                                        <tbody className="bg-white divide-y divide-[#d1d1d1]">
-                                            {parcels.map((p) => (
-                                                <tr key={p.parcelId} className="hover:bg-gray-50">
+                                        <tbody className="divide-y divide-[#d1d1d1]">
+                                            {(activeQueueTab === "post-delivery" ? postDeliveryParcels : preDeliveryParcels).map((parcel) => (
+                                                <tr key={parcel.parcelId} className="hover:bg-gray-50">
                                                     <td className="py-3 px-4">
-                                                        <p className="font-semibold text-neutral-800 text-sm">{p.receiverName || "N/A"}</p>
-                                                        {p.parcelDescription && (
-                                                            <p className="text-xs text-gray-500 truncate max-w-[160px]">{p.parcelDescription}</p>
+                                                        <span className="font-semibold text-neutral-800 text-sm">{parcel.parcelId}</span>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <p className="text-sm text-neutral-800">{parcel.receiverName || "N/A"}</p>
+                                                        {parcel.parcelDescription && (
+                                                            <p className="text-xs text-gray-500 truncate">{parcel.parcelDescription}</p>
                                                         )}
                                                     </td>
                                                     <td className="py-3 px-4">
                                                         <a
-                                                            href={`tel:${p.recieverPhoneNumber}`}
+                                                            href={`tel:${parcel.recieverPhoneNumber}`}
                                                             className="text-[#ea690c] hover:underline font-medium text-sm"
                                                         >
-                                                            {p.recieverPhoneNumber ? formatPhoneNumber(p.recieverPhoneNumber) : "N/A"}
+                                                            {parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : "N/A"}
                                                         </a>
                                                     </td>
-                                                    <td className="py-3 px-4 text-sm text-neutral-700 max-w-[200px] truncate" title={p.receiverAddress}>
-                                                        {p.receiverAddress || "N/A"}
+                                                    <td className="py-3 px-4 text-sm text-neutral-700 max-w-[200px] truncate">
+                                                        {parcel.receiverAddress || "N/A"}
                                                     </td>
-                                                    <td className="py-3 px-4 text-sm text-neutral-700">{getOfficeName(p)}</td>
                                                     <td className="py-3 px-4 text-sm text-neutral-700">
-                                                        {p.createdAt ? formatDate(new Date(p.createdAt).toISOString()) : "N/A"}
+                                                        {typeof parcel.officeId === "object" && parcel.officeId
+                                                            ? (parcel.officeId as any).name
+                                                            : parcel.officeName || "N/A"}
                                                     </td>
+                                                    {activeQueueTab === "post-delivery" && (
+                                                        <td className="py-3 px-4 text-sm text-neutral-700">
+                                                            {parcel.deliveryDate ? formatDate(new Date(parcel.deliveryDate).toISOString()) : "—"}
+                                                        </td>
+                                                    )}
                                                     <td className="py-3 px-4">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <a
-                                                                href={`tel:${p.recieverPhoneNumber}`}
-                                                                className="inline-flex items-center justify-center h-8 w-8 rounded border border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
-                                                                title="Call"
-                                                            >
-                                                                <PhoneCall className="w-4 h-4" />
-                                                            </a>
+                                                        <div className="flex items-center justify-center">
                                                             <Button
-                                                                onClick={() => openOutcomeModal(p)}
+                                                                onClick={() => {
+                                                                    setOutcomeParcel(parcel);
+                                                                    setSelectedOutcome("REACHED");
+                                                                    setRemark("");
+                                                                }}
                                                                 size="sm"
                                                                 className="bg-[#ea690c] text-white hover:bg-[#d45d0a] text-xs h-8 px-3"
                                                             >
-                                                                <MessageSquare className="w-3.5 h-3.5 mr-1" />
                                                                 Record Outcome
                                                             </Button>
                                                         </div>
@@ -334,129 +531,193 @@ export const CallCenter: React.FC<CallCenterProps> = ({ view = "follow-up" }) =>
                                 </div>
                             )}
 
-                            {!loading && pagination.totalPages > 1 && (
-                                <div className="px-6 py-4 border-t border-[#d1d1d1] flex items-center justify-between">
-                                    <p className="text-sm text-neutral-700">
-                                        Showing {pagination.page * pagination.size + 1}–
-                                        {Math.min((pagination.page + 1) * pagination.size, pagination.totalElements)} of {pagination.totalElements}
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <Button
-                                            onClick={() => fetchParcels(pagination.page - 1)}
-                                            disabled={pagination.page === 0 || loading}
-                                            variant="outline" size="sm"
-                                        >
-                                            Previous
-                                        </Button>
-                                        <Button
-                                            onClick={() => fetchParcels(pagination.page + 1)}
-                                            disabled={pagination.page >= pagination.totalPages - 1 || loading}
-                                            variant="outline" size="sm"
-                                        >
-                                            Next
-                                        </Button>
+                            {!((activeQueueTab === "post-delivery" ? postDeliveryLoading : preDeliveryLoading)) &&
+                                (activeQueueTab === "post-delivery"
+                                    ? postDeliveryPagination.totalPages
+                                    : preDeliveryPagination.totalPages) > 1 && (
+                                    <div className="px-6 py-4 border-t border-[#d1d1d1] flex items-center justify-between">
+                                        <p className="text-sm text-neutral-700">
+                                            Showing{" "}
+                                            {(activeQueueTab === "post-delivery"
+                                                ? postDeliveryPagination.page
+                                                : preDeliveryPagination.page) * 20 + 1}
+                                            –
+                                            {Math.min(
+                                                ((activeQueueTab === "post-delivery"
+                                                    ? postDeliveryPagination.page
+                                                    : preDeliveryPagination.page) +
+                                                    1) *
+                                                    20,
+                                                activeQueueTab === "post-delivery"
+                                                    ? postDeliveryPagination.totalElements
+                                                    : preDeliveryPagination.totalElements
+                                            )}{" "}
+                                            of{" "}
+                                            {activeQueueTab === "post-delivery"
+                                                ? postDeliveryPagination.totalElements
+                                                : preDeliveryPagination.totalElements}
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                onClick={() =>
+                                                    activeQueueTab === "post-delivery"
+                                                        ? fetchPostDelivery(postDeliveryPagination.page - 1)
+                                                        : fetchPreDelivery(preDeliveryPagination.page - 1)
+                                                }
+                                                disabled={
+                                                    (activeQueueTab === "post-delivery"
+                                                        ? postDeliveryPagination.page
+                                                        : preDeliveryPagination.page) === 0
+                                                }
+                                                variant="outline"
+                                                size="sm"
+                                            >
+                                                Previous
+                                            </Button>
+                                            <Button
+                                                onClick={() =>
+                                                    activeQueueTab === "post-delivery"
+                                                        ? fetchPostDelivery(postDeliveryPagination.page + 1)
+                                                        : fetchPreDelivery(preDeliveryPagination.page + 1)
+                                                }
+                                                disabled={
+                                                    (activeQueueTab === "post-delivery"
+                                                        ? postDeliveryPagination.page
+                                                        : preDeliveryPagination.page) >=
+                                                    (activeQueueTab === "post-delivery"
+                                                        ? postDeliveryPagination.totalPages
+                                                        : preDeliveryPagination.totalPages) -
+                                                        1
+                                                }
+                                                variant="outline"
+                                                size="sm"
+                                            >
+                                                Next
+                                            </Button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
                         </CardContent>
                     </Card>
                 </main>
-            </div>
 
-            {/* Record Call Outcome Modal */}
-            {outcomeParcel && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <Card className="w-full max-w-md border border-[#d1d1d1] bg-white shadow-xl">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between mb-5 pb-4 border-b border-[#d1d1d1]">
-                                <div>
-                                    <h3 className="text-lg font-bold text-neutral-800">Record Call Outcome</h3>
-                                    <p className="text-xs text-[#5d5d5d] mt-0.5">
-                                        {outcomeParcel.receiverName || outcomeParcel.parcelId}
-                                        {outcomeParcel.recieverPhoneNumber && (
-                                            <span className="ml-2 text-[#ea690c]">{formatPhoneNumber(outcomeParcel.recieverPhoneNumber)}</span>
-                                        )}
-                                    </p>
+                {/* Record Call Outcome Modal */}
+                {outcomeParcel && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <Card className="w-full max-w-md border border-[#d1d1d1] bg-white shadow-xl">
+                            <CardContent className="p-6">
+                                <div className="flex items-center justify-between mb-5 pb-4 border-b border-[#d1d1d1]">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-neutral-800">Record Call Outcome</h3>
+                                        <p className="text-xs text-[#5d5d5d] mt-0.5">
+                                            {outcomeParcel.receiverName || outcomeParcel.parcelId}
+                                            {outcomeParcel.recieverPhoneNumber && (
+                                                <span className="ml-2 text-[#ea690c]">{formatPhoneNumber(outcomeParcel.recieverPhoneNumber)}</span>
+                                            )}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setOutcomeParcel(null)}
+                                        className="text-[#9a9a9a] hover:text-neutral-800 p-1 hover:bg-gray-100 rounded"
+                                    >
+                                        ✕
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setOutcomeParcel(null)}
-                                    className="text-[#9a9a9a] hover:text-neutral-800 p-1 hover:bg-gray-100 rounded"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
 
-                            <div className="space-y-4">
-                                <div>
-                                    <Label className="text-sm font-semibold text-neutral-800 mb-2 block">
-                                        Outcome <span className="text-[#e22420]">*</span>
-                                    </Label>
-                                    <div className="space-y-2">
-                                        {OUTCOME_OPTIONS.map((opt) => (
-                                            <label
-                                                key={opt.value}
-                                                className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
-                                                    selectedOutcome === opt.value
-                                                        ? "border-[#ea690c] bg-orange-50"
-                                                        : "border-[#d1d1d1] hover:bg-gray-50"
-                                                }`}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="callOutcome"
-                                                    value={opt.value}
-                                                    checked={selectedOutcome === opt.value}
-                                                    onChange={() => setSelectedOutcome(opt.value)}
-                                                    className="w-4 h-4 text-[#ea690c]"
-                                                />
-                                                <span className="ml-3 text-sm font-medium text-neutral-800">{opt.label}</span>
-                                                <Badge className={`ml-auto text-xs border ${opt.color}`}>{opt.value}</Badge>
-                                            </label>
-                                        ))}
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label className="text-sm font-semibold text-neutral-800 mb-2 block">
+                                            Outcome <span className="text-[#e22420]">*</span>
+                                        </Label>
+                                        <div className="space-y-2">
+                                            {OUTCOME_OPTIONS.map((opt) => (
+                                                <label
+                                                    key={opt.value}
+                                                    className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                                                        selectedOutcome === opt.value
+                                                            ? "border-[#ea690c] bg-orange-50"
+                                                            : "border-[#d1d1d1] hover:bg-gray-50"
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="callOutcome"
+                                                        value={opt.value}
+                                                        checked={selectedOutcome === opt.value}
+                                                        onChange={() => setSelectedOutcome(opt.value)}
+                                                        className="w-4 h-4 text-[#ea690c]"
+                                                    />
+                                                    <span className="ml-3 text-sm font-medium text-neutral-800">{opt.label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <Label className="text-sm font-semibold text-neutral-800 mb-2 block">
+                                            Remark <span className="text-xs font-normal text-gray-500">(optional)</span>
+                                        </Label>
+                                        <textarea
+                                            value={remark}
+                                            onChange={(e) => setRemark(e.target.value)}
+                                            placeholder="Add any notes from the call..."
+                                            className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c] resize-none text-sm"
+                                            rows={3}
+                                            maxLength={500}
+                                        />
+                                        <p className="text-xs text-[#5d5d5d] mt-1 text-right">{remark.length}/500</p>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-1">
+                                        <Button
+                                            onClick={() => setOutcomeParcel(null)}
+                                            variant="outline"
+                                            className="flex-1 border border-[#d1d1d1]"
+                                            disabled={submitting}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={async () => {
+                                                if (!outcomeParcel) return;
+                                                setSubmitting(true);
+                                                try {
+                                                    const response = await callCenterService.updateCallOutcome(
+                                                        outcomeParcel.parcelId,
+                                                        selectedOutcome,
+                                                        remark.trim() || undefined
+                                                    );
+                                                    if (response.success) {
+                                                        setOutcomeParcel(null);
+                                                        // Refresh the current queue
+                                                        if (activeQueueTab === "post-delivery") {
+                                                            fetchPostDelivery(postDeliveryPagination.page);
+                                                        } else {
+                                                            fetchPreDelivery(preDeliveryPagination.page);
+                                                        }
+                                                        // Refresh stats
+                                                        fetchStats();
+                                                    }
+                                                } finally {
+                                                    setSubmitting(false);
+                                                }
+                                            }}
+                                            disabled={submitting}
+                                            className="flex-1 bg-[#ea690c] text-white hover:bg-[#d45d0a] disabled:opacity-50"
+                                        >
+                                            {submitting ? (
+                                                <><Loader className="w-4 h-4 animate-spin mr-2" />Saving...</>
+                                            ) : (
+                                                "Save Outcome"
+                                            )}
+                                        </Button>
                                     </div>
                                 </div>
-
-                                <div>
-                                    <Label className="text-sm font-semibold text-neutral-800 mb-2 block">
-                                        Remark <span className="text-xs font-normal text-gray-500">(optional)</span>
-                                    </Label>
-                                    <textarea
-                                        value={remark}
-                                        onChange={(e) => setRemark(e.target.value)}
-                                        placeholder="Add any notes from the call..."
-                                        className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c] resize-none text-sm"
-                                        rows={3}
-                                        maxLength={500}
-                                    />
-                                    <p className="text-xs text-[#5d5d5d] mt-1 text-right">{remark.length}/500</p>
-                                </div>
-
-                                <div className="flex gap-3 pt-1">
-                                    <Button
-                                        onClick={() => setOutcomeParcel(null)}
-                                        variant="outline"
-                                        className="flex-1 border border-[#d1d1d1]"
-                                        disabled={submitting}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        onClick={handleSubmitOutcome}
-                                        disabled={submitting}
-                                        className="flex-1 bg-[#ea690c] text-white hover:bg-[#d45d0a] disabled:opacity-50"
-                                    >
-                                        {submitting ? (
-                                            <><Loader className="w-4 h-4 animate-spin mr-2" />Saving...</>
-                                        ) : (
-                                            "Save Outcome"
-                                        )}
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
