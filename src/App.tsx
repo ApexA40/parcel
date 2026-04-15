@@ -49,6 +49,8 @@ import { DriverInboundReconciliation } from "./screens/DriverInboundReconciliati
 import { SystemLogs } from "./screens/Admin/SystemLogs/SystemLogs";
 import { HomeDeliveryWatchlist } from "./screens/CallCenter/HomeDeliveryWatchlist/HomeDeliveryWatchlist";
 import { SmartSearch } from "./screens/SmartSearch/SmartSearch";
+import RiderFuelRequest from "./screens/RiderFuelRequest";
+import AdminFuelRequests from "./screens/AdminFuelRequests";
 
 export const App = (): JSX.Element => {
   // Some environments cache component prop types aggressively; this keeps routing flexible.
@@ -263,6 +265,16 @@ export const App = (): JSX.Element => {
                         }
                       />
                       <Route
+                        path="/rider/fuel-request"
+                        element={
+                          <ProtectedRoute allowedRoles={["RIDER"]}>
+                            <RiderLayout>
+                              <RiderFuelRequest />
+                            </RiderLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
                         path="/driver-tracker"
                         element={
                           <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
@@ -408,6 +420,17 @@ export const App = (): JSX.Element => {
                           <ProtectedRoute allowedRoles={["ADMIN"]}>
                             <MainLayout>
                               <FinancialReports />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      <Route
+                        path="/admin/fuel-requests"
+                        element={
+                          <ProtectedRoute allowedRoles={["ADMIN", "MANAGER"]}>
+                            <MainLayout>
+                              <AdminFuelRequests />
                             </MainLayout>
                           </ProtectedRoute>
                         }
