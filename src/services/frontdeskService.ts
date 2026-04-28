@@ -572,11 +572,11 @@ class FrontdeskService {
     async getActiveDeliveryForParcel(parcelId: string): Promise<ApiResponse> {
         try {
             const response = await this.apiClient.get<any>(`/parcel-assignment?parcelId=${parcelId}`);
-            
+
             // Find the active delivery assignment for this parcel
             const assignments = response.data?.content || [];
-            const activeDelivery = assignments.find((a: any) => 
-                a.parcel?.parcelId === parcelId && 
+            const activeDelivery = assignments.find((a: any) =>
+                a.parcel?.parcelId === parcelId &&
                 ['ASSIGNED', 'ACCEPTED', 'PICKED_UP'].includes(a.status)
             );
 
@@ -870,6 +870,23 @@ class FrontdeskService {
     }
 
     /**
+     * Mark a parcel as picked up
+     * POST /api-frontdesk/parcel/picked-up
+     */
+    async markParcelPickedUp(parcelId: string, whoPickedUpName?: string, whoPickedUpTelephoneNumber?: string): Promise<ApiResponse> {
+        try {
+            const body: { parcelId: string; whoPickedUpName?: string; whoPickedUpTelephoneNumber?: string } = { parcelId };
+            if (whoPickedUpName) body.whoPickedUpName = whoPickedUpName;
+            if (whoPickedUpTelephoneNumber) body.whoPickedUpTelephoneNumber = whoPickedUpTelephoneNumber;
+            const response = await this.apiClient.post('/parcel/picked-up', body);
+            return { success: true, message: 'Parcel marked as picked up', data: response.data };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Failed to mark parcel as picked up.' };
+        }
+    }
+
+
+    /**
      * Get addresses stored for the current office.
      * Endpoint: GET /addresses
      * Optional query: name (filter by address name).
@@ -919,6 +936,8 @@ class FrontdeskService {
         }
     }
 }
+
+
 
 export default new FrontdeskService();
 export type {

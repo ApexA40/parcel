@@ -103,12 +103,12 @@ export const ParcelTransfer = (): JSX.Element => {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState("");
   const printRef = useRef<HTMLDivElement>(null);
-  
+
   // Filter out current user's station from cached stations
   const stations = (() => {
     const userData = authService.getUser();
     const userStationId = userData?.stationId || userData?.office?.id;
-    return userStationId 
+    return userStationId
       ? cachedStations.filter((station) => station.id !== userStationId)
       : cachedStations;
   })();
@@ -141,12 +141,12 @@ export const ParcelTransfer = (): JSX.Element => {
 
   const handleChange =
     (field: keyof ParcelTransferFormState) =>
-    (value: string | boolean) => {
-      setForm((prev) => ({
-        ...prev,
-        [field]: value,
-      }));
-    };
+      (value: string | boolean) => {
+        setForm((prev) => ({
+          ...prev,
+          [field]: value,
+        }));
+      };
 
   const totalAmount = (() => {
     if (bulkMode) {
@@ -156,7 +156,7 @@ export const ParcelTransfer = (): JSX.Element => {
         return sum + inbound + item;
       }, 0);
     }
-    
+
     const inbound = parseFloat(form.inboundCost || "0") || 0;
     const item = form.mode === "ONLINE" ? parseFloat(form.itemCost || "0") || 0 : 0;
     return inbound + item;
@@ -170,7 +170,7 @@ export const ParcelTransfer = (): JSX.Element => {
       if (!form.senderName) newErrors.senderName = "Sender name is required";
       if (!form.senderPhoneNumber) newErrors.senderPhoneNumber = "Sender phone is required";
       // Driver details are now optional
-      
+
       if (!bulkMode) {
         if (!form.receiverName) newErrors.receiverName = "Receiver name is required";
         if (!form.recieverPhoneNumber) newErrors.recieverPhoneNumber = "Receiver phone is required";
@@ -183,7 +183,7 @@ export const ParcelTransfer = (): JSX.Element => {
       if (bulkMode) {
         const missingPrices = bulkParcels.some(p => !p.inboundCost || (form.mode === "ONLINE" && !p.itemCost));
         if (missingPrices) {
-          newErrors.bulkPricing = form.mode === "ONLINE" 
+          newErrors.bulkPricing = form.mode === "ONLINE"
             ? "All parcels must have transportation cost and item cost"
             : "All parcels must have transportation cost";
         }
@@ -208,7 +208,7 @@ export const ParcelTransfer = (): JSX.Element => {
       setErrors({ bulkAdd: "Receiver name and phone are required" });
       return;
     }
-    
+
     const newParcel: BulkParcel = {
       id: Date.now().toString(),
       receiverName: form.receiverName,
@@ -220,7 +220,7 @@ export const ParcelTransfer = (): JSX.Element => {
       itemCost: "",
       pod: form.mode === "ONLINE",
     };
-    
+
     setBulkParcels([...bulkParcels, newParcel]);
     // Clear receiver fields for next entry
     setForm(prev => ({
@@ -372,15 +372,15 @@ export const ParcelTransfer = (): JSX.Element => {
   const handleFinish = async () => {
     // Submit to API
     const success = await submitParcelTransfer();
-    
+
     if (success) {
       // Generate tracking number
       const tracking = generateTrackingNumber();
       setTrackingNumber(tracking);
-      
+
       // Clear draft after successful submission
       clearDraft();
-      
+
       // Show print preview
       setShowPrintPreview(true);
     }
@@ -529,12 +529,12 @@ export const ParcelTransfer = (): JSX.Element => {
     `);
 
     printWindow.document.close();
-    
+
     // Wait for images and content to load before printing
     const images = printWindow.document.images;
     let loadedImages = 0;
     const totalImages = images.length;
-    
+
     if (totalImages === 0) {
       // No images, print immediately
       setTimeout(() => {
@@ -570,7 +570,7 @@ export const ParcelTransfer = (): JSX.Element => {
           };
         }
       });
-      
+
       // If all images already loaded
       if (loadedImages === totalImages) {
         setTimeout(() => {
@@ -646,7 +646,7 @@ export const ParcelTransfer = (): JSX.Element => {
               </Button>
             </div>
           </div>
-          
+
           {/* Draft indicator */}
           {localStorage.getItem('parcelTransferDraft') && (
             <div className="flex items-center justify-between rounded-lg bg-blue-50 px-4 py-2 text-xs">
@@ -673,20 +673,18 @@ export const ParcelTransfer = (): JSX.Element => {
               className="flex flex-1 items-center justify-center gap-2"
             >
               <div
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300 ${
-                  step === s.id
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300 ${step === s.id
                     ? "bg-[#ea690c] text-white scale-110"
                     : step > s.id
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-100 text-gray-500"
-                }`}
+                      ? "bg-green-500 text-white"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
               >
                 {step > s.id ? <CheckCircleIcon className="h-4 w-4" /> : s.id}
               </div>
               <span
-                className={`hidden sm:inline transition-all duration-300 ${
-                  step === s.id ? "font-semibold text-neutral-900" : "text-[#5d5d5d]"
-                }`}
+                className={`hidden sm:inline transition-all duration-300 ${step === s.id ? "font-semibold text-neutral-900" : "text-[#5d5d5d]"
+                  }`}
               >
                 {s.label}
               </span>
@@ -841,14 +839,14 @@ export const ParcelTransfer = (): JSX.Element => {
                     </span>
                   )}
                 </div>
-                
+
                 {errors.bulkParcels && (
                   <p className="text-xs text-red-600">{errors.bulkParcels}</p>
                 )}
                 {errors.bulkAdd && (
                   <p className="text-xs text-red-600">{errors.bulkAdd}</p>
                 )}
-                
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-neutral-800">
@@ -937,7 +935,7 @@ export const ParcelTransfer = (): JSX.Element => {
                     />
                   </div>
                 </div>
-                
+
                 {/* Bulk mode: Add parcel button and list */}
                 {bulkMode && (
                   <div className="space-y-3">
@@ -949,7 +947,7 @@ export const ParcelTransfer = (): JSX.Element => {
                       <PlusIcon className="h-4 w-4" />
                       Add Parcel to Batch
                     </Button>
-                    
+
                     {bulkParcels.length > 0 && (
                       <div className="space-y-2">
                         <h3 className="text-xs font-semibold text-neutral-800">Parcels in Batch:</h3>
@@ -1230,7 +1228,7 @@ export const ParcelTransfer = (): JSX.Element => {
                 {bulkMode ? (
                   <div className="space-y-2">
                     {bulkParcels.map((parcel, idx) => {
-                      const parcelTotal = 
+                      const parcelTotal =
                         (parseFloat(parcel.inboundCost || "0") || 0) +
                         (parcel.pod ? (parseFloat(parcel.itemCost || "0") || 0) : 0);
                       return (
@@ -1476,7 +1474,7 @@ export const ParcelTransfer = (): JSX.Element => {
                 {bulkMode ? (
                   <div className="space-y-2">
                     {bulkParcels.map((parcel, idx) => {
-                      const parcelTotal = 
+                      const parcelTotal =
                         (parseFloat(parcel.inboundCost || "0") || 0) +
                         (parcel.pod ? (parseFloat(parcel.itemCost || "0") || 0) : 0);
                       return (
@@ -1587,7 +1585,7 @@ export const ParcelTransfer = (): JSX.Element => {
                   </Button>
                 </div>
               </div>
-              
+
               <div className="p-6" ref={printRef}>
                 {bulkMode ? (
                   <div className="space-y-6">

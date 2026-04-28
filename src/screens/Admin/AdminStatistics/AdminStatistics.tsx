@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
 import {
   TrendingUp,
   TrendingDown,
@@ -10,13 +9,10 @@ import {
   Truck,
   Fuel,
   AlertCircle,
-  Download,
 } from 'lucide-react';
-import { useCountUp } from '../../../hooks/useCountUp';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { PieChart } from '@mui/x-charts/PieChart';
-import { exportService } from '../../../services/exportService';
 
 // Static data for demonstration
 const STATIC_DATA = {
@@ -82,6 +78,33 @@ const gradientMap: Record<string, string> = {
   'bg-indigo-50': 'bg-gradient-to-br from-indigo-50 to-indigo-100/50',
 };
 
+// Simple number animation hook replacement
+const useCountUp = (endValue: number, duration: number = 1200) => {
+  const [displayValue, setDisplayValue] = React.useState(0);
+
+  React.useEffect(() => {
+    let startTime: number;
+    let animationFrameId: number;
+
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime;
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      setDisplayValue(Math.floor(endValue * progress));
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [endValue, duration]);
+
+  return displayValue;
+};
+
 const StatCard: React.FC<{
   title: string;
   value: string | number;
@@ -99,7 +122,7 @@ const StatCard: React.FC<{
   const gradient = gradientMap[bgColor] || bgColor;
 
   return (
-    <Card className="group relative overflow-hidden border border-gray-200 bg-white shadow-sm hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 hover:scale-[1.02] transition-all duration-500 ease-out cursor-pointer">
+    <Card className="group relative overflow-hidden border border-gray-200 bg-white shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer">
       {/* Shine effect */}
       <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-full transition-transform duration-1000" />
       <CardContent className="p-6">
@@ -133,61 +156,6 @@ const AdminStatistics: React.FC = () => {
   const { overview } = STATIC_DATA;
 
   const COLORS = ['#ea690c', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'];
-
-  const handleExport = (format: 'pdf' | 'excel', type: 'stations' | 'riders') => {
-    const timestamp = new Date().toISOString().split('T')[0];
-    const filename = `${type === 'stations' ? 'Station' : 'Rider'}_Performance_${timestamp}`;
-
-    if (type === 'stations') {
-      const columns = [
-        { header: 'Station', key: 'name', width: 25 },
-        { header: 'Parcels', key: 'parcels', width: 12 },
-        { header: 'Revenue', key: 'revenue', width: 15 },
-        { header: 'Delivered', key: 'deliveries', width: 12 },
-        { header: 'Failed', key: 'failed', width: 10 },
-        { header: 'Success Rate', key: 'successRate', width: 15 },
-      ];
-      const data = STATIC_DATA.stations.map(s => ({
-        name: s.name,
-        parcels: s.parcels,
-        revenue: `GHS ${s.revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        deliveries: s.deliveries,
-        failed: s.failed,
-        successRate: `${((s.deliveries / s.parcels) * 100).toFixed(1)}%`,
-      }));
-      const options = {
-        title: 'Station Performance Report',
-        subtitle: `System Statistics — ${timeRange === '7d' ? 'Last 7 Days' : timeRange === '30d' ? 'Last 30 Days' : 'Last 90 Days'}`,
-        columns,
-        data,
-        filename,
-      };
-      format === 'pdf' ? exportService.exportToPDF(options) : exportService.exportToExcel(options);
-    } else {
-      const columns = [
-        { header: 'Rank', key: 'rank', width: 8 },
-        { header: 'Rider Name', key: 'name', width: 20 },
-        { header: 'Deliveries', key: 'deliveries', width: 12 },
-        { header: 'Revenue', key: 'revenue', width: 15 },
-        { header: 'Rating', key: 'rating', width: 10 },
-      ];
-      const data = STATIC_DATA.topRiders.map((r, i) => ({
-        rank: i + 1,
-        name: r.name,
-        deliveries: r.deliveries,
-        revenue: `GHS ${r.revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        rating: r.rating,
-      }));
-      const options = {
-        title: 'Top Riders Performance Report',
-        subtitle: `System Statistics — ${timeRange === '7d' ? 'Last 7 Days' : timeRange === '30d' ? 'Last 30 Days' : 'Last 90 Days'}`,
-        columns,
-        data,
-        filename,
-      };
-      format === 'pdf' ? exportService.exportToPDF(options) : exportService.exportToExcel(options);
-    }
-  };
 
   const statCards = [
     {
@@ -281,11 +249,10 @@ const AdminStatistics: React.FC = () => {
               <button
                 key={range}
                 onClick={() => setTimeRange(range)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  timeRange === range
-                    ? 'bg-[#ea690c] text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                }`}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${timeRange === range
+                  ? 'bg-[#ea690c] text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                  }`}
               >
                 {range === '7d' ? 'Last 7 Days' : range === '30d' ? 'Last 30 Days' : 'Last 90 Days'}
               </button>
@@ -296,11 +263,24 @@ const AdminStatistics: React.FC = () => {
         {/* Overview Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {statCards.map((card, index) => (
-            <div key={card.title} className="animate-slide-up" style={{ animationDelay: `${index * 80}ms` }}>
+            <div key={card.title} style={{ animation: `fadeInUp 0.6s ease-out ${index * 80}ms both` }}>
               <StatCard {...card} />
             </div>
           ))}
         </div>
+
+        <style>{`
+          @keyframes fadeInUp {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -312,21 +292,19 @@ const AdminStatistics: React.FC = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setActiveChart('revenue')}
-                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                      activeChart === 'revenue'
-                        ? 'bg-[#ea690c] text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${activeChart === 'revenue'
+                      ? 'bg-[#ea690c] text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                   >
                     Revenue
                   </button>
                   <button
                     onClick={() => setActiveChart('deliveries')}
-                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                      activeChart === 'deliveries'
-                        ? 'bg-[#ea690c] text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${activeChart === 'deliveries'
+                      ? 'bg-[#ea690c] text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                   >
                     Deliveries
                   </button>
@@ -335,33 +313,26 @@ const AdminStatistics: React.FC = () => {
               {activeChart === 'revenue' ? (
                 <BarChart
                   dataset={STATIC_DATA.dailyTrend}
-                  xAxis={[{ scaleType: 'band', dataKey: 'date', tickLabelStyle: { fontSize: 12 } }]}
+                  xAxis={[{ scaleType: 'band', dataKey: 'date' as const }]}
                   series={[{
                     dataKey: 'revenue',
                     label: 'Revenue',
                     color: '#ea690c',
-                    valueFormatter: (v) => `GHS ${v?.toLocaleString()}`,
+                    valueFormatter: (v: any) => `GHS ${v?.toLocaleString()}`,
                   }]}
                   height={300}
                   margin={{ top: 10, bottom: 30, left: 50, right: 10 }}
-                  sx={{
-                    '& .MuiBarElement-root': { transition: 'opacity 0.3s', '&:hover': { opacity: 0.8 } },
-                  }}
                 />
               ) : (
                 <LineChart
                   dataset={STATIC_DATA.dailyTrend}
-                  xAxis={[{ scaleType: 'band', dataKey: 'date', tickLabelStyle: { fontSize: 12 } }]}
+                  xAxis={[{ scaleType: 'band', dataKey: 'date' as const }]}
                   series={[
-                    { dataKey: 'deliveries', label: 'Delivered', color: '#10b981', curve: 'catmullRom', showMark: true, valueFormatter: (v) => `${v} deliveries` },
-                    { dataKey: 'failed', label: 'Failed', color: '#ef4444', curve: 'catmullRom', showMark: true, valueFormatter: (v) => `${v} failed` },
+                    { dataKey: 'deliveries' as const, label: 'Delivered', color: '#10b981', valueFormatter: (v: any) => `${v} deliveries` },
+                    { dataKey: 'failed' as const, label: 'Failed', color: '#ef4444', valueFormatter: (v: any) => `${v} failed` },
                   ]}
                   height={300}
                   margin={{ top: 10, bottom: 30, left: 50, right: 10 }}
-                  sx={{
-                    '& .MuiLineElement-root': { strokeWidth: 3 },
-                    '& .MuiMarkElement-root': { transition: 'scale 0.2s ease', '&:hover': { scale: '1.5' } },
-                  }}
                 />
               )}
             </CardContent>
@@ -384,16 +355,14 @@ const AdminStatistics: React.FC = () => {
                   <h3 className="text-sm font-semibold text-gray-700 mb-3 text-center">Parcel Types</h3>
                   <PieChart
                     series={[{
-                      data: STATIC_DATA.parcelTypes.map((item, i) => ({ id: i, value: item.value, label: item.name, color: COLORS[i] })),
+                      data: STATIC_DATA.parcelTypes.map((item, i) => ({ id: i, value: item.value, label: item.name })),
                       innerRadius: 40,
                       outerRadius: 70,
                       paddingAngle: 2,
                       cornerRadius: 4,
-                      highlightScope: { faded: 'global', highlighted: 'item' },
-                      faded: { innerRadius: 30, additionalRadius: -10, color: 'gray' },
                     }]}
+                    colors={[COLORS[0], COLORS[1]]}
                     height={200}
-                    slotProps={{ legend: { hidden: true } }}
                   />
                   <div className="space-y-2 mt-2">
                     {STATIC_DATA.parcelTypes.map((item, index) => (
@@ -411,16 +380,14 @@ const AdminStatistics: React.FC = () => {
                   <h3 className="text-sm font-semibold text-gray-700 mb-3 text-center">Delivery Methods</h3>
                   <PieChart
                     series={[{
-                      data: STATIC_DATA.deliveryMethods.map((item, i) => ({ id: i, value: item.value, label: item.name, color: COLORS[i + 2] })),
+                      data: STATIC_DATA.deliveryMethods.map((item, i) => ({ id: i, value: item.value, label: item.name })),
                       innerRadius: 40,
                       outerRadius: 70,
                       paddingAngle: 2,
                       cornerRadius: 4,
-                      highlightScope: { faded: 'global', highlighted: 'item' },
-                      faded: { innerRadius: 30, additionalRadius: -10, color: 'gray' },
                     }]}
+                    colors={[COLORS[2], COLORS[3]]}
                     height={200}
-                    slotProps={{ legend: { hidden: true } }}
                   />
                   <div className="space-y-2 mt-2">
                     {STATIC_DATA.deliveryMethods.map((item, index) => (
@@ -440,38 +407,26 @@ const AdminStatistics: React.FC = () => {
         </div>
 
         {/* Top Riders Performance */}
-        <Card className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+        <Card className="border border-[#d1d1d1] bg-white shadow-sm">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-neutral-800">Top Performing Riders</h2>
-              <div className="flex gap-2">
-                <Button onClick={() => handleExport('pdf', 'riders')} size="sm" className="bg-[#ea690c] hover:bg-[#d45e0a]">
-                  <Download className="w-3 h-3 mr-1" />
-                  PDF
-                </Button>
-                <Button onClick={() => handleExport('excel', 'riders')} size="sm" variant="outline" className="border-[#ea690c] text-[#ea690c] hover:bg-orange-50">
-                  <Download className="w-3 h-3 mr-1" />
-                  Excel
-                </Button>
-              </div>
-            </div>
+            <h2 className="text-lg font-bold text-neutral-800 mb-4">Top Performing Riders</h2>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <thead className="bg-gray-50 border-b border-[#d1d1d1]">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Rank
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Rider Name
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Deliveries
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Revenue
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Rating
                     </th>
                   </tr>
@@ -480,38 +435,36 @@ const AdminStatistics: React.FC = () => {
                   {STATIC_DATA.topRiders.map((rider, index) => (
                     <tr
                       key={rider.name}
-                      className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                      }`}
+                      className={`border-b border-[#d1d1d1] hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                        }`}
                     >
                       <td className="px-4 py-3">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                            index === 0
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : index === 1
+                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${index === 0
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : index === 1
                               ? 'bg-gray-100 text-gray-700'
                               : index === 2
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'bg-blue-50 text-blue-700'
-                          }`}
+                                ? 'bg-orange-100 text-orange-700'
+                                : 'bg-blue-50 text-blue-700'
+                            }`}
                         >
                           {index + 1}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-neutral-800 dark:text-gray-200">
+                      <td className="px-4 py-3 text-sm font-semibold text-neutral-800">
                         {rider.name}
                       </td>
-                      <td className="px-4 py-3 text-sm text-blue-600 dark:text-blue-400 font-medium">
+                      <td className="px-4 py-3 text-sm text-blue-600 font-medium">
                         {rider.deliveries}
                       </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-green-600 dark:text-green-400">
+                      <td className="px-4 py-3 text-sm font-semibold text-green-600">
                         GHS {rider.revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <span className="text-sm font-medium text-amber-600">★</span>
-                          <span className="text-sm font-semibold text-neutral-800 dark:text-gray-200">
+                          <span className="text-sm font-semibold text-neutral-800">
                             {rider.rating}
                           </span>
                         </div>
@@ -525,41 +478,29 @@ const AdminStatistics: React.FC = () => {
         </Card>
 
         {/* Station Performance Table */}
-        <Card className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+        <Card className="border border-[#d1d1d1] bg-white shadow-sm">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-neutral-800">Station Performance</h2>
-              <div className="flex gap-2">
-                <Button onClick={() => handleExport('pdf', 'stations')} size="sm" className="bg-[#ea690c] hover:bg-[#d45e0a]">
-                  <Download className="w-3 h-3 mr-1" />
-                  PDF
-                </Button>
-                <Button onClick={() => handleExport('excel', 'stations')} size="sm" variant="outline" className="border-[#ea690c] text-[#ea690c] hover:bg-orange-50">
-                  <Download className="w-3 h-3 mr-1" />
-                  Excel
-                </Button>
-              </div>
-            </div>
+            <h2 className="text-lg font-bold text-neutral-800 mb-4">Station Performance</h2>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <thead className="bg-gray-50 border-b border-[#d1d1d1]">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Station
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Parcels
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Revenue
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Delivered
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Failed
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase">
                       Success Rate
                     </th>
                   </tr>
@@ -570,20 +511,19 @@ const AdminStatistics: React.FC = () => {
                     return (
                       <tr
                         key={station.id}
-                        className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                        }`}
+                        className={`border-b border-[#d1d1d1] hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                          }`}
                       >
-                        <td className="px-4 py-3 text-sm font-semibold text-neutral-800 dark:text-gray-200">
+                        <td className="px-4 py-3 text-sm font-semibold text-neutral-800">
                           {station.name}
                         </td>
                         <td className="px-4 py-3 text-sm text-neutral-700">
                           {station.parcels.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-green-600 dark:text-green-400">
+                        <td className="px-4 py-3 text-sm font-semibold text-green-600">
                           GHS {station.revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="px-4 py-3 text-sm text-blue-600 dark:text-blue-400 font-medium">
+                        <td className="px-4 py-3 text-sm text-blue-600 font-medium">
                           {station.deliveries}
                         </td>
                         <td className="px-4 py-3 text-sm text-red-600 font-medium">
