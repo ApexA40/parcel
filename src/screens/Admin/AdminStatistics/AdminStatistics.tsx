@@ -10,21 +10,10 @@ import {
   Fuel,
   AlertCircle,
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import { useCountUp } from '../../../hooks/useCountUp';
+import { BarChart } from '@mui/x-charts/BarChart';
+import { LineChart } from '@mui/x-charts/LineChart';
+import { PieChart } from '@mui/x-charts/PieChart';
 
 // Static data for demonstration
 const STATIC_DATA = {
@@ -79,6 +68,61 @@ const STATIC_DATA = {
   ],
 };
 
+const gradientMap: Record<string, string> = {
+  'bg-blue-50': 'bg-gradient-to-br from-blue-50 to-blue-100/50',
+  'bg-green-50': 'bg-gradient-to-br from-green-50 to-green-100/50',
+  'bg-purple-50': 'bg-gradient-to-br from-purple-50 to-purple-100/50',
+  'bg-orange-50': 'bg-gradient-to-br from-orange-50 to-orange-100/50',
+  'bg-emerald-50': 'bg-gradient-to-br from-emerald-50 to-emerald-100/50',
+  'bg-red-50': 'bg-gradient-to-br from-red-50 to-red-100/50',
+  'bg-amber-50': 'bg-gradient-to-br from-amber-50 to-amber-100/50',
+  'bg-indigo-50': 'bg-gradient-to-br from-indigo-50 to-indigo-100/50',
+};
+
+const StatCard: React.FC<{
+  title: string;
+  value: string | number;
+  rawValue?: number;
+  change: number;
+  icon: any;
+  color: string;
+  bgColor: string;
+  prefix?: string;
+  suffix?: string;
+}> = ({ title, value, rawValue, change, icon: Icon, color, bgColor, prefix = '', suffix = '' }) => {
+  const animatedValue = useCountUp(rawValue || 0, 1200);
+  const isPositive = change >= 0;
+  const TrendIcon = isPositive ? TrendingUp : TrendingDown;
+  const gradient = gradientMap[bgColor] || bgColor;
+
+  return (
+    <Card className="group relative overflow-hidden border border-gray-200 bg-white shadow-sm hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 hover:scale-[1.02] transition-all duration-500 ease-out cursor-pointer">
+      {/* Shine effect */}
+      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-full transition-transform duration-1000" />
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{title}</p>
+            <p className={`text-3xl font-bold ${color} mb-1 tracking-tight`}>
+              {rawValue ? `${prefix}${animatedValue.toLocaleString()}${suffix}` : value}
+            </p>
+            <div className="flex items-center gap-1 mt-2">
+              <TrendIcon className={`w-4 h-4 ${isPositive ? 'text-green-600' : 'text-red-600'}`} />
+              <span className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                {Math.abs(change)}%
+              </span>
+              <span className="text-xs text-gray-500">vs last period</span>
+            </div>
+          </div>
+          <div className={`w-12 h-12 ${gradient} rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 group-hover:rotate-6 transition-all duration-300`}>
+            <Icon className={`w-6 h-6 ${color} group-hover:scale-110 transition-transform duration-300`} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 const AdminStatistics: React.FC = () => {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [activeChart, setActiveChart] = useState<'revenue' | 'deliveries' | 'types'>('revenue');
@@ -91,6 +135,7 @@ const AdminStatistics: React.FC = () => {
     {
       title: 'Total Parcels',
       value: overview.totalParcels.toLocaleString(),
+      rawValue: overview.totalParcels,
       change: overview.parcelGrowth,
       icon: Package,
       color: 'text-blue-600',
@@ -99,14 +144,17 @@ const AdminStatistics: React.FC = () => {
     {
       title: 'Total Revenue',
       value: `GHS ${overview.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      rawValue: overview.totalRevenue,
       change: overview.revenueGrowth,
       icon: DollarSign,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
+      prefix: 'GHS ',
     },
     {
       title: 'Active Riders',
       value: overview.activeRiders.toString(),
+      rawValue: overview.activeRiders,
       change: overview.riderGrowth,
       icon: Users,
       color: 'text-purple-600',
@@ -123,22 +171,27 @@ const AdminStatistics: React.FC = () => {
     {
       title: 'Delivery Fees',
       value: `GHS ${overview.deliveryFees.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      rawValue: overview.deliveryFees,
       change: overview.deliveryFeeGrowth,
       icon: DollarSign,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-50',
+      prefix: 'GHS ',
     },
     {
       title: 'Fuel Costs',
       value: `GHS ${overview.fuelCosts.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      rawValue: overview.fuelCosts,
       change: overview.fuelCostGrowth,
       icon: Fuel,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
+      prefix: 'GHS ',
     },
     {
       title: 'Failed Deliveries',
       value: overview.failedDeliveries.toString(),
+      rawValue: overview.failedDeliveries,
       change: overview.failedGrowth,
       icon: AlertCircle,
       color: 'text-amber-600',
@@ -184,42 +237,11 @@ const AdminStatistics: React.FC = () => {
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {statCards.map((card) => {
-            const Icon = card.icon;
-            const isPositive = card.change >= 0;
-            const TrendIcon = isPositive ? TrendingUp : TrendingDown;
-
-            return (
-              <Card key={card.title} className="border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-600 mb-1">{card.title}</p>
-                      <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
-                      <div className="flex items-center gap-1 mt-2">
-                        <TrendIcon
-                          className={`w-4 h-4 ${
-                            isPositive ? 'text-green-600' : 'text-red-600'
-                          }`}
-                        />
-                        <span
-                          className={`text-xs font-medium ${
-                            isPositive ? 'text-green-600' : 'text-red-600'
-                          }`}
-                        >
-                          {Math.abs(card.change)}%
-                        </span>
-                        <span className="text-xs text-gray-500">vs last period</span>
-                      </div>
-                    </div>
-                    <div className={`w-12 h-12 ${card.bgColor} rounded-lg flex items-center justify-center`}>
-                      <Icon className={`w-6 h-6 ${card.color}`} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {statCards.map((card, index) => (
+            <div key={card.title} className="animate-slide-up" style={{ animationDelay: `${index * 80}ms` }}>
+              <StatCard {...card} />
+            </div>
+          ))}
         </div>
 
         {/* Charts Section */}
@@ -252,45 +274,38 @@ const AdminStatistics: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={300}>
-                {activeChart === 'revenue' ? (
-                  <BarChart data={STATIC_DATA.dailyTrend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      formatter={(value: any) => `GHS ${value.toLocaleString()}`}
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
-                    />
-                    <Legend />
-                    <Bar dataKey="revenue" name="Revenue" fill="#ea690c" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                ) : (
-                  <LineChart data={STATIC_DATA.dailyTrend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }} />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="deliveries"
-                      name="Delivered"
-                      stroke="#10b981"
-                      strokeWidth={3}
-                      dot={{ r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="failed"
-                      name="Failed"
-                      stroke="#ef4444"
-                      strokeWidth={3}
-                      dot={{ r: 4 }}
-                    />
-                  </LineChart>
-                )}
-              </ResponsiveContainer>
+              {activeChart === 'revenue' ? (
+                <BarChart
+                  dataset={STATIC_DATA.dailyTrend}
+                  xAxis={[{ scaleType: 'band', dataKey: 'date', tickLabelStyle: { fontSize: 12 } }]}
+                  series={[{
+                    dataKey: 'revenue',
+                    label: 'Revenue',
+                    color: '#ea690c',
+                    valueFormatter: (v) => `GHS ${v?.toLocaleString()}`,
+                  }]}
+                  height={300}
+                  margin={{ top: 10, bottom: 30, left: 50, right: 10 }}
+                  sx={{
+                    '& .MuiBarElement-root': { transition: 'opacity 0.3s', '&:hover': { opacity: 0.8 } },
+                  }}
+                />
+              ) : (
+                <LineChart
+                  dataset={STATIC_DATA.dailyTrend}
+                  xAxis={[{ scaleType: 'band', dataKey: 'date', tickLabelStyle: { fontSize: 12 } }]}
+                  series={[
+                    { dataKey: 'deliveries', label: 'Delivered', color: '#10b981', curve: 'catmullRom', showMark: true, valueFormatter: (v) => `${v} deliveries` },
+                    { dataKey: 'failed', label: 'Failed', color: '#ef4444', curve: 'catmullRom', showMark: true, valueFormatter: (v) => `${v} failed` },
+                  ]}
+                  height={300}
+                  margin={{ top: 10, bottom: 30, left: 50, right: 10 }}
+                  sx={{
+                    '& .MuiLineElement-root': { strokeWidth: 3 },
+                    '& .MuiMarkElement-root': { transition: 'scale 0.2s ease', '&:hover': { scale: '1.5' } },
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -309,32 +324,24 @@ const AdminStatistics: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-700 mb-3 text-center">Parcel Types</h3>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={STATIC_DATA.parcelTypes}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={70}
-                        dataKey="value"
-                        label={({ percentage }) => `${percentage}%`}
-                      >
-                        {STATIC_DATA.parcelTypes.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <PieChart
+                    series={[{
+                      data: STATIC_DATA.parcelTypes.map((item, i) => ({ id: i, value: item.value, label: item.name, color: COLORS[i] })),
+                      innerRadius: 40,
+                      outerRadius: 70,
+                      paddingAngle: 2,
+                      cornerRadius: 4,
+                      highlightScope: { faded: 'global', highlighted: 'item' },
+                      faded: { innerRadius: 30, additionalRadius: -10, color: 'gray' },
+                    }]}
+                    height={200}
+                    slotProps={{ legend: { hidden: true } }}
+                  />
                   <div className="space-y-2 mt-2">
                     {STATIC_DATA.parcelTypes.map((item, index) => (
                       <div key={item.name} className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: COLORS[index] }}
-                          />
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index] }} />
                           <span className="text-gray-600">{item.name}</span>
                         </div>
                         <span className="font-semibold text-neutral-800">{item.value}</span>
@@ -343,35 +350,25 @@ const AdminStatistics: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 text-center">
-                    Delivery Methods
-                  </h3>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={STATIC_DATA.deliveryMethods}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={70}
-                        dataKey="value"
-                        label={({ percentage }) => `${percentage}%`}
-                      >
-                        {STATIC_DATA.deliveryMethods.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index + 2]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 text-center">Delivery Methods</h3>
+                  <PieChart
+                    series={[{
+                      data: STATIC_DATA.deliveryMethods.map((item, i) => ({ id: i, value: item.value, label: item.name, color: COLORS[i + 2] })),
+                      innerRadius: 40,
+                      outerRadius: 70,
+                      paddingAngle: 2,
+                      cornerRadius: 4,
+                      highlightScope: { faded: 'global', highlighted: 'item' },
+                      faded: { innerRadius: 30, additionalRadius: -10, color: 'gray' },
+                    }]}
+                    height={200}
+                    slotProps={{ legend: { hidden: true } }}
+                  />
                   <div className="space-y-2 mt-2">
                     {STATIC_DATA.deliveryMethods.map((item, index) => (
                       <div key={item.name} className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: COLORS[index + 2] }}
-                          />
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index + 2] }} />
                           <span className="text-gray-600">{item.name}</span>
                         </div>
                         <span className="font-semibold text-neutral-800">{item.value}</span>

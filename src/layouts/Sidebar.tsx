@@ -12,13 +12,13 @@ const navItems = [
 
     // Admin Only - System Management
     // { label: "Admin Dashboard", path: "/admin/dashboard", icon: LayoutDashboard, roles: ["ADMIN"] },
-    { label: "Statistics", path: "/admin/statistics", icon: TrendingUp, roles: ["ADMIN"] },
+    { label: "Dashboard", path: "/admin/statistics", icon: TrendingUp, roles: ["ADMIN"] },
+    { label: "Statistics", path: "/admin/financial", icon: BarChart3, roles: ["ADMIN"] },
     { label: "Station Management", path: "/admin/stations", icon: Building2, roles: ["ADMIN"] },
     { label: "User Management", path: "/admin/users", icon: Users, roles: ["ADMIN"] },
     { label: "System Parcels", path: "/admin/parcels", icon: Package, roles: ["ADMIN"] },
     { label: "Admin Reconciliation", path: "/admin/reconciliation", icon: DollarSignIcon, roles: ["ADMIN"] },
     { label: "System Logs", path: "/admin/system-logs", icon: ScrollTextIcon, roles: ["ADMIN"] },
-    { label: "Financial Dashboard", path: "/admin/financial", icon: BarChart3, roles: ["ADMIN"] },
     { label: "Fuel Requests", path: "/admin/fuel-requests", icon: Fuel, roles: ["ADMIN",] },
 
     // Station Manager, Front Desk & Call Center - Core Operations

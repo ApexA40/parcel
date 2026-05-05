@@ -343,7 +343,7 @@ export const App = (): JSX.Element => {
                         element={
                           <ProtectedRoute allowedRoles={["ADMIN"]}>
                             <MainLayout>
-                              <AdminDashboard />
+                              <AdminStatistics />
                             </MainLayout>
                           </ProtectedRoute>
                         }
