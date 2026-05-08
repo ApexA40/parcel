@@ -23,7 +23,6 @@ const navItems = [
 
     // Station Manager, Front Desk & Call Center - Core Operations
     { label: "Parcel Search", path: "/parcel-search", icon: SearchIcon, roles: ["FRONTDESK", "MANAGER",] },
-    { label: "Smart Search", path: "/smart-search", icon: ZapIcon, roles: ["FRONTDESK", "MANAGER", "ADMIN", "CALLER"] },
     { label: "Parcel Intake", path: "/parcel-intake", icon: InboxIcon, roles: ["FRONTDESK", "MANAGER"] },
     { label: "Pickup Request", path: "/pickup-request", icon: MapPin, roles: ["FRONTDESK", "MANAGER"] },
     { label: "Package Assignments", path: "/package-assignments", icon: ClipboardListIcon, roles: ["MANAGER", "FRONTDESK"] },
@@ -33,16 +32,15 @@ const navItems = [
     { label: "Home Delivery", path: "/call-center/home-delivery", icon: HomeIcon, roles: ["CALLER"] },
     { label: "Post-Delivery", path: "/call-center/follow-up", icon: CheckCircleIcon, roles: ["CALLER"] },
     { label: "Active Deliveries", path: "/active-deliveries", icon: TruckIcon, roles: ["MANAGER", "FRONTDESK",] },
+    { label: "Parcel Transfer", path: "/parcel-transfer", icon: ClipboardListIcon, roles: ["FRONTDESK", "MANAGER"] },
     // Reconciliation not shown to CALLER per latest requirement
     { label: "Driver Tracker", path: "/driver-tracker", icon: CarIcon, roles: ["MANAGER", "FRONTDESK"] },
     { label: "Reconciliation", path: "/reconciliation", icon: DollarSignIcon, roles: ["MANAGER",] },
-    // Station Manager & Front Desk - Management
-    // { label: "Financial Dashboard", path: "/financial-dashboard", icon: LayoutDashboard, roles: ["MANAGER", "FRONTDESK"] },
-    { label: "Shelf and Address", path: "/shelf-management", icon: Layers, roles: ["MANAGER",] },
 
-    // Manager Only - Parcel Editing
+    // Bottom section - Management tools
+    { label: "Smart Search", path: "/smart-search", icon: ZapIcon, roles: ["FRONTDESK", "MANAGER", "ADMIN", "CALLER"] },
     { label: "Edit Parcels", path: "/parcel-edit", icon: Edit, roles: ["MANAGER", "FRONTDESK"] },
-    { label: "Parcel Transfer", path: "/parcel-transfer", icon: ClipboardListIcon, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Shelf and Address", path: "/shelf-management", icon: Layers, roles: ["MANAGER",] },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
