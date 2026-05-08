@@ -167,8 +167,7 @@ export const ParcelTransfer = (): JSX.Element => {
       if (!form.toOfficeId) newErrors.toOfficeId = "Destination station is required";
       if (!form.senderName) newErrors.senderName = "Sender name is required";
       if (!form.senderPhoneNumber) newErrors.senderPhoneNumber = "Sender phone is required";
-      if (!form.driverName) newErrors.driverName = "Driver name is required";
-      if (!form.vehicleNumber) newErrors.vehicleNumber = "Vehicle number is required";
+      // Driver details are now optional
       
       if (!bulkMode) {
         if (!form.receiverName) newErrors.receiverName = "Receiver name is required";
@@ -387,32 +386,136 @@ export const ParcelTransfer = (): JSX.Element => {
 
   const handlePrint = () => {
     const printContent = printRef.current;
-    if (!printContent) return;
+    if (!printContent) {
+      showToast("Print content not available", "error");
+      return;
+    }
 
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!printWindow) {
+      showToast("Please allow popups to print labels", "error");
+      return;
+    }
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Print Parcel Label</title>
+          <title>Print Parcel Label - M&M</title>
+          <meta charset="UTF-8">
           <style>
             * {
               margin: 0;
               padding: 0;
               box-sizing: border-box;
             }
+            
             body {
-              font-family: Arial, sans-serif;
-              padding: 20px;
+              font-family: Arial, Helvetica, sans-serif;
+              padding: 10mm;
+              background: white;
             }
+            
+            /* Tailwind-like utility classes for print */
+            .bg-white { background-color: white; }
+            .bg-black { background-color: black; }
+            .bg-amber-50 { background-color: #fffbeb; }
+            .text-white { color: white; }
+            .text-black { color: black; }
+            .text-xs { font-size: 12px; }
+            .text-sm { font-size: 14px; }
+            .text-base { font-size: 16px; }
+            .text-xl { font-size: 20px; }
+            .text-3xl { font-size: 30px; }
+            .text-4xl { font-size: 36px; }
+            .font-bold { font-weight: bold; }
+            .font-semibold { font-weight: 600; }
+            .font-normal { font-weight: normal; }
+            .border { border-width: 1px; }
+            .border-2 { border-width: 2px; }
+            .border-t { border-top-width: 1px; }
+            .border-t-2 { border-top-width: 2px; }
+            .border-b-2 { border-bottom-width: 2px; }
+            .border-black { border-color: black; }
+            .p-2 { padding: 8px; }
+            .p-4 { padding: 16px; }
+            .px-4 { padding-left: 16px; padding-right: 16px; }
+            .py-2 { padding-top: 8px; padding-bottom: 8px; }
+            .py-3 { padding-top: 12px; padding-bottom: 12px; }
+            .pt-1 { padding-top: 4px; }
+            .pt-2 { padding-top: 8px; }
+            .pb-2 { padding-bottom: 8px; }
+            .mb-0\.5 { margin-bottom: 2px; }
+            .mb-1 { margin-bottom: 4px; }
+            .mb-2 { margin-bottom: 8px; }
+            .mb-3 { margin-bottom: 12px; }
+            .mt-0\.5 { margin-top: 2px; }
+            .mt-1 { margin-top: 4px; }
+            .mt-2 { margin-top: 8px; }
+            .gap-3 { gap: 12px; }
+            .space-y-1 > * + * { margin-top: 4px; }
+            .text-center { text-align: center; }
+            .tracking-wider { letter-spacing: 0.05em; }
+            .inline-block { display: inline-block; }
+            .object-contain { object-fit: contain; }
+            .h-16 { height: 64px; }
+            .w-16 { width: 64px; }
+            
+            /* Grid system */
+            .grid { display: grid; }
+            .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            
+            /* Flexbox */
+            .flex { display: flex; }
+            .items-center { align-items: center; }
+            .justify-center { justify-content: center; }
+            .justify-between { justify-content: space-between; }
+            
+            /* Print-specific styles */
             @media print {
               body {
                 padding: 0;
+                margin: 0;
               }
+              
               .page-break {
                 page-break-after: always;
+                break-after: page;
+                margin: 0;
+                padding: 0;
+                border: none !important;
+              }
+              
+              /* Ensure backgrounds print */
+              * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+              
+              /* Force borders to print correctly */
+              .border,
+              .border-2,
+              .border-t,
+              .border-t-2,
+              .border-b-2,
+              .border-black {
+                border-style: solid !important;
+                border-color: black !important;
+              }
+              
+              /* Ensure grid layout works in print */
+              .grid {
+                display: grid !important;
+              }
+              
+              .grid-cols-2 {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+              }
+              
+              @page {
+                size: A4 landscape;
+                margin: 8mm;
               }
             }
           </style>
@@ -424,12 +527,57 @@ export const ParcelTransfer = (): JSX.Element => {
     `);
 
     printWindow.document.close();
-    printWindow.focus();
     
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
+    // Wait for images and content to load before printing
+    const images = printWindow.document.images;
+    let loadedImages = 0;
+    const totalImages = images.length;
+    
+    if (totalImages === 0) {
+      // No images, print immediately
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        // Don't auto-close, let user close manually
+      }, 500);
+    } else {
+      // Wait for all images to load
+      Array.from(images).forEach((img) => {
+        if (img.complete) {
+          loadedImages++;
+        } else {
+          img.onload = () => {
+            loadedImages++;
+            if (loadedImages === totalImages) {
+              setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+                // Don't auto-close, let user close manually
+              }, 500);
+            }
+          };
+          img.onerror = () => {
+            loadedImages++;
+            if (loadedImages === totalImages) {
+              setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+                // Don't auto-close, let user close manually
+              }, 500);
+            }
+          };
+        }
+      });
+      
+      // If all images already loaded
+      if (loadedImages === totalImages) {
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+          // Don't auto-close, let user close manually
+        }, 500);
+      }
+    }
   };
 
   const handleNewTransfer = () => {
@@ -821,25 +969,32 @@ export const ParcelTransfer = (): JSX.Element => {
                 )}
               </section>
 
-              {/* Driver details */}
+              {/* Driver details - Now Optional */}
               <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-neutral-800">
-                  Driver&apos;s Information
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-neutral-800">
+                    Driver&apos;s Information
+                  </h2>
+                  <span className="text-xs text-[#5d5d5d] italic">
+                    Optional - Can be assigned later
+                  </span>
+                </div>
+                <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
+                  <p className="text-xs text-blue-800">
+                    💡 Driver details are optional. You can assign drivers to parcels later from the Outgoing Parcels page.
+                  </p>
+                </div>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-neutral-800">
-                      Driver Name <span className="text-[#e22420]">*</span>
+                      Driver Name
                     </Label>
                     <Input
-                      placeholder="John Smith"
+                      placeholder="John Smith (Optional)"
                       value={form.driverName}
                       onChange={(e) => handleChange("driverName")(e.target.value)}
-                      className={`border ${errors.driverName ? 'border-red-500' : 'border-[#d1d1d1]'}`}
+                      className="border border-[#d1d1d1]"
                     />
-                    {errors.driverName && (
-                      <p className="text-xs text-red-600">{errors.driverName}</p>
-                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-neutral-800">
@@ -851,11 +1006,11 @@ export const ParcelTransfer = (): JSX.Element => {
                       </span>
                       <Input
                         type="tel"
-                        placeholder="0XXXXXXXXX or XXXXXXXXX"
+                        placeholder="0XXXXXXXXX (Optional)"
                         value={form.driverPhoneNumber?.startsWith("+233") ? form.driverPhoneNumber.substring(4) : (form.driverPhoneNumber || "")}
                         onChange={(e) => {
                           const digits = e.target.value.replace(/\D/g, "").substring(0, 10);
-                          const normalized = normalizePhoneNumber(digits);
+                          const normalized = digits ? normalizePhoneNumber(digits) : "";
                           handleChange("driverPhoneNumber")(normalized);
                         }}
                         className="pl-14 pr-3 border border-[#d1d1d1]"
@@ -865,17 +1020,14 @@ export const ParcelTransfer = (): JSX.Element => {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-neutral-800">
-                      Vehicle Number <span className="text-[#e22420]">*</span>
+                      Vehicle Number
                     </Label>
                     <Input
-                      placeholder="AK-1234-25"
+                      placeholder="AK-1234-25 (Optional)"
                       value={form.vehicleNumber}
                       onChange={(e) => handleChange("vehicleNumber")(e.target.value)}
-                      className={`border ${errors.vehicleNumber ? 'border-red-500' : 'border-[#d1d1d1]'}`}
+                      className="border border-[#d1d1d1]"
                     />
-                    {errors.vehicleNumber && (
-                      <p className="text-xs text-red-600">{errors.vehicleNumber}</p>
-                    )}
                   </div>
                 </div>
               </section>
@@ -1261,34 +1413,42 @@ export const ParcelTransfer = (): JSX.Element => {
               <section className="space-y-2 text-xs text-neutral-700 rounded-lg border border-[#e4e4e4] p-4 hover:border-[#ea690c] transition-colors cursor-pointer" onClick={() => editStep(1)}>
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-neutral-800">
-                    Driver Details
+                    Driver Details {(!form.driverName && !form.vehicleNumber) && <span className="text-[#5d5d5d] font-normal italic">(Not assigned)</span>}
                   </h2>
                   <Edit2Icon className="h-4 w-4 text-[#ea690c]" />
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div>
-                    <p className="text-[11px] uppercase text-[#9a9a9a]">Name</p>
-                    <p className="text-sm text-neutral-900">
-                      {form.driverName || "—"}
+                {(!form.driverName && !form.vehicleNumber) ? (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                    <p className="text-xs text-amber-800">
+                      ⚠️ No driver assigned. You can assign a driver later from the Outgoing Parcels page.
                     </p>
                   </div>
-                  <div>
-                    <p className="text-[11px] uppercase text-[#9a9a9a]">
-                      Phone Number
-                    </p>
-                    <p className="text-sm text-neutral-900">
-                      {form.driverPhoneNumber || "—"}
-                    </p>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <p className="text-[11px] uppercase text-[#9a9a9a]">Name</p>
+                      <p className="text-sm text-neutral-900">
+                        {form.driverName || "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase text-[#9a9a9a]">
+                        Phone Number
+                      </p>
+                      <p className="text-sm text-neutral-900">
+                        {form.driverPhoneNumber || "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase text-[#9a9a9a]">
+                        Vehicle Number
+                      </p>
+                      <p className="text-sm text-neutral-900">
+                        {form.vehicleNumber || "—"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[11px] uppercase text-[#9a9a9a]">
-                      Vehicle Number
-                    </p>
-                    <p className="text-sm text-neutral-900">
-                      {form.vehicleNumber || "—"}
-                    </p>
-                  </div>
-                </div>
+                )}
               </section>
 
               {/* Fee breakdown */}
@@ -1498,89 +1658,96 @@ const ParcelLabel: React.FC<ParcelLabelProps> = ({
   totalAmount,
 }) => {
   return (
-    <div className="bg-white border-2 border-black p-6 print:border print:p-4">
+    <div className="bg-white border-2 border-black p-4 print:border print:p-4">
       {/* Header */}
-      <div className="text-center border-b-2 border-black pb-4 mb-4">
-        <div className="flex items-center justify-center gap-3 mb-2">
+      <div className="text-center border-b-2 border-black pb-2 mb-3">
+        <div className="flex items-center justify-center gap-3 mb-1">
           <img
             src="/logo-1.png"
             alt="M&M Logo"
             className="h-16 w-16 object-contain"
+            crossOrigin="anonymous"
           />
           <div>
-            <h1 className="text-2xl font-bold text-black">
+            <h1 className="text-3xl font-bold text-black">
               Mealex & Mailex (M&M)
             </h1>
-            <p className="text-sm text-black">Parcel Delivery System</p>
+            <p className="text-base text-black">Parcel Delivery System</p>
           </div>
         </div>
       </div>
 
-      {/* Tracking Number - Large and prominent */}
-      <div className="text-center mb-4 bg-black text-white py-3 px-4">
-        <p className="text-xs font-semibold mb-1">TRACKING NUMBER</p>
-        <p className="text-3xl font-bold tracking-wider">{trackingNumber}</p>
+      {/* Tracking Number */}
+      <div className="text-center mb-3 bg-black text-white py-3 px-4">
+        <p className="text-sm font-semibold mb-0.5">TRACKING NUMBER</p>
+        <p className="text-4xl font-bold tracking-wider">{trackingNumber}</p>
       </div>
 
-      {/* Route Information */}
-      <div className="grid grid-cols-2 gap-4 mb-4 border-2 border-black p-3">
-        <div>
-          <p className="text-xs font-bold text-black mb-1">FROM:</p>
-          <p className="text-sm font-semibold text-black">Current Station</p>
-        </div>
-        <div>
-          <p className="text-xs font-bold text-black mb-1">TO:</p>
-          <p className="text-sm font-semibold text-black">{currentStationLabel}</p>
-        </div>
-      </div>
+
 
       {/* Sender & Receiver */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="border-2 border-black p-3">
-          <p className="text-xs font-bold text-black mb-2">SENDER</p>
-          <p className="text-sm font-semibold text-black">{form.senderName}</p>
-          <p className="text-xs text-black">{form.senderPhoneNumber}</p>
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="border-2 border-black p-2">
+          <p className="text-base text-black mb-1">
+            <span className="font-bold">SENDER:</span> {form.senderName}
+          </p>
+          <p className="text-base text-black">
+            <span className="font-bold">CONTACT:</span> {form.senderPhoneNumber}
+          </p>
         </div>
-        <div className="border-2 border-black p-3">
-          <p className="text-xs font-bold text-black mb-2">RECEIVER</p>
-          <p className="text-sm font-semibold text-black">{receiver.name}</p>
-          <p className="text-xs text-black">{receiver.phone}</p>
+        <div className="border-2 border-black p-2">
+          <p className="text-base text-black mb-1">
+            <span className="font-bold">RECEIVER:</span> {receiver.name}
+          </p>
+          <p className="text-base text-black">
+            <span className="font-bold">CONTACT:</span> {receiver.phone}
+          </p>
         </div>
       </div>
 
       {/* Delivery Address */}
       {receiver.address && (
-        <div className="border-2 border-black p-3 mb-4">
-          <p className="text-xs font-bold text-black mb-1">DELIVERY ADDRESS:</p>
-          <p className="text-sm text-black">{receiver.address}</p>
+        <div className="border-2 border-black p-2 mb-3">
+          <p className="text-sm font-bold text-black">
+            DELIVERY ADDRESS: <span className="font-normal text-xl">{receiver.address}</span>
+          </p>
         </div>
       )}
 
       {/* Item Description */}
       {parcelDescription && (
-        <div className="border-2 border-black p-3 mb-4">
-          <p className="text-xs font-bold text-black mb-1">ITEM DESCRIPTION:</p>
-          <p className="text-sm text-black">{parcelDescription}</p>
+        <div className="border-2 border-black p-2 mb-3">
+          <p className="text-sm font-bold text-black">
+            ITEM DESCRIPTION: <span className="font-normal text-base">{parcelDescription}</span>
+          </p>
         </div>
       )}
 
-      {/* Transport & Driver Info */}
-      <div className="border border-black p-2 mb-4">
-        <p className="text-xs font-bold text-black">VEHICLE:</p>
-        <p className="text-sm text-black">{form.vehicleNumber}</p>
-      </div>
-
-      <div className="border border-black p-2 mb-4">
-        <p className="text-xs font-bold text-black">DRIVER:</p>
-        <p className="text-sm text-black">
-          {form.driverName} {form.driverPhoneNumber && `- ${form.driverPhoneNumber}`}
-        </p>
-      </div>
+      {/* Driver Information */}
+      {(form.driverName || form.vehicleNumber) && (
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          {form.vehicleNumber && (
+            <div className="border-2 border-black p-2">
+              <p className="text-xs font-bold text-black">VEHICLE:</p>
+              <p className="text-sm text-black">{form.vehicleNumber}</p>
+            </div>
+          )}
+          {form.driverName && (
+            <div className="border-2 border-black p-2">
+              <p className="text-xs font-bold text-black">DRIVER:</p>
+              <p className="text-sm text-black">{form.driverName}</p>
+              {form.driverPhoneNumber && (
+                <p className="text-xs text-black mt-0.5">{form.driverPhoneNumber}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Payment Details */}
-      <div className="border-2 border-black p-3 mb-4">
-        <p className="text-xs font-bold text-black mb-2">PAYMENT DETAILS</p>
-        <div className="space-y-1 text-sm">
+      <div className="border-2 border-black p-2 mb-3">
+        <p className="text-sm font-bold text-black mb-1">PAYMENT DETAILS</p>
+        <div className="space-y-1 text-base">
           <div className="flex justify-between">
             <span className="text-black">Transportation Cost:</span>
             <span className="font-semibold text-black">
@@ -1595,28 +1762,30 @@ const ParcelLabel: React.FC<ParcelLabelProps> = ({
               </span>
             </div>
           )}
-          <div className="flex justify-between border-t-2 border-black pt-2 mt-2">
+          <div className="flex justify-between border-t-2 border-black pt-1 mt-1">
             <span className="font-bold text-black">TOTAL AMOUNT:</span>
-            <span className="font-bold text-lg text-black">
+            <span className="font-bold text-xl text-black">
               GHC {totalAmount.toFixed(2)}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Parcel Type Badge */}
-      <div className="text-center">
-        <span className="inline-block bg-black text-white px-4 py-2 text-sm font-bold">
-          {pod ? "POD PARCEL" : "REGULAR PARCEL"}
-        </span>
-      </div>
+      {/* Parcel Type Badge - Only show for POD parcels */}
+      {pod && (
+        <div className="text-center mb-2">
+          <span className="inline-block bg-black text-white px-4 py-2 text-base font-bold">
+            POD PARCEL
+          </span>
+        </div>
+      )}
 
       {/* Footer */}
-      <div className="mt-4 pt-4 border-t border-black text-center">
-        <p className="text-xs text-black">
+      <div className="mt-2 pt-2 border-t border-black text-center">
+        <p className="text-sm text-black">
           Date: {new Date().toLocaleDateString()} | Time: {new Date().toLocaleTimeString()}
         </p>
-        <p className="text-xs text-black mt-1">
+        <p className="text-sm text-black mt-0.5">
           For inquiries, contact M&M Parcel Services
         </p>
       </div>

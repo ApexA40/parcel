@@ -59,6 +59,12 @@ export const OutgoingParcels = (): JSX.Element => {
   const [manifestDriver, setManifestDriver] = useState<{ driverKey: string; driverName: string; driverPhoneNumber: string; vehicleNumber: string; parcels: Parcel[] } | null>(null);
   const [selectedParcels, setSelectedParcels] = useState<Set<string>>(new Set());
   const [bulkPrintParcels, setBulkPrintParcels] = useState<Parcel[] | null>(null);
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  const [bulkAssignForm, setBulkAssignForm] = useState({
+    driverName: "",
+    driverPhoneNumber: "",
+    vehicleNumber: "",
+  });
 
   // Generate dummy manifest data for testing
   const generateDummyManifest = () => {
@@ -349,6 +355,77 @@ export const OutgoingParcels = (): JSX.Element => {
       groupParcelIds.forEach(id => newSelected.add(id));
     }
     setSelectedParcels(newSelected);
+  };
+
+  const handleBulkAssignDriver = async () => {
+    const selectedParcelsList = parcels.filter(p => selectedParcels.has(p.parcelId));
+    if (selectedParcelsList.length === 0) {
+      showToast("Please select at least one parcel", "warning");
+      return;
+    }
+
+    if (!bulkAssignForm.driverName || !bulkAssignForm.driverPhoneNumber || !bulkAssignForm.vehicleNumber) {
+      showToast("Please fill in all driver details", "error");
+      return;
+    }
+
+    if (!validatePhoneNumber(bulkAssignForm.driverPhoneNumber)) {
+      showToast("Invalid driver phone number format", "error");
+      return;
+    }
+
+    setIsUpdating(true);
+    const token = authService.getToken();
+    const normalizedPhone = normalizePhoneNumber(bulkAssignForm.driverPhoneNumber);
+
+    try {
+      const updatePromises = selectedParcelsList.map(parcel =>
+        axios.put(
+          `${API_ENDPOINTS.FRONTDESK}/parcel/${parcel.parcelId}`,
+          {
+            driverName: bulkAssignForm.driverName,
+            driverPhoneNumber: normalizedPhone,
+            vehicleNumber: bulkAssignForm.vehicleNumber,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        )
+      );
+
+      await Promise.all(updatePromises);
+      showToast(`Successfully assigned driver to ${selectedParcelsList.length} parcel(s)`, "success");
+
+      setParcels(prev => prev.map(p => 
+        selectedParcels.has(p.parcelId)
+          ? { 
+              ...p, 
+              driverName: bulkAssignForm.driverName,
+              driverPhoneNumber: normalizedPhone,
+              vehicleNumber: bulkAssignForm.vehicleNumber,
+            }
+          : p
+      ));
+
+      setSelectedParcels(new Set());
+      setShowBulkAssignModal(false);
+      setBulkAssignForm({
+        driverName: "",
+        driverPhoneNumber: "",
+        vehicleNumber: "",
+      });
+    } catch (error: any) {
+      console.error("Error assigning driver:", error);
+      showToast(
+        error.response?.data?.message || "Failed to assign driver",
+        "error"
+      );
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleBulkPrintLabels = (groupParcels: Parcel[]) => {
@@ -644,17 +721,32 @@ export const OutgoingParcels = (): JSX.Element => {
                                 {selectedParcels.size > 0 ? `${selectedParcels.size} parcel(s) selected` : 'Select all'}
                               </span>
                             </div>
-                            {selectedParcels.size > 0 && (
-                              <Button
-                                onClick={() => handleBulkPrintLabels(group.parcels)}
-                                variant="outline"
-                                size="sm"
-                                className="border-[#ea690c] text-[#ea690c] hover:bg-orange-50 flex items-center gap-2"
-                              >
-                                <PrinterIcon className="h-4 w-4" />
-                                <span className="text-xs font-medium">Print Selected Labels ({selectedParcels.size})</span>
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {selectedParcels.size > 0 && (
+                                <>
+                                  {(!group.driverName || group.driverName === "Unknown Driver") && (
+                                    <Button
+                                      onClick={() => setShowBulkAssignModal(true)}
+                                      variant="outline"
+                                      size="sm"
+                                      className="border-green-600 text-green-600 hover:bg-green-50 flex items-center gap-2"
+                                    >
+                                      <TruckIcon className="h-4 w-4" />
+                                      <span className="text-xs font-medium">Assign Driver ({selectedParcels.size})</span>
+                                    </Button>
+                                  )}
+                                  <Button
+                                    onClick={() => handleBulkPrintLabels(group.parcels)}
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-[#ea690c] text-[#ea690c] hover:bg-orange-50 flex items-center gap-2"
+                                  >
+                                    <PrinterIcon className="h-4 w-4" />
+                                    <span className="text-xs font-medium">Print Labels ({selectedParcels.size})</span>
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
 
                           <div className="overflow-x-auto rounded-lg border border-[#d1d1d1]">
@@ -1371,6 +1463,110 @@ export const OutgoingParcels = (): JSX.Element => {
                       className="flex-1 border-[#d1d1d1]"
                     >
                       Close
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Bulk Assign Driver Modal */}
+        {showBulkAssignModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-lg border border-[#d1d1d1] bg-white shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <TruckIcon className="w-5 h-5 text-green-600" />
+                    <h3 className="text-lg font-bold text-neutral-800">Assign Driver to Selected Parcels</h3>
+                  </div>
+                  <button
+                    onClick={() => { setShowBulkAssignModal(false); setBulkAssignForm({ driverName: "", driverPhoneNumber: "", vehicleNumber: "" }); }}
+                    className="text-[#9a9a9a] hover:text-neutral-800"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm font-semibold text-blue-800">
+                      {selectedParcels.size} parcel(s) selected for driver assignment
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                        Driver Name <span className="text-red-600">*</span>
+                      </label>
+                      <Input
+                        value={bulkAssignForm.driverName}
+                        onChange={(e) => setBulkAssignForm({ ...bulkAssignForm, driverName: e.target.value })}
+                        placeholder="Enter driver name"
+                        className="border-[#d1d1d1]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                        Driver Phone <span className="text-red-600">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-medium pointer-events-none z-10">
+                          +233
+                        </span>
+                        <Input
+                          value={bulkAssignForm.driverPhoneNumber?.startsWith("+233") ? bulkAssignForm.driverPhoneNumber.substring(4) : (bulkAssignForm.driverPhoneNumber || "")}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, "").substring(0, 10);
+                            const normalized = digits ? normalizePhoneNumber(digits) : "";
+                            setBulkAssignForm({ ...bulkAssignForm, driverPhoneNumber: normalized });
+                          }}
+                          placeholder="0XXXXXXXXX or XXXXXXXXX"
+                          className="pl-14 pr-3 border-[#d1d1d1]"
+                          maxLength={10}
+                        />
+                      </div>
+                      <p className="text-[11px] text-[#5d5d5d] mt-1">Enter 10 digits starting with 0 or 9 digits</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                        Vehicle Number <span className="text-red-600">*</span>
+                      </label>
+                      <Input
+                        value={bulkAssignForm.vehicleNumber}
+                        onChange={(e) => setBulkAssignForm({ ...bulkAssignForm, vehicleNumber: e.target.value })}
+                        placeholder="e.g., GR-1234-20"
+                        className="border-[#d1d1d1]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4 border-t border-[#d1d1d1]">
+                    <Button
+                      onClick={() => { setShowBulkAssignModal(false); setBulkAssignForm({ driverName: "", driverPhoneNumber: "", vehicleNumber: "" }); }}
+                      variant="outline"
+                      className="flex-1 border border-[#d1d1d1]"
+                      disabled={isUpdating}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleBulkAssignDriver}
+                      disabled={isUpdating || !bulkAssignForm.driverName || !bulkAssignForm.driverPhoneNumber || !bulkAssignForm.vehicleNumber}
+                      className="flex-1 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {isUpdating ? (
+                        <>
+                          <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Assigning...
+                        </>
+                      ) : (
+                        "Assign Driver"
+                      )}
                     </Button>
                   </div>
                 </div>
