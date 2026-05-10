@@ -420,11 +420,11 @@ export const ParcelSearch = (): JSX.Element => {
 
     return (
         <div className="w-full">
-            <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-                <main className="flex-1 space-y-6 relative">
+            <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
+                <main className="flex-1 space-y-3 relative">
                     {/* Quick Search Bar */}
                     <Card className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
-                        <CardContent className="p-4 sm:p-5">
+                        <CardContent className="p-3">
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <div className="flex-1 relative group">
                                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-orange-500 transition-colors" />
@@ -460,7 +460,7 @@ export const ParcelSearch = (): JSX.Element => {
 
                             {/* Advanced Filters */}
                             {showFilters && (
-                                <div className="mt-5 pt-5 border-t border-gray-200 dark:border-gray-700 animate-in slide-in-from-top-2 duration-300">
+                                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 animate-in slide-in-from-top-2 duration-300">
                                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
                                         <FilterIcon size={16} className="text-orange-500" />
                                         Advanced Filters
@@ -649,7 +649,7 @@ export const ParcelSearch = (): JSX.Element => {
                             </div>
 
                             {/* Parcels Table */}
-                            <Card className="border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden shadow-lg pb-20">
+                            <Card className="border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden shadow-lg">
                                 <CardContent className="p-0">
                                     <div className="overflow-x-auto max-h-[calc(100vh-180px)] overflow-y-auto">
                                         <table className="w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700 text-xs">
@@ -798,78 +798,34 @@ export const ParcelSearch = (): JSX.Element => {
                                 </CardContent>
                             </Card>
 
-                            {/* Pagination - Floating */}
+                            {/* Pagination - Inline */}
                             {pagination.totalPages > 1 && (
-                                <div className="fixed bottom-4 left-64 right-0 flex justify-center z-50 pointer-events-none">
-                                    <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 pointer-events-auto">
-                                        <Card className="border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl">
-                                    <CardContent className="px-4 py-4">
-                                        <div className="flex flex-1 justify-between sm:hidden">
-                                            <Button
-                                                onClick={() => {
-                                                    const newPage = pagination.page - 1;
-                                                    loadParcelsIfNeeded({}, newPage, pagination.size, false);
-                                                }}
-                                                disabled={pagination.page === 0 || backgroundLoading}
-                                                variant="outline"
-                                                className="border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 disabled:opacity-50"
-                                            >
-                                                Previous
-                                            </Button>
-                                            <Button
-                                                onClick={() => {
-                                                    const newPage = pagination.page + 1;
-                                                    loadParcelsIfNeeded({}, newPage, pagination.size, false);
-                                                }}
-                                                disabled={pagination.page >= pagination.totalPages - 1 || backgroundLoading}
-                                                variant="outline"
-                                                className="border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 disabled:opacity-50"
-                                            >
-                                                Next
-                                            </Button>
-                                        </div>
-                                        <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm text-gray-700 dark:text-gray-300">
-                                                    Showing <span className="font-bold text-gray-900 dark:text-gray-100">{pagination.page * pagination.size + 1}</span> to{" "}
-                                                    <span className="font-bold text-gray-900 dark:text-gray-100">
-                                                        {Math.min((pagination.page + 1) * pagination.size, pagination.totalElements)}
-                                                    </span>{" "}
-                                                    of <span className="font-bold text-gray-900 dark:text-gray-100">{pagination.totalElements}</span> results
-                                                </p>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    onClick={() => {
-                                                        const newPage = pagination.page - 1;
-                                                        loadParcelsIfNeeded({}, newPage, pagination.size, false);
-                                                    }}
-                                                    disabled={pagination.page === 0 || backgroundLoading}
-                                                    variant="outline"
-                                                    className="border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                                                >
-                                                    {backgroundLoading && pagination.page > 0 ? (
-                                                        <Loader className="w-4 h-4 animate-spin mr-2" />
-                                                    ) : null}
-                                                    Previous
-                                                </Button>
-                                                <Button
-                                                    onClick={() => {
-                                                        const newPage = pagination.page + 1;
-                                                        loadParcelsIfNeeded({}, newPage, pagination.size, false);
-                                                    }}
-                                                    disabled={pagination.page >= pagination.totalPages - 1 || backgroundLoading}
-                                                    className="bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-orange-500/30 transition-all"
-                                                >
-                                                    {backgroundLoading && pagination.page < pagination.totalPages - 1 ? (
-                                                        <Loader className="w-4 h-4 animate-spin mr-2" />
-                                                    ) : null}
-                                                    Next
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                        </Card>
+                                <div className="flex items-center justify-between px-1 py-2">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Showing <span className="font-semibold text-gray-900 dark:text-gray-100">{pagination.page * pagination.size + 1}</span> to{" "}
+                                        <span className="font-semibold text-gray-900 dark:text-gray-100">{Math.min((pagination.page + 1) * pagination.size, pagination.totalElements)}</span>{" "}
+                                        of <span className="font-semibold text-gray-900 dark:text-gray-100">{pagination.totalElements}</span>
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={() => loadParcelsIfNeeded({}, pagination.page - 1, pagination.size, false)}
+                                            disabled={pagination.page === 0 || backgroundLoading}
+                                            variant="outline"
+                                            size="sm"
+                                            className="border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 disabled:opacity-50"
+                                        >
+                                            {backgroundLoading && pagination.page > 0 ? <Loader className="w-3 h-3 animate-spin mr-1" /> : null}
+                                            Previous
+                                        </Button>
+                                        <Button
+                                            onClick={() => loadParcelsIfNeeded({}, pagination.page + 1, pagination.size, false)}
+                                            disabled={pagination.page >= pagination.totalPages - 1 || backgroundLoading}
+                                            size="sm"
+                                            className="bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 disabled:opacity-50"
+                                        >
+                                            {backgroundLoading && pagination.page < pagination.totalPages - 1 ? <Loader className="w-3 h-3 animate-spin mr-1" /> : null}
+                                            Next
+                                        </Button>
                                     </div>
                                 </div>
                             )}
