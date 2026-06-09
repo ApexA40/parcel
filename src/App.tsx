@@ -55,6 +55,7 @@ import AdminFuelRequests from "./screens/AdminFuelRequests";
 import AdminStatistics from "./screens/Admin/AdminStatistics";
 import { ReconciliationAnalytics } from "./screens/ReconciliationAnalytics";
 import { RiderDetail } from "./screens/ReconciliationAnalytics/RiderDetail";
+import { PartnerPortal } from "./screens/PartnerPortal/PartnerPortal";
 
 export const App = (): JSX.Element => {
   // Some environments cache component prop types aggressively; this keeps routing flexible.
@@ -77,6 +78,9 @@ export const App = (): JSX.Element => {
 
                         {/* Public: Customer parcel lookup (no login) */}
                         <Route path="/track" element={<TrackParcel />} />
+
+                        {/* Public: Third-party partner portal (no login required) */}
+                        <Route path="/partner/*" element={<PartnerPortal />} />
 
                         {/* Root - Redirect to login */}
                         <Route path="/" element={<Navigate to="/login" replace />} />

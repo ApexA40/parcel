@@ -1,0 +1,163 @@
+import { useState, useMemo } from "react";
+import { Search, Filter, ChevronDown, ChevronUp, Eye, History } from "lucide-react";
+import { Card, CardContent } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Badge } from "../../components/ui/badge";
+import { statusConfig, formatCurrency, MOCK_STATIONS, type PartnerParcel } from "./partnerData";
+import { ParcelDetailModal } from "./ParcelDetailModal";
+
+interface Props { parcels: PartnerParcel[]; }
+
+export const HistoryPage = ({ parcels }: Props) => {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [stationFilter, setStationFilter] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [viewParcel, setViewParcel] = useState<PartnerParcel | null>(null);
+
+  const filtered = useMemo(() => {
+    let list = [...parcels];
+    if (search.trim()) {
+      const t = search.toLowerCase();
+      list = list.filter(p => p.trackingId.toLowerCase().includes(t) || p.receiverName.toLowerCase().includes(t) || p.receiverPhone.includes(t));
+    }
+    if (statusFilter) list = list.filter(p => p.status === statusFilter);
+    if (stationFilter) list = list.filter(p => p.stationId === stationFilter);
+    return list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  }, [parcels, search, statusFilter, stationFilter]);
+
+  const clearFilters = () => { setSearch(""); setStatusFilter(""); setStationFilter(""); setShowFilters(false); };
+  const hasFilters = search || statusFilter || stationFilter;
+
+  return (
+    <div className="space-y-4 pb-10">
+
+      {/* Search + filter bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+          <Input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search by ID, name or phone..."
+            className="pl-9 border border-[#d1d1d1]" />
+        </div>
+        <button
+          onClick={() => setShowFilters(v => !v)}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg border text-sm font-medium transition-colors ${showFilters || hasFilters ? "bg-[#ea690c] text-white border-[#ea690c]" : "border-[#d1d1d1] text-gray-600 hover:bg-gray-50"}`}
+        >
+          <Filter className="w-4 h-4" />
+          Filters
+          {hasFilters && <span className="bg-white text-[#ea690c] text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">{[statusFilter, stationFilter].filter(Boolean).length}</span>}
+          {showFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+        {hasFilters && (
+          <button onClick={clearFilters} className="text-xs text-gray-400 hover:text-red-500 transition-colors font-medium">
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {/* Filter panel */}
+      {showFilters && (
+        <Card className="border border-[#d1d1d1] bg-white shadow-sm">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-neutral-800">Status</Label>
+                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#ea690c]">
+                  <option value="">All Statuses</option>
+                  {(Object.keys(statusConfig) as PartnerParcel["status"][]).map(s => (
+                    <option key={s} value={s}>{statusConfig[s].label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-neutral-800">Station</Label>
+                <select value={stationFilter} onChange={e => setStationFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#ea690c]">
+                  <option value="">All Stations</option>
+                  {MOCK_STATIONS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Result count */}
+      <p className="text-xs text-gray-500 font-medium">
+        {filtered.length} parcel{filtered.length !== 1 ? "s" : ""} found
+        {hasFilters && " (filtered)"}
+      </p>
+
+      {/* Table */}
+      <Card className="border border-[#d1d1d1] bg-white shadow-sm overflow-hidden">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm divide-y divide-gray-100">
+              <thead className="bg-gray-50">
+                <tr>
+                  {["Tracking ID", "Receiver", "Station", "Description", "Total", "POD", "Status", "Submitted", ""].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 bg-white">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-14 text-center">
+                      <History className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                      <p className="text-sm text-gray-400">No parcels found</p>
+                      {hasFilters && <button onClick={clearFilters} className="mt-2 text-xs text-[#ea690c] hover:underline">Clear filters</button>}
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map(p => {
+                    const s = statusConfig[p.status];
+                    return (
+                      <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="font-mono text-xs font-bold text-[#ea690c] bg-orange-50 px-2 py-0.5 rounded">{p.trackingId}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-semibold text-neutral-800">{p.receiverName}</p>
+                          <p className="text-xs text-gray-500">{p.receiverPhone}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{p.station}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 max-w-[140px] truncate">{p.description || "—"}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-neutral-800 whitespace-nowrap">{formatCurrency(p.itemCost + p.deliveryFee)}</td>
+                        <td className="px-4 py-3">
+                          <Badge className={p.pod ? "bg-orange-100 text-orange-700 text-xs font-semibold" : "bg-gray-100 text-gray-500 text-xs"}>
+                            {p.pod ? "POD" : "No"}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge className={`${s.color} flex items-center gap-1 w-fit text-xs font-semibold`}>
+                            {s.icon}{s.label}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                          {new Date(p.submittedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Button onClick={() => setViewParcel(p)} variant="outline" size="sm"
+                            className="h-7 w-7 p-0 border-[#ea690c] text-[#ea690c] hover:bg-orange-50">
+                            <Eye className="w-3 h-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {viewParcel && <ParcelDetailModal parcel={viewParcel} onClose={() => setViewParcel(null)} />}
+    </div>
+  );
+};

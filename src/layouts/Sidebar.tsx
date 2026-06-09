@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, InboxIcon, ClipboardListIcon, TruckIcon, DollarSignIcon, Layers, SearchIcon, Package, Users, Building2, LogOut, Edit, MapPin, BarChart3, PhoneIcon, CarIcon, ScrollTextIcon, CheckCircleIcon, HomeIcon, ZapIcon, Fuel, TrendingUp, LayoutDashboard, BarChart2 } from "lucide-react";
+import { X, InboxIcon, ClipboardListIcon, TruckIcon, DollarSignIcon, Layers, SearchIcon, Package, Users, Building2, LogOut, Edit,  PhoneIcon, CarIcon, ScrollTextIcon, CheckCircleIcon, HomeIcon, ZapIcon, Fuel, TrendingUp, LayoutDashboard, BarChart2 } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 
 interface SidebarProps {
@@ -44,7 +44,7 @@ const navItems = [
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
     const location = useLocation();
-    const { userRole, currentUser, logout } = useStation();
+    const { userRole,  logout } = useStation();
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     // Filter nav items based on user role

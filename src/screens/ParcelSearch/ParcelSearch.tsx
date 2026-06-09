@@ -691,7 +691,7 @@ export const ParcelSearch = (): JSX.Element => {
                                                             checked={filteredParcels.length > 0 && filteredParcels.every(p => checkedParcels.has(p.parcelId))}
                                                             onChange={(e) => {
                                                                 if (e.target.checked) {
-                                                                    setCheckedParcels(new Set(filteredParcels.map(p => p.parcelId)));
+                                                                    setCheckedParcels(new Set(filteredParcels.slice(0, 50).map(p => p.parcelId)));
                                                                 } else {
                                                                     setCheckedParcels(new Set());
                                                                 }
@@ -758,7 +758,15 @@ export const ParcelSearch = (): JSX.Element => {
                                                                         checked={checkedParcels.has(parcel.parcelId)}
                                                                         onChange={(e) => {
                                                                             const next = new Set(checkedParcels);
-                                                                            e.target.checked ? next.add(parcel.parcelId) : next.delete(parcel.parcelId);
+                                                                            if (e.target.checked) {
+                                                                                if (next.size >= 50) {
+                                                                                    showToast("Maximum 50 parcels can be selected at once", "warning");
+                                                                                    return;
+                                                                                }
+                                                                                next.add(parcel.parcelId);
+                                                                            } else {
+                                                                                next.delete(parcel.parcelId);
+                                                                            }
                                                                             setCheckedParcels(next);
                                                                         }}
                                                                     />
