@@ -1,4 +1,5 @@
-import { LogOut, Package, Phone, User } from "lucide-react";
+import { LogOut, Phone, User } from "lucide-react";
+import { MnmLogo } from "../../../components/MnmLogo";
 
 interface CustomerHeaderAccount {
   isSignedIn: boolean;
@@ -34,9 +35,7 @@ export const TrackHeader = ({
             {backLabel}
           </button>
         ) : (
-          <div className="w-10 h-10 bg-gradient-to-br from-[#ea690c] to-[#c95a0a] rounded-xl flex items-center justify-center shrink-0 shadow-sm shadow-orange-200">
-            <Package className="w-5 h-5 text-white" />
-          </div>
+          <MnmLogo className="h-10 w-10 object-contain rounded-xl shadow-sm ring-2 ring-orange-100 shrink-0" />
         )}
         <div className="min-w-0">
           <p className="font-bold text-neutral-900 leading-tight tracking-tight">M&amp;M Delivery</p>

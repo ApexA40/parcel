@@ -9,7 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: "prompt",
       injectRegister: false,
-      includeAssets: ["mnm-icon.svg"],
+      includeAssets: ["logo-1.png"],
       manifest: {
         name: "M&M Receive",
         short_name: "M&M Receive",
@@ -22,10 +22,22 @@ export default defineConfig({
         scope: "/",
         icons: [
           {
-            src: "/mnm-icon.svg",
+            src: "/logo-1.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/logo-1.png",
             sizes: "512x512",
-            type: "image/svg+xml",
-            purpose: "any maskable",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/logo-1.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
       },

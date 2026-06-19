@@ -6,6 +6,7 @@ import type { GoogleCredentialPayload } from "../../../utils/googleAuth";
 import { ReceiveFooter } from "./ReceiveFooter";
 import { CustomerEmailAuthForm, type AuthMode } from "./CustomerEmailAuthForm";
 import { PwaInstallBanner } from "./PwaInstallBanner";
+import { MnmLogo } from "../../../components/MnmLogo";
 
 export type LandingTab = "account" | "find";
 
@@ -51,9 +52,12 @@ export const CustomerReceiveLanding = ({
   <div className="animate-in fade-in duration-300">
     <PwaInstallBanner />
 
-    <h1 className="text-2xl font-bold text-neutral-900 tracking-tight text-center mb-5">
-      Receive your parcels
-    </h1>
+    <div className="flex flex-col items-center gap-3 mb-5">
+      <MnmLogo className="h-14 w-14 object-contain rounded-2xl shadow-md ring-2 ring-orange-100" />
+      <h1 className="text-2xl font-bold text-neutral-900 tracking-tight text-center">
+        Receive your parcels
+      </h1>
+    </div>
 
     <section className="bg-white rounded-3xl border border-slate-200/80 shadow-xl shadow-slate-200/50 overflow-hidden">
       <div className="grid grid-cols-2 border-b border-slate-100 bg-slate-50/80 p-1.5 gap-1">

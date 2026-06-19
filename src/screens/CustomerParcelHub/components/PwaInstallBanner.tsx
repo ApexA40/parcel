@@ -1,5 +1,6 @@
-import { Download, Share, Smartphone, X } from "lucide-react";
+import { Download, Share, X } from "lucide-react";
 import { Button } from "../../../components/ui/button";
+import { MnmLogo } from "../../../components/MnmLogo";
 import { usePwaInstall } from "../../../hooks/usePwaInstall";
 
 export const PwaInstallBanner = () => {
@@ -10,9 +11,7 @@ export const PwaInstallBanner = () => {
   return (
     <div className="mb-4 rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-white p-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-[#ea690c] flex items-center justify-center shrink-0">
-          <Smartphone className="w-5 h-5 text-white" />
-        </div>
+        <MnmLogo className="h-10 w-10 object-contain rounded-xl shrink-0 ring-2 ring-orange-100 bg-white" />
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-neutral-900 text-sm">Install M&amp;M Receive</p>
           <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
