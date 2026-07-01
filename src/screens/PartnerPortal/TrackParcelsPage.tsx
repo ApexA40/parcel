@@ -10,6 +10,7 @@ import { Badge } from "../../components/ui/badge";
 import { statusConfig, formatCurrency, type PartnerParcel, type PartnerParcelStatus } from "./partnerData";
 import { ParcelDetailModal } from "./ParcelDetailModal";
 import { EditParcelModal } from "./EditParcelModal";
+import { ParcelLabelModal } from "./ParcelLabelModal";
 import { isPartnerParcelEditable } from "./partnerFormUtils";
 import { getVendorSessionProfile } from "./vendorSession";
 import vendorService, { mapApiStatus, mapStatusToApi, mapVendorItemToPartner } from "../../services/vendorService";
@@ -145,7 +146,7 @@ function printManifest(stationName: string, parcels: PartnerParcel[], senderName
 
 // ─── Station group ──────────────────────────────────────────────────────────
 function StationGroup({
-  stationName, parcels, checkedIds, onToggleOne, onToggleAll, onView, onEdit, senderName,
+  stationName, parcels, checkedIds, onToggleOne, onToggleAll, onView, onEdit, onPrintLabel, senderName,
 }: {
   stationName: string;
   parcels: PartnerParcel[];
@@ -154,6 +155,7 @@ function StationGroup({
   onToggleAll: (ids: string[], check: boolean) => void;
   onView: (p: PartnerParcel) => void;
   onEdit: (p: PartnerParcel) => void;
+  onPrintLabel: (p: PartnerParcel) => void;
   senderName: string;
 }) {
   const [open, setOpen] = useState(true);
@@ -256,6 +258,10 @@ function StationGroup({
                           className="h-7 px-2 text-xs border-[#ea690c] text-[#ea690c] hover:bg-orange-50">
                           <Eye className="w-3 h-3" />
                         </Button>
+                        <Button onClick={() => onPrintLabel(p)} variant="outline" size="sm"
+                          className="h-7 px-2 text-xs border-gray-300 text-gray-500 hover:bg-gray-50" title="Print Label">
+                          <Printer className="w-3 h-3" />
+                        </Button>
                         {isPartnerParcelEditable(p.status) && (
                           <Button onClick={() => onEdit(p)} variant="outline" size="sm"
                             className="h-7 px-2 text-xs border-gray-300 text-gray-600 hover:bg-gray-50">
@@ -295,6 +301,7 @@ export const TrackParcelsPage = () => {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [viewParcel, setViewParcel] = useState<PartnerParcel | null>(null);
   const [editParcel, setEditParcel] = useState<PartnerParcel | null>(null);
+  const [labelParcel, setLabelParcel] = useState<PartnerParcel | null>(null);
   const [parcels, setParcels] = useState<PartnerParcel[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<PartnerParcelStatus, number>>({
     pending: 0, received: 0, delivered: 0, collected: 0, failed: 0, reversed: 0,
@@ -492,6 +499,7 @@ export const TrackParcelsPage = () => {
               onToggleAll={toggleAll}
               onView={setViewParcel}
               onEdit={setEditParcel}
+              onPrintLabel={setLabelParcel}
               senderName={senderName}
             />
           ))}
@@ -510,6 +518,12 @@ export const TrackParcelsPage = () => {
           parcel={editParcel}
           onClose={() => setEditParcel(null)}
           onSaved={() => { setEditParcel(null); loadDashboard(); }}
+        />
+      )}
+      {labelParcel && (
+        <ParcelLabelModal
+          parcel={labelParcel}
+          onClose={() => setLabelParcel(null)}
         />
       )}
     </div>

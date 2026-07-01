@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { SearchIcon, FilterIcon, Download, X, Edit, Loader, Eye, Home, MoreHorizontal, ChevronDown, PrinterIcon } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import Barcode from "react-barcode";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -58,77 +60,8 @@ export const ParcelSearch = (): JSX.Element => {
     const printRef = useRef<HTMLDivElement>(null);
 
     const handlePrint = () => {
-        const printContent = printRef.current;
-        if (!printContent) return;
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) { showToast("Please allow popups to print labels", "error"); return; }
-        printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Print Parcel Labels - M&M</title>
-          <meta charset="UTF-8">
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: Arial, Helvetica, sans-serif; padding: 10mm; background: white; }
-            .bg-white { background-color: white; }
-            .bg-black { background-color: black !important; }
-            .text-white { color: white !important; }
-            .text-black { color: black; }
-            .text-xs { font-size: 12px; }
-            .text-sm { font-size: 14px; }
-            .text-base { font-size: 16px; }
-            .text-xl { font-size: 20px; }
-            .text-3xl { font-size: 30px; }
-            .text-4xl { font-size: 36px; }
-            .font-bold { font-weight: bold; }
-            .font-semibold { font-weight: 600; }
-            .font-normal { font-weight: normal; }
-            .border-2 { border: 2px solid black !important; }
-            .border-t { border-top: 1px solid black !important; }
-            .border-t-2 { border-top: 2px solid black !important; }
-            .border-b-2 { border-bottom: 2px solid black !important; }
-            .border-black { border-color: black !important; }
-            .p-2 { padding: 8px; }
-            .p-4 { padding: 16px; }
-            .px-4 { padding-left: 16px; padding-right: 16px; }
-            .py-3 { padding-top: 12px; padding-bottom: 12px; }
-            .pt-1 { padding-top: 4px; }
-            .pb-2 { padding-bottom: 8px; }
-            .mb-1 { margin-bottom: 4px; }
-            .mb-2 { margin-bottom: 8px; }
-            .mb-3 { margin-bottom: 12px; }
-            .mt-0\.5 { margin-top: 2px; }
-            .mt-1 { margin-top: 4px; }
-            .mt-2 { margin-top: 8px; }
-            .text-center { text-align: center; }
-            .tracking-wider { letter-spacing: 0.05em; }
-            .inline-block { display: inline-block; }
-            .h-16 { height: 64px; }
-            .w-16 { width: 64px; }
-            .object-contain { object-fit: contain; }
-            .grid { display: grid; }
-            .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .gap-3 { gap: 12px; }
-            .space-y-1 > * + * { margin-top: 4px; }
-            .flex { display: flex; }
-            .items-center { align-items: center; }
-            .justify-center { justify-content: center; }
-            .justify-between { justify-content: space-between; }
-            .gap-3 { gap: 12px; }
-            .page-break { page-break-after: always; break-after: page; }
-            @media print {
-              body { padding: 0; margin: 0; }
-              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              @page { size: A4; margin: 8mm; }
-            }
-          </style>
-        </head>
-        <body>${printContent.innerHTML}</body>
-      </html>
-    `);
-        printWindow.document.close();
-        setTimeout(() => { printWindow.focus(); printWindow.print(); }, 500);
+        if (!printRef.current) return;
+        window.print();
     };
 
     useEffect(() => {
@@ -647,9 +580,9 @@ export const ParcelSearch = (): JSX.Element => {
                                         }}
                                         className="text-xs border border-[#d1d1d1] rounded px-2 py-1"
                                     >
+                                        <option value={200}>200</option>
+                                        <option value={500}>500</option>
                                         <option value={1000}>1000</option>
-                                        <option value={2000}>2000</option>
-                                        <option value={5000}>5000</option>
                                     </select>
                                 </div>
                             </div>
@@ -1464,6 +1397,21 @@ export const ParcelSearch = (): JSX.Element => {
             {/* Print Label Preview Modal */}
             {showPrintPreview && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+                    <style>{`
+                        @media print {
+                            body * { visibility: hidden; }
+                            #parcel-search-print, #parcel-search-print * { visibility: visible; }
+                            #parcel-search-print {
+                                position: absolute;
+                                left: 0;
+                                top: 0;
+                                width: 100%;
+                            }
+                            .page-break { page-break-after: always; }
+                            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                            @page { size: A4 portrait; margin: 6mm; }
+                        }
+                    `}</style>
                     <div className="bg-white rounded-xl shadow-xl border border-[#d1d1d1] w-full max-w-3xl max-h-[90vh] overflow-y-auto">
                         <div className="sticky top-0 bg-white border-b border-[#d1d1d1] p-4 flex items-center justify-between">
                             <h3 className="text-lg font-bold text-neutral-800">
@@ -1479,7 +1427,7 @@ export const ParcelSearch = (): JSX.Element => {
                                 </Button>
                             </div>
                         </div>
-                        <div className="p-6 space-y-6" ref={printRef}>
+                        <div className="p-6 space-y-6" ref={printRef} id="parcel-search-print">
                             {checkedParcels.size > 0 ? (
                                 filteredParcels
                                     .filter(p => checkedParcels.has(p.parcelId))
@@ -1487,7 +1435,7 @@ export const ParcelSearch = (): JSX.Element => {
                                         <div key={parcel.parcelId}>
                                             <SearchParcelLabel parcel={parcel} />
                                             {idx < arr.length - 1 && (
-                                                <div className="page-break border-t-2 border-dashed border-gray-300 my-6" />
+                                                <div className="page-break border-t border-dashed border-gray-300 my-2" />
                                             )}
                                         </div>
                                     ))
@@ -1504,74 +1452,80 @@ export const ParcelSearch = (): JSX.Element => {
 
 const SearchParcelLabel: React.FC<{ parcel: import("../../services/frontdeskService").ParcelResponse }> = ({ parcel }) => {
     const totalAmount = (parcel.inboundCost || 0) + (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0);
+
+    const qrValue = `${window.location.origin}/scan?id=${parcel.parcelId}`;
+
     return (
-        <div className="bg-white border-2 border-black p-4">
+        <div className="bg-white border-2 border-black p-2">
             {/* Header */}
-            <div className="text-center border-b-2 border-black pb-2 mb-3">
-                <div className="flex items-center justify-center gap-3 mb-1">
-                    <img src="/logo-1.png" alt="M&M Logo" className="h-16 w-16 object-contain" crossOrigin="anonymous" />
+            <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-1.5">
+                <div className="w-10" />
+                <div className="flex items-center gap-2">
+                    <img src="/logo-1.png" alt="M&M Logo" className="h-8 w-8 object-contain" crossOrigin="anonymous" />
                     <div>
-                        <h1 className="text-3xl font-bold text-black">Mealex &amp; Mailex (M&amp;M)</h1>
-                        <p className="text-base text-black">Parcel Delivery System</p>
+                        <h1 className="text-sm font-bold text-black leading-tight">Mealex &amp; Mailex (M&amp;M)</h1>
+                        <p className="text-xs text-black">Parcel Delivery System</p>
                     </div>
+                </div>
+                <div className="flex flex-col items-center">
+                    <QRCodeSVG value={qrValue} size={40} level="M" includeMargin={false} />
+                    <p className="text-[9px] text-black mt-0.5">Scan to Track</p>
                 </div>
             </div>
 
-            {/* Parcel ID */}
-            <div className="text-center mb-3 bg-black text-white py-3 px-4">
-                <p className="text-sm font-semibold mb-0.5">PARCEL ID</p>
-                <p className="text-4xl font-bold tracking-wider">{parcel.parcelId}</p>
+            {/* Tracking Number */}
+            <div className="text-center mb-1.5 bg-black text-white py-1 px-3">
+                <p className="text-[9px] font-semibold">TRACKING NUMBER</p>
+                <p className="text-sm font-bold tracking-wider">{parcel.parcelId}</p>
             </div>
 
             {/* Sender & Receiver */}
-            <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="border-2 border-black p-2">
-                    <p className="text-base text-black mb-1"><span className="font-bold">SENDER:</span> {parcel.senderName || "—"}</p>
-                    <p className="text-base text-black"><span className="font-bold">CONTACT:</span> {parcel.senderPhoneNumber || "—"}</p>
+            <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+                <div className="border-2 border-black p-1">
+                    <p className="text-xs text-black"><span className="font-bold">SENDER:</span> {parcel.senderName || "—"}</p>
+                    <p className="text-xs text-black"><span className="font-bold">CONTACT:</span> {parcel.senderPhoneNumber || "—"}</p>
                 </div>
-                <div className="border-2 border-black p-2">
-                    <p className="text-base text-black mb-1"><span className="font-bold">RECEIVER:</span> {parcel.receiverName || "—"}</p>
-                    <p className="text-base text-black"><span className="font-bold">CONTACT:</span> {parcel.recieverPhoneNumber || "—"}</p>
+                <div className="border-2 border-black p-1">
+                    <p className="text-xs text-black"><span className="font-bold">RECEIVER:</span> {parcel.receiverName || "—"}</p>
+                    <p className="text-xs text-black"><span className="font-bold">CONTACT:</span> {parcel.recieverPhoneNumber || "—"}</p>
                 </div>
             </div>
 
             {/* Delivery Address */}
             {parcel.receiverAddress && (
-                <div className="border-2 border-black p-2 mb-3">
-                    <p className="text-sm font-bold text-black">DELIVERY ADDRESS: <span className="font-normal text-xl">{parcel.receiverAddress}</span></p>
+                <div className="border-2 border-black p-1 mb-1.5">
+                    <p className="text-xs text-black"><span className="font-bold">DELIVERY ADDRESS:</span> {parcel.receiverAddress}</p>
                 </div>
             )}
 
             {/* Item Description */}
             {parcel.parcelDescription && (
-                <div className="border-2 border-black p-2 mb-3">
-                    <p className="text-sm font-bold text-black">ITEM DESCRIPTION: <span className="font-normal text-base">{parcel.parcelDescription}</span></p>
+                <div className="border-2 border-black p-1 mb-1.5">
+                    <p className="text-xs text-black"><span className="font-bold">ITEM DESCRIPTION:</span> {parcel.parcelDescription}</p>
                 </div>
             )}
 
-            {/* Driver Info */}
+            {/* Driver / Vehicle */}
             {(parcel.driverName || parcel.vehicleNumber) && (
-                <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                     {parcel.vehicleNumber && (
-                        <div className="border-2 border-black p-2">
-                            <p className="text-xs font-bold text-black">VEHICLE:</p>
-                            <p className="text-sm text-black">{parcel.vehicleNumber}</p>
+                        <div className="border-2 border-black p-1">
+                            <p className="text-xs text-black"><span className="font-bold">VEHICLE:</span> {parcel.vehicleNumber}</p>
                         </div>
                     )}
                     {parcel.driverName && (
-                        <div className="border-2 border-black p-2">
-                            <p className="text-xs font-bold text-black">DRIVER:</p>
-                            <p className="text-sm text-black">{parcel.driverName}</p>
-                            {parcel.driverPhoneNumber && <p className="text-xs text-black mt-0.5">{parcel.driverPhoneNumber}</p>}
+                        <div className="border-2 border-black p-1">
+                            <p className="text-xs text-black"><span className="font-bold">DRIVER:</span> {parcel.driverName}</p>
+                            {parcel.driverPhoneNumber && <p className="text-xs text-black">{parcel.driverPhoneNumber}</p>}
                         </div>
                     )}
                 </div>
             )}
 
             {/* Payment Details */}
-            <div className="border-2 border-black p-2 mb-3">
-                <p className="text-sm font-bold text-black mb-1">PAYMENT DETAILS</p>
-                <div className="space-y-1 text-base">
+            <div className="border-2 border-black p-1 mb-1.5">
+                <p className="text-xs font-bold text-black mb-0.5">PAYMENT DETAILS</p>
+                <div className="text-xs">
                     {(parcel.inboundCost || 0) > 0 && (
                         <div className="flex justify-between">
                             <span className="text-black">Transportation Cost:</span>
@@ -1590,24 +1544,37 @@ const SearchParcelLabel: React.FC<{ parcel: import("../../services/frontdeskServ
                             <span className="font-semibold text-black">GHC {(parcel.pickUpCost || 0).toFixed(2)}</span>
                         </div>
                     )}
-                    <div className="flex justify-between border-t-2 border-black pt-1 mt-1">
+                    <div className="flex justify-between border-t-2 border-black pt-0.5 mt-0.5">
                         <span className="font-bold text-black">TOTAL AMOUNT:</span>
-                        <span className="font-bold text-xl text-black">GHC {totalAmount.toFixed(2)}</span>
+                        <span className="font-bold text-black">GHC {totalAmount.toFixed(2)}</span>
                     </div>
                 </div>
             </div>
 
             {/* POD Badge */}
             {parcel.pod && (
-                <div className="text-center mb-2">
-                    <span className="inline-block bg-black text-white px-4 py-2 text-base font-bold">POD PARCEL</span>
+                <div className="text-center mb-1.5">
+                    <span className="inline-block bg-black text-white px-3 py-0.5 text-xs font-bold">POD PARCEL</span>
                 </div>
             )}
 
+            {/* Barcode */}
+            <div className="flex justify-center mb-1">
+                <Barcode
+                    value={parcel.parcelId}
+                    width={1.4}
+                    height={36}
+                    fontSize={9}
+                    margin={0}
+                    displayValue={true}
+                    background="white"
+                    lineColor="black"
+                />
+            </div>
+
             {/* Footer */}
-            <div className="mt-2 pt-2 border-t border-black text-center">
-                <p className="text-sm text-black">Date: {new Date().toLocaleDateString()} | Time: {new Date().toLocaleTimeString()}</p>
-                <p className="text-sm text-black mt-0.5">For inquiries, contact M&amp;M Parcel Services</p>
+            <div className="pt-1 border-t border-black text-center">
+                <p className="text-[9px] text-black">Date: {new Date().toLocaleDateString()} | Time: {new Date().toLocaleTimeString()} | M&amp;M Parcel Services</p>
             </div>
         </div>
     );

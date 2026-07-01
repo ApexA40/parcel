@@ -44,12 +44,12 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
     const [lastFetchTime, setLastFetchTime] = useState<number | null>(null);
     const [pagination, setPagination] = useState({
         page: 0,
-        size: 1000,
+        size: 200,
         totalElements: 0,
         totalPages: 0,
     });
     const [currentFilters, setCurrentFilters] = useState<ParcelSearchFilters>({});
-    const [currentPageable, setCurrentPageable] = useState<PageableRequest>({ page: 0, size: 1000 });
+    const [currentPageable, setCurrentPageable] = useState<PageableRequest>({ page: 0, size: 200 });
     const [nextPageCache, setNextPageCache] = useState<NextPageCache | null>(null);
     // Cache of pages visited so far, keyed by filters+page+size so Previous/Next don't refetch
     const [pageCache, setPageCache] = useState<Record<string, {
@@ -101,7 +101,7 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
     const loadParcels = useCallback(async (
         filters: ParcelSearchFilters = {},
         page: number = 0,
-        size: number = 1000,
+        size: number = 200,
         forceRefresh = false,
         showLoading = true
     ) => {
@@ -244,7 +244,7 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
     const loadParcelsIfNeeded = useCallback(async (
         filters: ParcelSearchFilters = {},
         page: number = 0,
-        size: number = 1000,
+        size: number = 200,
         showLoading = true
     ) => {
         await loadParcels(filters, page, size, false, showLoading);
@@ -253,7 +253,7 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
     const refreshParcels = useCallback(async (
         filters: ParcelSearchFilters = {},
         page: number = 0,
-        size: number = 1000
+        size: number = 200
     ) => {
         await loadParcels(filters, page, size, true, true);
     }, [loadParcels]);
@@ -273,19 +273,13 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
         prefetchNextPage(currentFilters, nextPage, pagination.size);
     }, [pagination.page, pagination.size, pagination.totalPages, currentFilters, nextPageCache, prefetchNextPage]);
 
-    // Background refresh on mount if cache exists but might be stale
+    // Load on mount only — ParcelSearch useEffect handles its own load
     useEffect(() => {
         const now = Date.now();
         if (lastFetchTime && (now - lastFetchTime) < CACHE_DURATION && parcels.length > 0) {
-            // Cache is still valid - no need to fetch, data is already available
-            // Optionally refresh in background for next time (silently)
-            setTimeout(() => {
-                loadParcels(currentFilters, currentPageable.page, currentPageable.size, false, false);
-            }, 1000); // Small delay to not interfere with initial render
-        } else if (!lastFetchTime || (now - lastFetchTime) >= CACHE_DURATION) {
-            // No cache or expired - load with loading UI
-            loadParcels({}, 0, 1000, false, true);
+            return; // Cache still valid, do nothing
         }
+        loadParcels({}, 0, 200, false, true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

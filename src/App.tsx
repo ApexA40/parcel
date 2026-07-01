@@ -60,6 +60,7 @@ import AdminStatistics from "./screens/Admin/AdminStatistics";
 import { ReconciliationAnalytics } from "./screens/ReconciliationAnalytics";
 import { RiderDetail } from "./screens/ReconciliationAnalytics/RiderDetail";
 import { PartnerPortal } from "./screens/PartnerPortal/PartnerPortal";
+import { ParcelScan } from "./screens/ParcelScan/ParcelScan";
 
 export const App = (): JSX.Element => {
   // Some environments cache component prop types aggressively; this keeps routing flexible.
@@ -83,6 +84,7 @@ export const App = (): JSX.Element => {
 
                         {/* Public: Customer parcel lookup (no login) */}
                         <Route path="/track" element={<TrackParcel />} />
+                        <Route path="/scan" element={<ParcelScan />} />
                         <Route
                           path="/receive"
                           element={

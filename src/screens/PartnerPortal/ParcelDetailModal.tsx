@@ -1,9 +1,10 @@
-import { X, Pencil } from "lucide-react";
+import { useState } from "react";
+import { X, Pencil, Printer } from "lucide-react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { statusConfig, formatCurrency, type PartnerParcel } from "./partnerData";
-import { isPartnerParcelEditable } from "./partnerFormUtils";
+import { ParcelLabelModal } from "./ParcelLabelModal";
 
 interface Props {
   parcel: PartnerParcel;
@@ -13,7 +14,7 @@ interface Props {
 
 export const ParcelDetailModal = ({ parcel, onClose, onEdit }: Props) => {
   const s = statusConfig[parcel.status];
-  const canEdit = isPartnerParcelEditable(parcel.status);
+  const [showLabel, setShowLabel] = useState(false);
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-md border border-[#d1d1d1] bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -81,22 +82,30 @@ export const ParcelDetailModal = ({ parcel, onClose, onEdit }: Props) => {
             </div>
 
             <div className="flex gap-3">
-              {canEdit && onEdit && (
+              <Button
+                onClick={() => setShowLabel(true)}
+                variant="outline"
+                className="flex items-center gap-2 border-[#ea690c] text-[#ea690c] hover:bg-orange-50 h-10 font-semibold"
+              >
+                <Printer className="w-4 h-4" /> Print Label
+              </Button>
+              {onEdit && (
                 <Button
                   onClick={() => onEdit(parcel)}
                   variant="outline"
-                  className="flex-1 border-[#ea690c] text-[#ea690c] hover:bg-orange-50 h-10 font-semibold flex items-center justify-center gap-2"
+                  className="flex-1 border-gray-300 text-neutral-700 hover:bg-gray-50 h-10 font-semibold flex items-center justify-center gap-2"
                 >
-                  <Pencil className="w-4 h-4" /> Edit Parcel
+                  <Pencil className="w-4 h-4" /> Edit
                 </Button>
               )}
-              <Button onClick={onClose} className={`${canEdit && onEdit ? "flex-1" : "w-full"} bg-[#ea690c] text-white hover:bg-[#d45e0a] h-10 font-semibold`}>
+              <Button onClick={onClose} className="flex-1 bg-[#ea690c] text-white hover:bg-[#d45e0a] h-10 font-semibold">
                 Close
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+      {showLabel && <ParcelLabelModal parcel={parcel} onClose={() => setShowLabel(false)} />}
     </div>
   );
 };
