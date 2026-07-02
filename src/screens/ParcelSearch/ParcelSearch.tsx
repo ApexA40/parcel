@@ -1501,7 +1501,7 @@ const SearchParcelLabel: React.FC<{ parcel: import("../../services/frontdeskServ
                     </div>
                 </div>
                 <div className="flex flex-col items-center">
-                    <QRCodeSVG value={qrValue} size={40} level="M" includeMargin={false} />
+                    <QRCodeSVG value={qrValue} size={72} level="H" includeMargin={false} />
                     <p className="text-[9px] text-black mt-0.5">Scan to Track</p>
                 </div>
             </div>
