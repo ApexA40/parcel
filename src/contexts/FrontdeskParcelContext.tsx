@@ -27,6 +27,8 @@ interface FrontdeskParcelContextType {
     currentPageable: PageableRequest;
     loadParcelsIfNeeded: (filters?: ParcelSearchFilters, page?: number, size?: number, showLoading?: boolean) => Promise<void>;
     refreshParcels: (filters?: ParcelSearchFilters, page?: number, size?: number) => Promise<void>;
+    /** Navigate to a page — uses cache/prefetch, keeps current parcels visible until new ones arrive */
+    navigatePage: (page: number) => Promise<void>;
     /** Start loading the next page in the background so "Next" is instant. Safe to call repeatedly. */
     prefetchNextPageIfPossible: () => void;
     invalidateCache: () => void;
@@ -44,12 +46,12 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
     const [lastFetchTime, setLastFetchTime] = useState<number | null>(null);
     const [pagination, setPagination] = useState({
         page: 0,
-        size: 200,
+        size: 1000,
         totalElements: 0,
         totalPages: 0,
     });
     const [currentFilters, setCurrentFilters] = useState<ParcelSearchFilters>({});
-    const [currentPageable, setCurrentPageable] = useState<PageableRequest>({ page: 0, size: 200 });
+    const [currentPageable, setCurrentPageable] = useState<PageableRequest>({ page: 0, size: 1000 });
     const [nextPageCache, setNextPageCache] = useState<NextPageCache | null>(null);
     // Cache of pages visited so far, keyed by filters+page+size so Previous/Next don't refetch
     const [pageCache, setPageCache] = useState<Record<string, {
@@ -101,7 +103,7 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
     const loadParcels = useCallback(async (
         filters: ParcelSearchFilters = {},
         page: number = 0,
-        size: number = 200,
+        size: number = 1000,
         forceRefresh = false,
         showLoading = true
     ) => {
@@ -244,7 +246,7 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
     const loadParcelsIfNeeded = useCallback(async (
         filters: ParcelSearchFilters = {},
         page: number = 0,
-        size: number = 200,
+        size: number = 1000,
         showLoading = true
     ) => {
         await loadParcels(filters, page, size, false, showLoading);
@@ -253,10 +255,95 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
     const refreshParcels = useCallback(async (
         filters: ParcelSearchFilters = {},
         page: number = 0,
-        size: number = 200
+        size: number = 1000
     ) => {
         await loadParcels(filters, page, size, true, true);
     }, [loadParcels]);
+
+    /**
+     * Navigate to a page using cache/prefetch first.
+     * Keeps current parcels visible (no loading spinner) until new data arrives.
+     */
+    const navigatePage = useCallback(async (page: number) => {
+        const filters = currentFilters;
+        const size = pagination.size;
+        const filtersKey = JSON.stringify(filters);
+        const cacheKey = `${filtersKey}|${page}|${size}`;
+        const now = Date.now();
+
+        // 1. Prefetch cache hit — instant swap
+        if (
+            nextPageCache &&
+            nextPageCache.page === page &&
+            nextPageCache.size === size &&
+            nextPageCache.filtersKey === filtersKey
+        ) {
+            setParcels(nextPageCache.parcels);
+            setPagination({
+                page: nextPageCache.page,
+                size: nextPageCache.size,
+                totalElements: nextPageCache.totalElements,
+                totalPages: nextPageCache.totalPages,
+            });
+            setCurrentPageable({ page, size });
+            setLastFetchTime(now);
+            setNextPageCache(null);
+            if (page + 1 < nextPageCache.totalPages) {
+                prefetchNextPage(filters, page + 1, size);
+            }
+            return;
+        }
+
+        // 2. Page cache hit — instant swap
+        const cached = pageCache[cacheKey];
+        if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+            setParcels(cached.parcels);
+            setPagination(cached.pagination);
+            setCurrentPageable({ page, size });
+            setLastFetchTime(now);
+            const nextPage = cached.pagination.page + 1;
+            if (nextPage < cached.pagination.totalPages) {
+                prefetchNextPage(filters, nextPage, size);
+            }
+            return;
+        }
+
+        // 3. Not cached — fetch in background, keep current parcels visible
+        setBackgroundLoading(true);
+        try {
+            const response = await frontdeskService.searchParcels(filters, { page, size });
+            if (response.success && response.data) {
+                let fetchedParcels = response.data.content || [];
+                const userData = authService.getUser();
+                const userRole = (userData as any)?.role;
+                const userOfficeId = (userData as any)?.office?.id;
+                if (userRole !== "ADMIN" && userOfficeId) {
+                    fetchedParcels = fetchedParcels.filter((p: ParcelResponse) => {
+                        const parcelOfficeId = typeof p.officeId === "string" ? p.officeId : p.officeId?.id;
+                        return parcelOfficeId === userOfficeId;
+                    });
+                }
+                const newPagination = {
+                    page: response.data.number ?? page,
+                    size: response.data.size ?? size,
+                    totalElements: response.data.totalElements ?? 0,
+                    totalPages: response.data.totalPages ?? 0,
+                };
+                setParcels(fetchedParcels);
+                setPagination(newPagination);
+                setCurrentPageable({ page, size });
+                setLastFetchTime(now);
+                setPageCache(prev => ({ ...prev, [cacheKey]: { parcels: fetchedParcels, pagination: newPagination, timestamp: now } }));
+                if (page + 1 < newPagination.totalPages) {
+                    prefetchNextPage(filters, page + 1, size);
+                }
+            }
+        } catch (error) {
+            console.error("navigatePage error:", error);
+        } finally {
+            setBackgroundLoading(false);
+        }
+    }, [currentFilters, pagination.size, nextPageCache, pageCache, prefetchNextPage]);
 
     const invalidateCache = useCallback(() => {
         setLastFetchTime(null);
@@ -279,7 +366,7 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
         if (lastFetchTime && (now - lastFetchTime) < CACHE_DURATION && parcels.length > 0) {
             return; // Cache still valid, do nothing
         }
-        loadParcels({}, 0, 200, false, true);
+        loadParcels({}, 0, 1000, false, true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -295,6 +382,7 @@ export const FrontdeskParcelProvider: React.FC<{ children: React.ReactNode }> = 
                 currentPageable,
                 loadParcelsIfNeeded,
                 refreshParcels,
+                navigatePage,
                 prefetchNextPageIfPossible,
                 invalidateCache,
             }}

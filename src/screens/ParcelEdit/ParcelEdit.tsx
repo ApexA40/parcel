@@ -21,9 +21,11 @@ export const ParcelEdit = (): JSX.Element => {
     const {
         parcels,
         loading,
+        backgroundLoading,
         pagination,
         loadParcelsIfNeeded,
-        refreshParcels
+        refreshParcels,
+        navigatePage,
     } = useFrontdeskParcel();
 
     const [searchTerm, setSearchTerm] = useState("");
@@ -117,6 +119,10 @@ export const ParcelEdit = (): JSX.Element => {
             images: parcel.images || [],
         });
         setShowEditModal(true);
+    };
+
+    const handlePage = async (newPage: number) => {
+        await navigatePage(newPage);
     };
 
     const handleSave = async () => {
@@ -340,6 +346,34 @@ export const ParcelEdit = (): JSX.Element => {
                             )}
                         </CardContent>
                     </Card>
+
+                    {/* Pagination */}
+                    {!searchTerm && pagination.totalPages > 1 && (
+                        <div className="flex items-center justify-between px-1">
+                            <p className="text-xs text-neutral-400">
+                                Page {pagination.page + 1} of {pagination.totalPages}
+                                <span className="ml-2 text-neutral-300">·</span>
+                                <span className="ml-2">{pagination.totalElements} total</span>
+                                {backgroundLoading && <span className="ml-2 text-neutral-300 italic">updating…</span>}
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handlePage(pagination.page - 1)}
+                                    disabled={pagination.page === 0 || backgroundLoading}
+                                    className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    onClick={() => handlePage(pagination.page + 1)}
+                                    disabled={pagination.page + 1 >= pagination.totalPages || backgroundLoading}
+                                    className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </main>
             </div>
 

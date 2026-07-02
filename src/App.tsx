@@ -11,6 +11,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { MainLayout } from "./layouts/MainLayout";
 import { RiderLayout } from "./layouts/RiderLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { ScrollController } from "./components/ScrollController";
 import { Login } from "./screens/Login";
 import { ForgotPassword } from "./screens/ForgotPassword";
 import { PasswordRequestSent } from "./screens/PasswordRequestSent";
@@ -531,6 +532,7 @@ export const App = (): JSX.Element => {
                           }
                         />
                       </Routes>
+                    <ScrollController />
                     </BrowserRouter>
                   </ToastProvider>
                 </ShelfProvider>
