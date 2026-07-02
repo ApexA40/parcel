@@ -1071,8 +1071,6 @@ export const ParcelSearch = (): JSX.Element => {
                     onEditShelf={() => { setEditingShelf(true); setShowActionMenu(false); }}
                     onRequestDelivery={() => { setRequestDelivery(true); setDeliveryAddress(selectedParcel.receiverAddress || ""); setDeliveryCostInput(selectedParcel.deliveryCost ? String(selectedParcel.deliveryCost) : ""); setShowActionMenu(false); }}
                     onCancelDelivery={async () => { setShowActionMenu(false); const res = await frontdeskService.updateParcel(selectedParcel.parcelId, { homeDelivery: false, deliveryCost: 0, receiverAddress: "" }); if (res.success) { showToast("Home delivery cancelled", "success"); await refreshParcels({}, pagination.page, pagination.size); setSelectedParcel(null); } else showToast(res.message || "Failed", "error"); }}
-                    showCosts={showCosts}
-                    onToggleCosts={() => setShowCosts(p => !p)}
                     showActionMenu={showActionMenu}
                     onToggleActionMenu={() => setShowActionMenu(p => !p)}
                     actionMenuRef={actionMenuRef}
@@ -1511,7 +1509,7 @@ const SearchParcelLabel: React.FC<{ parcel: import("../../services/frontdeskServ
             {/* Tracking Number */}
             <div className="text-center mb-1.5 bg-black text-white py-1 px-3">
                 <p className="text-[9px] font-semibold">TRACKING NUMBER</p>
-                <p className="text-sm font-bold tracking-wider">{parcel.parcelId}</p>
+                <p className="text-sm font-bold tracking-wider">{parcel.barCode || parcel.parcelId}</p>
             </div>
 
             {/* Sender & Receiver */}
@@ -1596,7 +1594,7 @@ const SearchParcelLabel: React.FC<{ parcel: import("../../services/frontdeskServ
             {/* Barcode */}
             <div className="flex justify-center mb-1">
                 <Barcode
-                    value={parcel.parcelId}
+                    value={parcel.barCode || parcel.parcelId}
                     width={1.4}
                     height={36}
                     fontSize={9}
@@ -1627,8 +1625,6 @@ interface ParcelDetailModalProps {
     onEditShelf: () => void;
     onRequestDelivery: () => void;
     onCancelDelivery: () => void;
-    showCosts: boolean;
-    onToggleCosts: () => void;
     showActionMenu: boolean;
     onToggleActionMenu: () => void;
     actionMenuRef: React.RefObject<HTMLDivElement>;
@@ -1637,7 +1633,7 @@ interface ParcelDetailModalProps {
 const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
     parcel, activeDelivery, activeDeliveryLoading, onClose, onMarkPickup, onPrint, onEditShelf,
     onRequestDelivery, onCancelDelivery,
-    showCosts, onToggleCosts, showActionMenu, onToggleActionMenu, actionMenuRef,
+    showActionMenu, onToggleActionMenu, actionMenuRef,
 }) => {
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
     const images: string[] = parcel.imageUrls ?? parcel.images ?? [];
@@ -1670,62 +1666,53 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
     return (
         <>
             {/* Backdrop */}
-            <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-                onClick={onClose}
-            />
+            <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
 
             {/* Panel */}
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
                 <div
-                    className="pointer-events-auto w-full max-w-2xl bg-white rounded-xl shadow-2xl flex flex-col max-h-[92vh] border border-neutral-200"
+                    className="pointer-events-auto w-full max-w-xl bg-white flex flex-col max-h-[90vh] shadow-xl"
+                    style={{ borderRadius: 0 }}
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 shrink-0">
-                        <div>
-                            <h3 className="text-base font-bold text-neutral-800">Parcel Details</h3>
-                            <p className="text-xs text-neutral-400 mt-0.5 font-mono">{parcel.parcelId}</p>
+                    <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-200 shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div>
+                                <p className="text-sm font-semibold text-neutral-800 leading-tight">Parcel Details</p>
+                                <p className="text-[11px] text-neutral-400 font-mono mt-0.5">{parcel.parcelId}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-2">
+                                <span className="text-[11px] font-medium px-2 py-0.5 bg-neutral-100 text-neutral-600">{statusLabel}</span>
+                                {parcel.homeDelivery && <span className="text-[11px] px-2 py-0.5 bg-neutral-100 text-neutral-500">Home Delivery</span>}
+                                {parcel.fragile && <span className="text-[11px] px-2 py-0.5 bg-neutral-100 text-neutral-500">Fragile</span>}
+                                {parcel.pod && <span className="text-[11px] px-2 py-0.5 bg-neutral-100 text-neutral-500">POD</span>}
+                            </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
-                        >
-                            <X className="w-5 h-5" />
+                        <button onClick={onClose} className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors">
+                            <X className="w-4 h-4" />
                         </button>
                     </div>
 
                     {/* Scrollable body */}
-                    <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
-
-                        {/* Status row */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-semibold border border-neutral-300 text-neutral-700 rounded">{statusLabel}</span>
-                            {parcel.homeDelivery && <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium border border-neutral-200 text-neutral-600 rounded">Home Delivery</span>}
-                            {parcel.fragile && <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium border border-neutral-200 text-neutral-600 rounded">Fragile</span>}
-                            {parcel.pod && <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium border border-neutral-200 text-neutral-600 rounded">POD</span>}
-                        </div>
+                    <div className="overflow-y-auto flex-1 divide-y divide-neutral-100">
 
                         {/* Active Delivery */}
                         {activeDeliveryLoading && (
-                            <div className="flex items-center gap-2 text-xs text-neutral-400">
+                            <div className="px-5 py-3 flex items-center gap-2 text-xs text-neutral-400">
                                 <Loader className="w-3.5 h-3.5 animate-spin" /> Loading delivery info…
                             </div>
                         )}
                         {!activeDeliveryLoading && activeDelivery && (
-                            <div className="border border-neutral-200 rounded-lg overflow-hidden">
-                                <div className="px-4 py-2.5 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
-                                    <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Active Delivery</p>
-                                    <span className="text-[11px] font-medium text-neutral-600 border border-neutral-300 px-2 py-0.5 rounded">
-                                        {activeDelivery.status ?? "—"}
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-x-6 gap-y-3 p-4">
+                            <div className="px-5 py-4">
+                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Active Delivery</p>
+                                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                    <Field label="Status" value={activeDelivery.status} />
                                     {activeDelivery.riderInfo?.riderName && <Field label="Rider" value={activeDelivery.riderInfo.riderName} />}
                                     {activeDelivery.riderInfo?.riderPhoneNumber && <Field label="Rider Phone" value={formatPhoneNumber(activeDelivery.riderInfo.riderPhoneNumber)} />}
                                     {activeDelivery.amount != null && <Field label="Amount" value={`GHC ${Number(activeDelivery.amount).toFixed(2)}`} />}
-                                    {activeDelivery.assignedAt && <Field label="Assigned" value={new Date(activeDelivery.assignedAt).toLocaleString()} />}
-                                    {activeDelivery.completedAt && <Field label="Completed" value={new Date(activeDelivery.completedAt).toLocaleString()} />}
+                                    {activeDelivery.assignedAt && <Field label="Assigned At" value={new Date(activeDelivery.assignedAt).toLocaleString()} />}
+                                    {activeDelivery.completedAt && <Field label="Completed At" value={new Date(activeDelivery.completedAt).toLocaleString()} />}
                                     {activeDelivery.returnReason && <Field label="Return Reason" value={activeDelivery.returnReason} span />}
                                 </div>
                             </div>
@@ -1733,123 +1720,146 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
 
                         {/* Images */}
                         {images.length > 0 && (
-                            <div>
-                                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Images ({images.length})</p>
+                            <div className="px-5 py-4">
+                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Images ({images.length})</p>
                                 <div className="flex flex-wrap gap-2">
                                     {images.map((url, i) => (
                                         <button
                                             key={i}
                                             onClick={() => setLightboxIndex(i)}
-                                            className="w-20 h-20 rounded-lg overflow-hidden border border-neutral-200 hover:border-neutral-500 transition-colors focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                                            className="w-20 h-20 overflow-hidden border border-neutral-200 hover:border-neutral-500 transition-colors focus:outline-none"
                                         >
-                                            <img
-                                                src={url}
-                                                alt={`img-${i + 1}`}
-                                                className="w-full h-full object-cover"
-                                            />
+                                            <img src={url} alt={`img-${i + 1}`} className="w-full h-full object-cover" />
                                         </button>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {/* Info grid */}
-                        <Section title="Recipient">
-                            <Field label="Name" value={parcel.receiverName} />
-                            <Field label="Phone" value={parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : undefined} />
-                            {parcel.receiverAddress && <Field label="Address" value={parcel.receiverAddress} span />}
-                        </Section>
-
-                        {(parcel.senderName || parcel.senderPhoneNumber) && (
-                            <Section title="Sender">
-                                <Field label="Name" value={parcel.senderName} />
-                                <Field label="Phone" value={parcel.senderPhoneNumber ? formatPhoneNumber(parcel.senderPhoneNumber) : undefined} />
-                            </Section>
-                        )}
-
-                        {parcel.driverName && (
-                            <Section title="Driver">
-                                <Field label="Name" value={parcel.driverName} />
-                                <Field label="Phone" value={parcel.driverPhoneNumber ? formatPhoneNumber(parcel.driverPhoneNumber) : undefined} />
-                                <Field label="Vehicle" value={parcel.vehicleNumber} />
-                            </Section>
-                        )}
-
-                        {parcel.riderInfo && (
-                            <Section title="Rider">
-                                <Field label="Name" value={parcel.riderInfo.riderName} />
-                                <Field label="Phone" value={parcel.riderInfo.riderPhoneNumber ? formatPhoneNumber(parcel.riderInfo.riderPhoneNumber) : undefined} />
-                            </Section>
-                        )}
-
-                        <Section title="Parcel Info">
-                            <Field label="Shelf" value={parcel.shelfName || parcel.shelfNumber} />
-                            {parcel.parcelWeight != null && <Field label="Weight" value={`${parcel.parcelWeight} kg`} />}
-                            {parcel.parcelDescription && <Field label="Description" value={parcel.parcelDescription} span />}
-                        </Section>
-
-                        {/* Costs */}
-                        <div className="border border-neutral-200 rounded-lg overflow-hidden">
-                            <button
-                                type="button"
-                                onClick={onToggleCosts}
-                                className="w-full flex items-center justify-between px-4 py-3 bg-neutral-50 hover:bg-neutral-100 transition-colors"
-                            >
-                                <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Costs</span>
-                                <ChevronDown className={`w-4 h-4 text-neutral-400 transition-transform ${showCosts ? "rotate-180" : ""}`} />
-                            </button>
-                            {showCosts && (
-                                <div className="grid grid-cols-2 gap-4 p-4">
-                                    {parcel.inboundCost != null && <Field label="Inbound" value={`GHC ${parcel.inboundCost.toFixed(2)}`} />}
-                                    {parcel.deliveryCost != null && <Field label="Delivery" value={`GHC ${parcel.deliveryCost.toFixed(2)}`} />}
-                                    {parcel.pickUpCost != null && <Field label="Pickup" value={`GHC ${parcel.pickUpCost.toFixed(2)}`} />}
-                                    {parcel.storageCost != null && <Field label="Storage" value={`GHC ${parcel.storageCost.toFixed(2)}`} />}
-                                </div>
-                            )}
+                        {/* Recipient */}
+                        <div className="px-5 py-4">
+                            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Recipient</p>
+                            <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                <Field label="Name" value={parcel.receiverName} />
+                                <Field label="Phone" value={parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : undefined} />
+                                {parcel.receiverAddress && <Field label="Address" value={parcel.receiverAddress} span />}
+                            </div>
                         </div>
 
-                        {/* Flags */}
-                        <Section title="Flags">
-                            {parcel.hasCalled != null && <Field label="Has Called" value={parcel.hasCalled ? "Yes" : "No"} />}
-                            {parcel.inboudPayed != null && <Field label="Inbound Paid" value={parcel.inboudPayed ? "Yes" : "No"} />}
-                            {parcel.registeredDate && <Field label="Registered" value={new Date(parcel.registeredDate).toLocaleString()} />}
-                            {parcel.createdAt && <Field label="Created" value={new Date(parcel.createdAt).toLocaleString()} />}
-                        </Section>
+                        {/* Sender */}
+                        {(parcel.senderName || parcel.senderPhoneNumber) && (
+                            <div className="px-5 py-4">
+                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Sender</p>
+                                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                    <Field label="Name" value={parcel.senderName} />
+                                    <Field label="Phone" value={parcel.senderPhoneNumber ? formatPhoneNumber(parcel.senderPhoneNumber) : undefined} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Driver */}
+                        {parcel.driverName && (
+                            <div className="px-5 py-4">
+                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Driver</p>
+                                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                    <Field label="Name" value={parcel.driverName} />
+                                    <Field label="Phone" value={parcel.driverPhoneNumber ? formatPhoneNumber(parcel.driverPhoneNumber) : undefined} />
+                                    <Field label="Vehicle" value={parcel.vehicleNumber} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Rider */}
+                        {parcel.riderInfo && (
+                            <div className="px-5 py-4">
+                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Rider</p>
+                                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                    <Field label="Name" value={parcel.riderInfo.riderName} />
+                                    <Field label="Phone" value={parcel.riderInfo.riderPhoneNumber ? formatPhoneNumber(parcel.riderInfo.riderPhoneNumber) : undefined} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Parcel Info */}
+                        <div className="px-5 py-4">
+                            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Parcel Info</p>
+                            <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                <Field label="Shelf" value={parcel.shelfName || parcel.shelfNumber} />
+                                {parcel.parcelWeight != null && <Field label="Weight" value={`${parcel.parcelWeight} kg`} />}
+                                {parcel.hasCalled != null && <Field label="Has Called" value={parcel.hasCalled ? "Yes" : "No"} />}
+                                {parcel.inboudPayed != null && <Field label="Inbound Paid" value={parcel.inboudPayed ? "Yes" : "No"} />}
+                                {parcel.registeredDate && <Field label="Registered" value={new Date(parcel.registeredDate).toLocaleString()} span />}
+                                {parcel.parcelDescription && <Field label="Description" value={parcel.parcelDescription} span />}
+                            </div>
+                        </div>
+
+                        {/* Costs */}
+                        {(parcel.inboundCost != null || parcel.deliveryCost != null || parcel.pickUpCost != null || parcel.storageCost != null) && (
+                            <div className="px-5 py-4">
+                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Costs</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {parcel.inboundCost != null && (
+                                        <div className="border border-neutral-200 px-3 py-2">
+                                            <p className="text-[10px] text-neutral-400 uppercase tracking-widest mb-0.5">Inbound</p>
+                                            <p className="text-sm font-semibold text-neutral-800">GHC {parcel.inboundCost.toFixed(2)}</p>
+                                        </div>
+                                    )}
+                                    {parcel.deliveryCost != null && (
+                                        <div className="border border-neutral-200 px-3 py-2">
+                                            <p className="text-[10px] text-neutral-400 uppercase tracking-widest mb-0.5">Delivery</p>
+                                            <p className="text-sm font-semibold text-neutral-800">GHC {parcel.deliveryCost.toFixed(2)}</p>
+                                        </div>
+                                    )}
+                                    {parcel.pickUpCost != null && (
+                                        <div className="border border-neutral-200 px-3 py-2">
+                                            <p className="text-[10px] text-neutral-400 uppercase tracking-widest mb-0.5">Pickup</p>
+                                            <p className="text-sm font-semibold text-neutral-800">GHC {parcel.pickUpCost.toFixed(2)}</p>
+                                        </div>
+                                    )}
+                                    {parcel.storageCost != null && (
+                                        <div className="border border-neutral-200 px-3 py-2">
+                                            <p className="text-[10px] text-neutral-400 uppercase tracking-widest mb-0.5">Storage</p>
+                                            <p className="text-sm font-semibold text-neutral-800">GHC {parcel.storageCost.toFixed(2)}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Footer actions */}
-                    <div className="px-6 py-4 border-t border-neutral-200 shrink-0 flex gap-2 flex-wrap">
+                    {/* Footer */}
+                    <div className="px-5 py-3 border-t border-neutral-200 shrink-0 flex items-center gap-2">
                         {!parcel.pickedUp && (
-                            <Button onClick={onMarkPickup} className="bg-[#ea690c] text-white hover:bg-[#d45d0a] text-sm h-9">
+                            <button onClick={onMarkPickup} className="h-8 px-3 text-xs font-medium bg-[#ea690c] text-white hover:bg-[#d45d0a] transition-colors">
                                 Mark Picked Up
-                            </Button>
+                            </button>
                         )}
-                        <Button onClick={onPrint} variant="outline" className="text-sm h-9">
-                            <PrinterIcon className="w-4 h-4 mr-1.5" /> Print Label
-                        </Button>
+                        <button onClick={onPrint} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
+                            <PrinterIcon className="w-3.5 h-3.5" /> Print Label
+                        </button>
                         <div className="relative" ref={actionMenuRef}>
-                            <Button onClick={onToggleActionMenu} variant="outline" className="text-sm h-9">
-                                <MoreHorizontal className="w-4 h-4 mr-1.5" /> Actions <ChevronDown className="w-3.5 h-3.5 ml-1" />
-                            </Button>
+                            <button onClick={onToggleActionMenu} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
+                                <MoreHorizontal className="w-3.5 h-3.5" /> Actions <ChevronDown className="w-3 h-3 ml-0.5" />
+                            </button>
                             {showActionMenu && (
-                                <div className="absolute bottom-full mb-1 left-0 min-w-[200px] bg-white border border-neutral-200 rounded-lg shadow-xl z-10 overflow-hidden">
-                                    <button onClick={onEditShelf} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 text-left">
-                                        <Edit className="w-4 h-4 text-neutral-400" /> Update Shelf
+                                <div className="absolute bottom-full mb-1 left-0 min-w-[190px] bg-white border border-neutral-200 shadow-lg z-10 overflow-hidden">
+                                    <button onClick={onEditShelf} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                        <Edit className="w-3.5 h-3.5 text-neutral-400" /> Update Shelf
                                     </button>
                                     {!parcel.delivered && !parcel.parcelAssigned && !parcel.homeDelivery && (
-                                        <button onClick={onRequestDelivery} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 text-left">
-                                            <Home className="w-4 h-4 text-neutral-400" /> Request Home Delivery
+                                        <button onClick={onRequestDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                            <Home className="w-3.5 h-3.5 text-neutral-400" /> Request Home Delivery
                                         </button>
                                     )}
                                     {parcel.homeDelivery && !parcel.delivered && !parcel.parcelAssigned && (
-                                        <button onClick={onCancelDelivery} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 text-left">
-                                            <X className="w-4 h-4 text-neutral-400" /> Cancel Home Delivery
+                                        <button onClick={onCancelDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                            <X className="w-3.5 h-3.5 text-neutral-400" /> Cancel Home Delivery
                                         </button>
                                     )}
                                 </div>
                             )}
                         </div>
-                        <Button onClick={onClose} variant="outline" className="text-sm h-9 ml-auto">Close</Button>
+                        <button onClick={onClose} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-500 hover:bg-neutral-50 transition-colors ml-auto">Close</button>
                     </div>
                 </div>
             </div>
@@ -1860,44 +1870,40 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
                     className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center"
                     onClick={() => setLightboxIndex(null)}
                 >
-                    <button
-                        onClick={e => { e.stopPropagation(); setLightboxIndex(i => i !== null ? (i - 1 + images.length) % images.length : null); }}
-                        className="absolute left-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-                    >
-                        <ChevronLeft className="w-6 h-6" />
-                    </button>
+                    {images.length > 1 && (
+                        <button
+                            onClick={e => { e.stopPropagation(); setLightboxIndex(i => i !== null ? (i - 1 + images.length) % images.length : null); }}
+                            className="absolute left-4 p-2 bg-white/10 hover:bg-white/20 text-white transition-colors"
+                        >
+                            <ChevronLeft className="w-6 h-6" />
+                        </button>
+                    )}
                     <img
                         src={images[lightboxIndex]}
                         alt={`img-${lightboxIndex + 1}`}
-                        className="max-h-[85vh] max-w-[85vw] object-contain rounded-lg shadow-2xl"
+                        className="max-h-[85vh] max-w-[85vw] object-contain shadow-2xl"
                         onClick={e => e.stopPropagation()}
                     />
-                    <button
-                        onClick={e => { e.stopPropagation(); setLightboxIndex(i => i !== null ? (i + 1) % images.length : null); }}
-                        className="absolute right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-                    >
-                        <ChevronRight className="w-6 h-6" />
-                    </button>
+                    {images.length > 1 && (
+                        <button
+                            onClick={e => { e.stopPropagation(); setLightboxIndex(i => i !== null ? (i + 1) % images.length : null); }}
+                            className="absolute right-4 p-2 bg-white/10 hover:bg-white/20 text-white transition-colors"
+                        >
+                            <ChevronRight className="w-6 h-6" />
+                        </button>
+                    )}
                     <button
                         onClick={() => setLightboxIndex(null)}
-                        className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                        className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
-                    <p className="absolute bottom-4 text-white/60 text-sm">{lightboxIndex + 1} / {images.length}</p>
+                    <p className="absolute bottom-4 text-white/50 text-xs tracking-widest">{lightboxIndex + 1} / {images.length}</p>
                 </div>
             )}
         </>
     );
 };
-
-// Small helpers for the modal
-const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <div>
-        <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">{title}</p>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3">{children}</div>
-    </div>
-);
 
 const Field: React.FC<{ label: string; value?: string | null; span?: boolean }> = ({ label, value, span }) => {
     if (!value) return null;

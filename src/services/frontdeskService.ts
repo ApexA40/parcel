@@ -129,6 +129,7 @@ interface ParcelResponse {
     riderId?: string;
     images?: string[];
     imageUrls?: string[];
+    barCode?: string;
     parcelWeight?: number;
     // NEW: optional rider info when parcel is assigned to a rider
     riderInfo?: {
