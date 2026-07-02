@@ -347,6 +347,19 @@ export const ParcelScan = (): JSX.Element => {
                             {(parcel.isPOD || parcel.pod) && <Badge className="bg-purple-100 text-purple-700 text-xs">POD</Badge>}
                             {parcel.homeDelivery && <Badge className="bg-blue-100 text-blue-700 text-xs">Home Delivery</Badge>}
                         </div>
+                        {parcel.parcelWeight && (
+                            <p className="text-xs text-gray-500 mt-1">Weight: <span className="font-medium text-neutral-800">{parcel.parcelWeight} kg</span></p>
+                        )}
+                        {parcel.images && parcel.images.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {parcel.images.map((b64, i) => (
+                                    <a key={i} href={`data:image/jpeg;base64,${b64}`} target="_blank" rel="noreferrer"
+                                        className="w-16 h-16 rounded overflow-hidden border border-[#d1d1d1] block shrink-0">
+                                        <img src={`data:image/jpeg;base64,${b64}`} alt={`parcel-img-${i}`} className="w-full h-full object-cover" />
+                                    </a>
+                                ))}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 

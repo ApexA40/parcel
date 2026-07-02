@@ -11,7 +11,7 @@ import { Label } from "../../../components/ui/label";
 import { Textarea } from "../../../components/ui/textarea";
 import { Badge } from "../../../components/ui/badge";
 import { Switch } from "../../../components/ui/switch";
-import { PlusIcon, Package, User, Truck, FileText, Save, X } from "lucide-react";
+import { PlusIcon, Package, User, Truck, FileText, Save, X, ImageIcon } from "lucide-react";
 import { CostInput } from "../../../components/ui/CostInput";
 import { useToast } from "../../../components/ui/toast";
 
@@ -26,13 +26,15 @@ interface ParcelFormData {
     alternativePhone?: string;
     receiverAddress?: string;
     itemDescription?: string;
-    shelfLocation: string; // Stores shelf ID
-    shelfName?: string; // Stores shelf name for display
+    shelfLocation: string;
+    shelfName?: string;
     itemValue: number;
     pickUpCost?: number;
     homeDelivery?: boolean;
     deliveryCost?: number;
     hasCalled?: boolean;
+    images?: string[];
+    parcelWeight?: number;
 }
 
 interface InfoSectionProps {
@@ -132,6 +134,8 @@ export const InfoSection = ({
     const [specialNotes, setSpecialNotes] = useState("");
     const [phoneError, setPhoneError] = useState("");
     const [isDriverLocked, setIsDriverLocked] = useState(false);
+    const [images, setImages] = useState<string[]>([]);
+    const [parcelWeight, setParcelWeight] = useState<number | undefined>(undefined);
     const [addresses, setAddresses] = useState<Address[]>([]);
     const [loadingAddresses, setLoadingAddresses] = useState(false);
     const [showAddressDropdown, setShowAddressDropdown] = useState(false);
@@ -203,6 +207,8 @@ export const InfoSection = ({
             setDriverPhone("");
             setVehicleNumber("");
             setIsDriverLocked(false);
+            setImages([]);
+            setParcelWeight(undefined);
         }
     }, [parcels.length, sessionDriver]);
 
@@ -302,6 +308,8 @@ export const InfoSection = ({
             homeDelivery: homeDelivery,
             deliveryCost: homeDelivery && deliveryCost != null ? deliveryCost : undefined,
             hasCalled: homeDelivery ? true : undefined,
+            images: images.length ? [...images] : undefined,
+            parcelWeight: parcelWeight || undefined,
         };
 
         onAddParcel(parcelData);
@@ -351,6 +359,8 @@ export const InfoSection = ({
         setSpecialNotes("");
         setPhoneError("");
         setSaveToAddressListChecked(false);
+        setImages([]);
+        setParcelWeight(undefined);
     };
 
     const handleSaveDirectly = () => {
@@ -385,6 +395,8 @@ export const InfoSection = ({
             homeDelivery: homeDelivery,
             deliveryCost: homeDelivery && deliveryCost != null ? deliveryCost : undefined,
             hasCalled: homeDelivery ? true : undefined,
+            images: images.length ? [...images] : undefined,
+            parcelWeight: parcelWeight || undefined,
         };
 
         // Capture address-list preference and values for after parcel save (behind the scene)
@@ -430,6 +442,8 @@ export const InfoSection = ({
         setDeliveryCost(undefined);
         setSpecialNotes("");
         setPhoneError("");
+        setImages([]);
+        setParcelWeight(undefined);
     };
 
     // Check if driver fields are filled (considering locked state)
@@ -677,7 +691,7 @@ export const InfoSection = ({
                                     Receiver Information
                                 </h3>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col gap-2">
                                     <Label className="text-sm font-semibold text-neutral-800">
                                         Recipient Name <span className="text-[#e22420]">*</span>
@@ -898,6 +912,75 @@ export const InfoSection = ({
                                                 </div>
                                             </div>
                                         </>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-col gap-2 md:col-span-2">
+                                    <Label className="text-sm font-semibold text-neutral-800">
+                                        Parcel Weight (kg)
+                                    </Label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={0.1}
+                                        placeholder="e.g. 2.5"
+                                        value={parcelWeight ?? ""}
+                                        onChange={e => {
+                                            const v = parseFloat(e.target.value);
+                                            setParcelWeight(isNaN(v) ? undefined : v);
+                                        }}
+                                        className="w-full md:w-48 px-3 py-2 rounded-lg border border-[#d1d1d1] bg-white focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-2 md:col-span-2">
+                                    <Label className="text-sm font-semibold text-neutral-800">
+                                        Parcel Images <span className="text-xs font-normal text-[#9a9a9a]">(optional)</span>
+                                    </Label>
+                                    <label className="flex flex-col items-center justify-center gap-2 cursor-pointer w-full px-4 py-6 rounded-xl border-2 border-dashed border-[#d1d1d1] hover:border-[#ea690c] hover:bg-orange-50/40 transition-all group">
+                                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-orange-100 group-hover:bg-orange-200 transition-colors">
+                                            <ImageIcon className="w-5 h-5 text-[#ea690c]" />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-sm font-medium text-neutral-700 group-hover:text-[#ea690c] transition-colors">
+                                                Click to upload images
+                                            </p>
+                                            <p className="text-xs text-[#9a9a9a] mt-0.5">PNG, JPG, WEBP · Max 3MB per image</p>
+                                        </div>
+                                        <input
+                                            type="file" accept="image/*" multiple className="hidden"
+                                            onChange={e => {
+                                                Array.from(e.target.files ?? []).forEach(file => {
+                                                    if (file.size > 3 * 1024 * 1024) {
+                                                        showToast(`"${file.name}" exceeds 3MB limit.`, "error");
+                                                        return;
+                                                    }
+                                                    const reader = new FileReader();
+                                                    reader.onload = () => {
+                                                        const b64 = (reader.result as string).split(",")[1];
+                                                        setImages(prev => [...prev, b64]);
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                });
+                                                e.target.value = "";
+                                            }}
+                                        />
+                                    </label>
+                                    {images.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            {images.map((b64, i) => (
+                                                <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-[#d1d1d1] shadow-sm">
+                                                    <img src={`data:image/jpeg;base64,${b64}`} alt={`img-${i}`} className="w-full h-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setImages(prev => prev.filter((_, idx) => idx !== i))}
+                                                        className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-0.5 transition-colors"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
 

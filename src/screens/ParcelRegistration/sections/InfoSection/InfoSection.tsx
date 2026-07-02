@@ -4,6 +4,9 @@ import {
   InboxIcon,
   UploadIcon,
   MapPinIcon,
+  ImageIcon,
+  XIcon,
+  WeightIcon,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "../../../../components/ui/button";
@@ -71,6 +74,8 @@ interface ParcelFormData {
   homeDelivery?: boolean;
   deliveryCost?: number;
   hasCalled?: boolean;
+  images?: string[];
+  parcelWeight?: number;
 }
 
 interface InfoSectionProps {
@@ -123,6 +128,8 @@ export const InfoSection = ({
     formData.deliveryCost
   );
   const [additionalInfo, setAdditionalInfo] = useState(formData.additionalInfo || "");
+  const [images, setImages] = useState<string[]>([]);
+  const [parcelWeight, setParcelWeight] = useState<number | undefined>(undefined);
 
   // Saved addresses from Front Desk (office-scoped)
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -141,6 +148,8 @@ export const InfoSection = ({
     setReceiverAddress("");
     setDeliveryCost(undefined);
     setAdditionalInfo("");
+    setImages([]);
+    setParcelWeight(undefined);
   }, [resetTrigger]);
 
   // Load saved addresses once (used as presets for receiver address + delivery cost)
@@ -184,11 +193,25 @@ export const InfoSection = ({
     );
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(",")[1];
+        setImages(prev => [...prev, base64]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
   const handleContinueDriverSelection = () => {
-    if (formDriverName.trim() && formVehicleNumber.trim() && onStartSession) {
+    if (!formDriverName.trim() || !formVehicleNumber.trim()) return;
+    if (onStartSession) {
       onStartSession(formDriverName, formVehicleNumber);
-      setShowingDriverSelection(false);
     }
+    setShowingDriverSelection(false);
   };
 
   const handleContinueParcelInfo = () => {
@@ -222,6 +245,8 @@ export const InfoSection = ({
           homeDelivery: false,
           deliveryCost: deliveryCost,
           hasCalled: false,
+          images: images.length ? images : undefined,
+          parcelWeight: parcelWeight || undefined,
         };
 
         onAddParcel(parcelData);
@@ -240,6 +265,8 @@ export const InfoSection = ({
       setReceiverPhone("");
       setReceiverAddress("");
       setAdditionalInfo("");
+      setImages([]);
+      setParcelWeight(undefined);
       // keep driver selection state as-is unless resetTrigger triggers a full reset
     }
   };
@@ -480,6 +507,59 @@ export const InfoSection = ({
               </div>
             </div>
           </section>
+
+          <div className="flex w-full flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <WeightIcon className="w-4 h-4 text-[#5d5d5d]" />
+              <Label className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-neutral-800 text-[length:var(--body-md-semibold-font-size)] tracking-[var(--body-md-semibold-letter-spacing)] leading-[var(--body-md-semibold-line-height)] [font-style:var(--body-md-semibold-font-style)]">
+                Parcel Weight (kg)
+              </Label>
+              <span className="text-sm text-[#9a9a9a]">(optional)</span>
+            </div>
+            <Input
+              type="number"
+              min={0}
+              step={0.1}
+              placeholder="e.g. 2.5"
+              value={parcelWeight ?? ""}
+              onChange={e => {
+                const v = parseFloat(e.target.value);
+                setParcelWeight(isNaN(v) ? undefined : v);
+              }}
+              className="w-full rounded border border-[#d1d1d1] bg-white px-3 py-2"
+            />
+          </div>
+
+          <div className="flex w-full flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-[#5d5d5d]" />
+              <Label className="font-body-md-semibold font-[number:var(--body-md-semibold-font-weight)] text-neutral-800 text-[length:var(--body-md-semibold-font-size)] tracking-[var(--body-md-semibold-letter-spacing)] leading-[var(--body-md-semibold-line-height)] [font-style:var(--body-md-semibold-font-style)]">
+                Parcel Images
+              </Label>
+              <span className="text-sm text-[#9a9a9a]">(optional)</span>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer w-fit px-4 py-2 rounded border border-dashed border-[#d1d1d1] hover:border-[#ea690c] text-sm text-[#5d5d5d] hover:text-[#ea690c] transition-colors">
+              <UploadIcon className="w-4 h-4" />
+              Add Images
+              <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
+            </label>
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-1">
+                {images.map((b64, i) => (
+                  <div key={i} className="relative w-16 h-16 rounded overflow-hidden border border-[#d1d1d1]">
+                    <img src={`data:image/jpeg;base64,${b64}`} alt={`img-${i}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setImages(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-0 right-0 bg-black/60 text-white rounded-bl p-0.5"
+                    >
+                      <XIcon className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="flex w-full flex-col gap-2">
             <div className="flex items-center gap-2">

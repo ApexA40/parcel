@@ -412,6 +412,8 @@ interface ParcelFormData {
   homeDelivery?: boolean;
   deliveryCost?: number;
   hasCalled?: boolean;
+  images?: string[];
+  parcelWeight?: number;
 }
 
 const STORAGE_KEY_PARCELS = "parcel_registration_parcels";
@@ -599,6 +601,8 @@ export const ParcelRegistration = (): JSX.Element => {
           delivered: false,
           parcelAssigned: false,
           fragile: false,
+          images: parcelData.images?.length ? parcelData.images : undefined,
+          parcelWeight: parcelData.parcelWeight || undefined,
         };
 
         return frontdeskService.addParcel(parcelRequest);

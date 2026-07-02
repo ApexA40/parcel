@@ -39,6 +39,12 @@ interface ParcelRequest {
     inboudPayed?: boolean;
     shelfId?: string;
 
+    // Images (base64 strings)
+    images?: string[];
+
+    // Weight
+    parcelWeight?: number;
+
     // Parcel typing
     typeofParcel?: "PARCEL" | "ONLINE" | "PICKUP";
 
@@ -78,6 +84,8 @@ interface ParcelUpdateRequest {
     fragile?: boolean;
     hasCalled?: boolean;
     homeDelivery?: boolean;
+    images?: string[];
+    parcelWeight?: number;
 }
 
 interface ParcelResponse {
@@ -119,6 +127,9 @@ interface ParcelResponse {
     typeofParcel?: "PARCEL" | "ONLINE" | "PICKUP";
     returnCount?: number;
     riderId?: string;
+    images?: string[];
+    imageUrls?: string[];
+    parcelWeight?: number;
     // NEW: optional rider info when parcel is assigned to a rider
     riderInfo?: {
         riderId: string;
