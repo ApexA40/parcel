@@ -6,28 +6,25 @@ interface ProtectedRouteProps {
     allowedRoles?: string[];
 }
 
+const roleDefaultPath: Record<string, string> = {
+    SUPER_ADMIN: "/admin/dashboard",
+    ADMIN:       "/admin/dashboard",
+    MANAGER:     "/delivery/assignments",
+    FRONTDESK:   "/parcel/intake",
+    CALLER:      "/delivery/call-center",
+    RIDER:       "/rider/dashboard",
+    VENDOR:      "/partner",
+};
+
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
     const { isAuthenticated, userRole } = useStation();
 
-    if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
-    }
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
 
     if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
-        // Redirect to appropriate dashboard based on role
-        if (userRole === "ADMIN") {
-            return <Navigate to="/admin/dashboard" replace />;
-        } else if (userRole === "RIDER") {
-            return <Navigate to="/rider/dashboard" replace />;
-        } else if (userRole === "CALLER") {
-            return <Navigate to="/call-center" replace />;
-        } else if (userRole === "VENDOR") {
-            return <Navigate to="/partner" replace />;
-        } else {
-            return <Navigate to="/parcel-intake" replace />;
-        }
+        const fallback = roleDefaultPath[userRole] ?? "/parcel/intake";
+        return <Navigate to={fallback} replace />;
     }
 
     return <>{children}</>;
 };
-

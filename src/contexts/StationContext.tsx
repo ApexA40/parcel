@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from "react";
 import authService from "../services/authService";
 
-export type UserRole = "ADMIN" | "MANAGER" | "FRONTDESK" | "RIDER" | "CALLER" | "VENDOR";
+export type UserRole = "SUPER_ADMIN" | "ADMIN" | "MANAGER" | "FRONTDESK" | "RIDER" | "CALLER" | "VENDOR";
 
 interface Station {
     id: string;
@@ -51,10 +51,13 @@ const StationContext = createContext<StationContextType | undefined>(undefined);
 // Helper to normalize role
 export const normalizeRole = (role: string): UserRole => {
     const roleUpper = role?.toUpperCase().trim();
-    const validRoles: UserRole[] = ["ADMIN", "MANAGER", "FRONTDESK", "RIDER", "CALLER", "VENDOR"];
+    const validRoles: UserRole[] = ["SUPER_ADMIN", "ADMIN", "MANAGER", "FRONTDESK", "RIDER", "CALLER", "VENDOR"];
 
     // Map old role names to new ones for backward compatibility
     const roleMapping: Record<string, UserRole> = {
+        'SUPER_ADMIN': 'SUPER_ADMIN',
+        'super_admin': 'SUPER_ADMIN',
+        'SUPERADMIN': 'SUPER_ADMIN',
         'ADMIN': 'ADMIN',
         'admin': 'ADMIN',
         'MANAGER': 'MANAGER',
@@ -134,12 +137,12 @@ export const StationProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const canAccessStation = (stationId: string) => {
         if (!currentUser) return false;
         // Admin can access all stations
-        if (currentUser.role === "ADMIN") return true;
+        if (currentUser.role === "ADMIN" || currentUser.role === "SUPER_ADMIN") return true;
         // Others can only access their assigned station
         return currentUser.stationId === stationId;
     };
 
-    const isAdmin = currentUser?.role === "ADMIN";
+    const isAdmin = currentUser?.role === "ADMIN" || currentUser?.role === "SUPER_ADMIN";
     const userOfficeId = currentUser?.office?.id || currentUser?.stationId || null;
     const userOfficeName = currentUser?.office?.name || null;
 

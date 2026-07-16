@@ -35,23 +35,24 @@ export const Login = (): JSX.Element => {
 
   // Redirect if already authenticated
   useEffect(() => {
-    console.log("Checking authentication - isAuthenticated:", isAuthenticated, "userRole:", userRole);
     if (isAuthenticated && userRole) {
-      console.log("User is authenticated with role:", userRole);
-
       const timer = setTimeout(() => {
-        if (userRole === "ADMIN") {
-          console.log("Redirecting to admin dashboard");
+        if (userRole === "SUPER_ADMIN") {
+          navigate("/admin/dashboard", { replace: true });
+        } else if (userRole === "ADMIN") {
           navigate("/admin/financial", { replace: true });
-          return;
+        } else if (userRole === "MANAGER") {
+          navigate("/delivery/assignments", { replace: true });
+        } else if (userRole === "FRONTDESK") {
+          navigate("/parcel/intake", { replace: true });
+        } else if (userRole === "CALLER") {
+          navigate("/delivery/call-center", { replace: true });
         } else if (userRole === "RIDER") {
           navigate("/rider/dashboard", { replace: true });
-        } else if (userRole === "CALLER") {
-          navigate("/call-center", { replace: true });
         } else if (userRole === "VENDOR") {
           navigate("/partner", { replace: true });
         } else {
-          navigate("/parcel-search", { replace: true });
+          navigate("/parcel/intake", { replace: true });
         }
       }, 100);
 
@@ -128,7 +129,6 @@ export const Login = (): JSX.Element => {
       }
       const phoneForBackend = normalizePhoneForBackend(phoneNumber);
       const response = await authService.loginWithPhone(phoneForBackend, password);
-      console.log("Login response:", response);
 
       if (!response.success) {
         setError(response.message);
@@ -139,8 +139,6 @@ export const Login = (): JSX.Element => {
       if (response.data) {
         const userData = response.data.user;
         const normalizedRole = normalizeRole(userData.role);
-
-        console.log("Setting user with role:", normalizedRole);
 
         setUser({
           id: userData.id,
@@ -166,20 +164,23 @@ export const Login = (): JSX.Element => {
           localStorage.setItem("rememberedPhone", phoneNumber);
         }
 
-        console.log("Redirecting with role:", normalizedRole);
         setTimeout(() => {
-          console.log("Navigating based on role:", normalizedRole);
-          if (normalizedRole === "ADMIN") {
-            console.log("Navigate to admin dashboard");
+          if (normalizedRole === "SUPER_ADMIN") {
             navigate("/admin/dashboard", { replace: true });
+          } else if (normalizedRole === "ADMIN") {
+            navigate("/admin/financial", { replace: true });
+          } else if (normalizedRole === "MANAGER") {
+            navigate("/delivery/assignments", { replace: true });
+          } else if (normalizedRole === "FRONTDESK") {
+            navigate("/parcel/intake", { replace: true });
+          } else if (normalizedRole === "CALLER") {
+            navigate("/delivery/call-center", { replace: true });
           } else if (normalizedRole === "RIDER") {
             navigate("/rider/dashboard", { replace: true });
-          } else if (normalizedRole === "CALLER") {
-            navigate("/call-center", { replace: true });
           } else if (normalizedRole === "VENDOR") {
             navigate("/partner", { replace: true });
           } else {
-            navigate("/parcel-search", { replace: true });
+            navigate("/parcel/intake", { replace: true });
           }
         }, 500);
       }

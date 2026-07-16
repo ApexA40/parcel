@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { SearchIcon, PackageIcon, TruckIcon, UserIcon, PhoneIcon, ArrowLeftIcon, PrinterIcon, Edit2Icon, TrashIcon, XCircleIcon, X, ChevronDownIcon, ChevronUpIcon, FileTextIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { SearchIcon, PackageIcon, TruckIcon, UserIcon, PhoneIcon, PrinterIcon, Edit2Icon, TrashIcon, XCircleIcon, X, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import axios from "axios";
 import authService from "../../services/authService";
 import { useToast } from "../../components/ui/toast";
@@ -41,7 +40,6 @@ interface Parcel {
 
 export const OutgoingParcels = (): JSX.Element => {
   const { showToast } = useToast();
-  const navigate = useNavigate();
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,83 +50,17 @@ export const OutgoingParcels = (): JSX.Element => {
   const [editParcel, setEditParcel] = useState<Parcel | null>(null);
   const [editForm, setEditForm] = useState<Partial<Parcel>>({});
   const [isUpdating, setIsUpdating] = useState(false);
-  const [expandedDrivers, setExpandedDrivers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const driversPerPage = 10;
   const [viewParcel, setViewParcel] = useState<Parcel | null>(null);
-  const [manifestDriver, setManifestDriver] = useState<{ driverKey: string; driverName: string; driverPhoneNumber: string; vehicleNumber: string; parcels: Parcel[] } | null>(null);
-  const [selectedParcels, setSelectedParcels] = useState<Set<string>>(new Set());
-  const [bulkPrintParcels, setBulkPrintParcels] = useState<Parcel[] | null>(null);
-  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
-  const [bulkAssignForm, setBulkAssignForm] = useState({
-    driverName: "",
-    driverPhoneNumber: "",
-    vehicleNumber: "",
-  });
+  const [selectedDrivers, setSelectedDrivers] = useState<Set<string>>(new Set());
+  const [manifestGroup, setManifestGroup] = useState<{ key: string; driverName: string; driverPhoneNumber: string; vehicleNumber: string; parcels: Parcel[] } | null>(null);
 
-  // Generate dummy manifest data for testing
-  const generateDummyManifest = () => {
-    const dummyParcels: Parcel[] = [];
-    const stations = [
-      { id: 'station1', name: 'Accra Central Station' },
-      { id: 'station2', name: 'Kumasi Main Office' },
-      { id: 'station3', name: 'Takoradi Branch' },
-    ];
-    
-    const descriptions = [
-      'Small electronics package',
-      'Clothing items and accessories for delivery',
-      'Important business documents',
-      'Fresh food items requiring careful handling',
-      'Educational books and learning materials',
-      'Mobile phone with charger and accessories',
-      'Laptop computer with protective case',
-      'Kitchen appliances and utensils set',
-      'Baby clothes, toys and feeding bottles',
-      'Medical supplies and pharmaceutical products',
-    ];
-    
-    for (let i = 1; i <= 50; i++) {
-      const station = stations[i % 3];
-      const isPOD = i % 3 === 0;
-      dummyParcels.push({
-        parcelId: `PKG${String(i).padStart(6, '0')}`,
-        senderName: `Sender ${i}`,
-        senderPhoneNumber: `0${200000000 + i}`,
-        receiverName: `Receiver ${i}`,
-        recieverPhoneNumber: `0${240000000 + i}`,
-        deliveryAddress: `${i} Sample Street, ${station.name}`,
-        parcelDescription: descriptions[i % descriptions.length],
-        driverName: 'John Doe',
-        driverPhoneNumber: '0501234567',
-        vehicleNumber: 'GR-1234-20',
-        inboundCost: 20 + (i % 30),
-        ItemCost: isPOD ? 100 + (i % 200) : 0,
-        POD: isPOD,
-        from: {
-          officeId: 'origin1',
-          officeName: 'Origin Station',
-        },
-        to: {
-          officeId: station.id,
-          officeName: station.name,
-        },
-        fromOfficeId: 'origin1',
-        toOfficeId: station.id,
-        typeofParcel: 'Standard',
-        hasArrivedAtOffice: false,
-        createdAt: Date.now(),
-      });
-    }
-
-    setManifestDriver({
-      driverKey: 'dummy_driver',
-      driverName: 'John Doe',
-      driverPhoneNumber: '0501234567',
-      vehicleNumber: 'GR-1234-20',
-      parcels: dummyParcels,
-    });
+  const toggleDriverSelect = (key: string) => setSelectedDrivers(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
+  const toggleSelectAll = (groups: typeof driverGroups) => {
+    if (selectedDrivers.size === groups.length) setSelectedDrivers(new Set());
+    else setSelectedDrivers(new Set(groups.map(g => g.key)));
   };
+
 
   useEffect(() => {
     fetchOutgoingParcels();
@@ -334,142 +266,27 @@ export const OutgoingParcels = (): JSX.Element => {
     }, 100);
   };
 
-  const toggleParcelSelection = (parcelId: string) => {
-    const newSelected = new Set(selectedParcels);
-    if (newSelected.has(parcelId)) {
-      newSelected.delete(parcelId);
-    } else {
-      newSelected.add(parcelId);
-    }
-    setSelectedParcels(newSelected);
-  };
 
-  const toggleAllParcelsInGroup = (groupParcels: Parcel[]) => {
-    const groupParcelIds = groupParcels.map(p => p.parcelId);
-    const allSelected = groupParcelIds.every(id => selectedParcels.has(id));
-    
-    const newSelected = new Set(selectedParcels);
-    if (allSelected) {
-      groupParcelIds.forEach(id => newSelected.delete(id));
-    } else {
-      groupParcelIds.forEach(id => newSelected.add(id));
-    }
-    setSelectedParcels(newSelected);
-  };
 
-  const handleBulkAssignDriver = async () => {
-    const selectedParcelsList = parcels.filter(p => selectedParcels.has(p.parcelId));
-    if (selectedParcelsList.length === 0) {
-      showToast("Please select at least one parcel", "warning");
-      return;
-    }
 
-    if (!bulkAssignForm.driverName || !bulkAssignForm.driverPhoneNumber || !bulkAssignForm.vehicleNumber) {
-      showToast("Please fill in all driver details", "error");
-      return;
-    }
 
-    if (!validatePhoneNumber(bulkAssignForm.driverPhoneNumber)) {
-      showToast("Invalid driver phone number format", "error");
-      return;
-    }
 
-    setIsUpdating(true);
-    const token = authService.getToken();
-    const normalizedPhone = normalizePhoneNumber(bulkAssignForm.driverPhoneNumber);
-
-    try {
-      const updatePromises = selectedParcelsList.map(parcel =>
-        axios.put(
-          `${API_ENDPOINTS.FRONTDESK}/parcel/${parcel.parcelId}`,
-          {
-            driverName: bulkAssignForm.driverName,
-            driverPhoneNumber: normalizedPhone,
-            vehicleNumber: bulkAssignForm.vehicleNumber,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        )
-      );
-
-      await Promise.all(updatePromises);
-      showToast(`Successfully assigned driver to ${selectedParcelsList.length} parcel(s)`, "success");
-
-      setParcels(prev => prev.map(p => 
-        selectedParcels.has(p.parcelId)
-          ? { 
-              ...p, 
-              driverName: bulkAssignForm.driverName,
-              driverPhoneNumber: normalizedPhone,
-              vehicleNumber: bulkAssignForm.vehicleNumber,
-            }
-          : p
-      ));
-
-      setSelectedParcels(new Set());
-      setShowBulkAssignModal(false);
-      setBulkAssignForm({
-        driverName: "",
-        driverPhoneNumber: "",
-        vehicleNumber: "",
-      });
-    } catch (error: any) {
-      console.error("Error assigning driver:", error);
-      showToast(
-        error.response?.data?.message || "Failed to assign driver",
-        "error"
-      );
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handleBulkPrintLabels = (groupParcels: Parcel[]) => {
-    const selectedParcelsList = groupParcels.filter(p => selectedParcels.has(p.parcelId));
-    if (selectedParcelsList.length === 0) {
-      showToast("Please select at least one parcel to print", "warning");
-      return;
-    }
-
-    // Set dynamic document title for PDF filename
+  const handlePrintManifest = (group: typeof manifestGroup) => {
+    if (!group) return;
     const timestamp = new Date().toISOString().split('T')[0];
-    const filename = `ParcelLabels_Bulk_${selectedParcelsList.length}_items_${timestamp}`;
-    
-    const originalTitle = document.title;
-    document.title = filename;
-    
-    setBulkPrintParcels(selectedParcelsList);
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        document.title = originalTitle;
-      }, 1000);
-    }, 100);
+    const slug = (group.driverName || 'driver').replace(/\s+/g, '_');
+    const orig = document.title;
+    document.title = `Manifest_${slug}_${timestamp}`;
+    setManifestGroup(group);
+    setTimeout(() => { window.print(); setTimeout(() => { document.title = orig; }, 1000); }, 100);
   };
 
-  const handlePrintManifest = (group: { driverKey: string; driverName: string; driverPhoneNumber: string; vehicleNumber: string; parcels: Parcel[] }) => {
-    // Set dynamic document title for PDF filename
-    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const driverNameSlug = group.driverName.replace(/\s+/g, '_');
-    const vehicleSlug = group.vehicleNumber.replace(/[^a-zA-Z0-9]/g, '_');
-    const filename = `Manifest_${driverNameSlug}_${vehicleSlug}_${timestamp}`;
-    
-    // Temporarily change document title for PDF save
-    const originalTitle = document.title;
-    document.title = filename;
-    
-    setManifestDriver(group);
-    setTimeout(() => {
-      window.print();
-      // Restore original title after print dialog
-      setTimeout(() => {
-        document.title = originalTitle;
-      }, 1000);
-    }, 100);
+  const handlePrintSelected = (groups: typeof driverGroups) => {
+    const selected = groups.filter(g => selectedDrivers.has(g.key));
+    if (!selected.length) { showToast('Select at least one driver', 'warning'); return; }
+    // Print first selected; for multiple, merge into one manifest
+    const merged = { key: 'merged', driverName: selected.length === 1 ? selected[0].driverName : 'Multiple Drivers', driverPhoneNumber: selected.length === 1 ? selected[0].driverPhoneNumber : '', vehicleNumber: selected.length === 1 ? selected[0].vehicleNumber : '', parcels: selected.flatMap(g => g.parcels) };
+    handlePrintManifest(merged);
   };
 
   const filteredParcels = parcels.filter((parcel) => {
@@ -483,443 +300,217 @@ export const OutgoingParcels = (): JSX.Element => {
     );
   });
 
-  // Group parcels by driver (using phone number and vehicle number as unique identifier)
   const groupedByDriver = filteredParcels.reduce((acc, parcel) => {
-    const driverKey = `${parcel.driverPhoneNumber || 'no-phone'}_${parcel.vehicleNumber || 'no-vehicle'}`;
-    if (!acc[driverKey]) {
-      acc[driverKey] = {
-        driverKey,
-        driverName: parcel.driverName,
-        driverPhoneNumber: parcel.driverPhoneNumber,
-        vehicleNumber: parcel.vehicleNumber,
-        parcels: [],
-      };
-    }
-    acc[driverKey].parcels.push(parcel);
+    const key = `${parcel.driverPhoneNumber || 'no-phone'}_${parcel.vehicleNumber || 'no-vehicle'}`;
+    if (!acc[key]) acc[key] = { key, driverName: parcel.driverName, driverPhoneNumber: parcel.driverPhoneNumber, vehicleNumber: parcel.vehicleNumber, parcels: [] };
+    acc[key].parcels.push(parcel);
     return acc;
-  }, {} as Record<string, { driverKey: string; driverName: string; driverPhoneNumber: string; vehicleNumber: string; parcels: Parcel[] }>);
-
+  }, {} as Record<string, { key: string; driverName: string; driverPhoneNumber: string; vehicleNumber: string; parcels: Parcel[] }>);
   const driverGroups = Object.values(groupedByDriver);
-  
-  // Pagination
-  const totalPages = Math.ceil(driverGroups.length / driversPerPage);
-  const startIndex = (currentPage - 1) * driversPerPage;
-  const endIndex = startIndex + driversPerPage;
-  const paginatedDriverGroups = driverGroups.slice(startIndex, endIndex);
+  const [expandedDrivers, setExpandedDrivers] = useState<Set<string>>(new Set());
+  const toggleDriver = (key: string) => setExpandedDrivers(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
 
-  const toggleDriver = (driverKey: string) => {
-    const newExpanded = new Set(expandedDrivers);
-    if (newExpanded.has(driverKey)) {
-      newExpanded.delete(driverKey);
-    } else {
-      newExpanded.add(driverKey);
-    }
-    setExpandedDrivers(newExpanded);
-  };
+  const itemsPerPage = 20;
+  const totalPages = Math.ceil(driverGroups.length / itemsPerPage);
+  const paginatedGroups = driverGroups.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="w-full">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        {/* Header */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-xl font-bold text-neutral-800">
-                Outgoing Parcels
-              </h1>
-              <p className="text-xs text-[#5d5d5d]">
-                View all parcels sent from this station
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={generateDummyManifest}
-                variant="outline"
-                className="flex items-center gap-2 border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
-              >
-                <FileTextIcon className="h-4 w-4" />
-                <span>Test Manifest (50 items)</span>
-              </Button>
-              <Button
-                onClick={() => navigate("/parcel-transfer")}
-                variant="outline"
-                className="flex items-center gap-2 border-[#d1d1d1] text-neutral-700 hover:bg-gray-50"
-              >
-                <ArrowLeftIcon className="h-4 w-4" />
-                <span>Back to Transfer</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Search */}
-        <Card className="border border-[#d1d1d1] bg-white">
-          <CardContent className="p-4">
-            <div className="relative">
-              <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <Input
-                placeholder="Search by tracking number, receiver, sender, phone, or driver..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 border-[#d1d1d1]"
-              />
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
           <Card className="border border-[#d1d1d1] bg-white">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-blue-100 p-3">
-                  <PackageIcon className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-[#5d5d5d]">Total Outgoing</p>
-                  <p className="text-xl font-bold text-neutral-800">{parcels.length}</p>
-                </div>
+                <div className="rounded-lg bg-blue-100 p-2.5"><PackageIcon className="h-5 w-5 text-blue-600" /></div>
+                <div><p className="text-xs text-[#5d5d5d]">Total Outgoing</p><p className="text-xl font-bold text-neutral-800">{parcels.length}</p></div>
               </div>
             </CardContent>
           </Card>
-
           <Card className="border border-[#d1d1d1] bg-white">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-purple-100 p-3">
-                  <TruckIcon className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-[#5d5d5d]">Total Drivers</p>
-                  <p className="text-xl font-bold text-neutral-800">{driverGroups.length}</p>
-                </div>
+                <div className="rounded-lg bg-green-100 p-2.5"><TruckIcon className="h-5 w-5 text-green-600" /></div>
+                <div><p className="text-xs text-[#5d5d5d]">In Transit</p><p className="text-xl font-bold text-neutral-800">{parcels.filter(p => !p.hasArrivedAtOffice).length}</p></div>
               </div>
             </CardContent>
           </Card>
-
           <Card className="border border-[#d1d1d1] bg-white">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-green-100 p-3">
-                  <TruckIcon className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-[#5d5d5d]">In Transit</p>
-                  <p className="text-xl font-bold text-neutral-800">
-                    {parcels.filter(p => !p.hasArrivedAtOffice).length}
-                  </p>
-                </div>
+                <div className="rounded-lg bg-orange-100 p-2.5"><PackageIcon className="h-5 w-5 text-orange-600" /></div>
+                <div><p className="text-xs text-[#5d5d5d]">Arrived</p><p className="text-xl font-bold text-neutral-800">{parcels.filter(p => p.hasArrivedAtOffice).length}</p></div>
               </div>
             </CardContent>
           </Card>
-
           <Card className="border border-[#d1d1d1] bg-white">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-orange-100 p-3">
-                  <PackageIcon className="h-5 w-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-[#5d5d5d]">Arrived</p>
-                  <p className="text-xl font-bold text-neutral-800">
-                    {parcels.filter(p => p.hasArrivedAtOffice).length}
-                  </p>
-                </div>
+                <div className="rounded-lg bg-purple-100 p-2.5"><UserIcon className="h-5 w-5 text-purple-600" /></div>
+                <div><p className="text-xs text-[#5d5d5d]">POD Parcels</p><p className="text-xl font-bold text-neutral-800">{parcels.filter(p => p.POD).length}</p></div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Parcels List - Grouped by Driver with Accordion */}
-        {loading ? (
-          <Card className="border border-[#d1d1d1] bg-white">
-            <CardContent className="p-12 text-center">
-              <div className="h-8 w-8 border-4 border-[#ea690c] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-neutral-700 font-medium">Loading parcels...</p>
-            </CardContent>
-          </Card>
-        ) : filteredParcels.length === 0 ? (
-          <Card className="border border-[#d1d1d1] bg-white">
-            <CardContent className="p-12 text-center">
-              <PackageIcon className="h-16 w-16 text-[#9a9a9a] mx-auto mb-4 opacity-50" />
-              <p className="text-neutral-700 font-medium">No outgoing parcels found</p>
-              <p className="text-sm text-[#5d5d5d] mt-2">
-                {searchQuery ? "Try adjusting your search" : "Parcels sent from this station will appear here"}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <div className="space-y-3">
-              {paginatedDriverGroups.map((group) => {
-                const isExpanded = expandedDrivers.has(group.driverKey);
-                return (
-                  <Card key={group.driverKey} className="border border-[#d1d1d1] bg-white">
-                    <CardContent className="p-0">
-                      {/* Driver Header - Clickable */}
-                      <button
-                        onClick={() => toggleDriver(group.driverKey)}
-                        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="rounded-lg bg-green-100 p-2">
-                            <TruckIcon className="h-5 w-5 text-green-600" />
-                          </div>
-                          <div className="text-left">
-                            <p className="text-base font-bold text-neutral-800">{group.driverName || "Unknown Driver"}</p>
-                            <div className="flex items-center gap-3 text-xs text-[#5d5d5d]">
-                              {group.driverPhoneNumber && (
-                                <span className="flex items-center gap-1">
-                                  <PhoneIcon className="h-3 w-3" />
-                                  {group.driverPhoneNumber}
-                                </span>
-                              )}
-                              {group.vehicleNumber && (
-                                <span className="flex items-center gap-1">
-                                  <TruckIcon className="h-3 w-3" />
-                                  {group.vehicleNumber}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <Button
-                            onClick={(e) => { e.stopPropagation(); handlePrintManifest(group); }}
-                            variant="outline"
-                            size="sm"
-                            className="border-[#ea690c] text-[#ea690c] hover:bg-orange-50 flex items-center gap-2"
-                          >
-                            <FileTextIcon className="h-4 w-4" />
-                            <span className="text-xs font-medium">Print Manifest</span>
-                          </Button>
-                          <div className="text-right">
-                            <p className="text-xs text-[#5d5d5d]">Parcels</p>
-                            <p className="text-xl font-bold text-[#ea690c]">{group.parcels.length}</p>
-                          </div>
-                          {isExpanded ? (
-                            <ChevronUpIcon className="h-5 w-5 text-[#5d5d5d]" />
-                          ) : (
-                            <ChevronDownIcon className="h-5 w-5 text-[#5d5d5d]" />
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Parcels Table - Collapsible */}
-                      {isExpanded && (
-                        <div className="border-t border-[#e4e4e4] p-6">
-                          {/* Bulk Actions Bar */}
-                          <div className="mb-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-[#d1d1d1]">
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                checked={group.parcels.every(p => selectedParcels.has(p.parcelId))}
-                                onChange={() => toggleAllParcelsInGroup(group.parcels)}
-                                className="h-4 w-4 rounded border-gray-300 text-[#ea690c] focus:ring-[#ea690c]"
-                              />
-                              <span className="text-sm font-medium text-neutral-800">
-                                {selectedParcels.size > 0 ? `${selectedParcels.size} parcel(s) selected` : 'Select all'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {selectedParcels.size > 0 && (
-                                <>
-                                  {(!group.driverName || group.driverName === "Unknown Driver") && (
-                                    <Button
-                                      onClick={() => setShowBulkAssignModal(true)}
-                                      variant="outline"
-                                      size="sm"
-                                      className="border-green-600 text-green-600 hover:bg-green-50 flex items-center gap-2"
-                                    >
-                                      <TruckIcon className="h-4 w-4" />
-                                      <span className="text-xs font-medium">Assign Driver ({selectedParcels.size})</span>
-                                    </Button>
-                                  )}
-                                  <Button
-                                    onClick={() => handleBulkPrintLabels(group.parcels)}
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-[#ea690c] text-[#ea690c] hover:bg-orange-50 flex items-center gap-2"
-                                  >
-                                    <PrinterIcon className="h-4 w-4" />
-                                    <span className="text-xs font-medium">Print Labels ({selectedParcels.size})</span>
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="overflow-x-auto rounded-lg border border-[#d1d1d1]">
-                            <table className="w-full">
-                              <thead>
-                                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-[#d1d1d1]">
-                                  <th className="px-6 py-4 text-center text-sm font-bold text-neutral-800 uppercase tracking-wide">
-                                    <input
-                                      type="checkbox"
-                                      checked={group.parcels.every(p => selectedParcels.has(p.parcelId))}
-                                      onChange={() => toggleAllParcelsInGroup(group.parcels)}
-                                      className="h-4 w-4 rounded border-gray-300 text-[#ea690c] focus:ring-[#ea690c]"
-                                    />
-                                  </th>
-                                  <th className="px-6 py-4 text-left text-sm font-bold text-neutral-800 uppercase tracking-wide">Receiver</th>
-                                  <th className="px-6 py-4 text-left text-sm font-bold text-neutral-800 uppercase tracking-wide">Phone</th>
-                                  <th className="px-6 py-4 text-center text-sm font-bold text-neutral-800 uppercase tracking-wide">Type</th>
-                                  <th className="px-6 py-4 text-center text-sm font-bold text-neutral-800 uppercase tracking-wide">Status</th>
-                                  <th className="px-6 py-4 text-right text-sm font-bold text-neutral-800 uppercase tracking-wide">Amount</th>
-                                  <th className="px-6 py-4 text-center text-sm font-bold text-neutral-800 uppercase tracking-wide">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white divide-y divide-[#e4e4e4]">
-                                {group.parcels.map((parcel, index) => (
-                                  <tr key={parcel.parcelId} className={`hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                                    <td className="px-6 py-4 text-center">
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedParcels.has(parcel.parcelId)}
-                                        onChange={() => toggleParcelSelection(parcel.parcelId)}
-                                        className="h-4 w-4 rounded border-gray-300 text-[#ea690c] focus:ring-[#ea690c]"
-                                      />
-                                    </td>
-                                    <td className="px-6 py-4">
-                                      <span className="text-sm font-semibold text-neutral-800">{parcel.receiverName}</span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                      <span className="text-sm text-[#5d5d5d]">
-                                        {parcel.recieverPhoneNumber}
-                                      </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                                        parcel.typeofParcel === "ONLINE" || parcel.POD
-                                          ? "bg-purple-100 text-purple-700 border border-purple-300"
-                                          : "bg-blue-100 text-blue-700 border border-blue-300"
-                                      }`}>
-                                        {parcel.typeofParcel === "ONLINE" || parcel.POD ? "POD" : "Regular"}
-                                      </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                                        parcel.hasArrivedAtOffice
-                                          ? "bg-green-100 text-green-800 border border-green-300"
-                                          : "bg-yellow-100 text-yellow-700 border border-yellow-300"
-                                      }`}>
-                                        {parcel.hasArrivedAtOffice ? "Arrived" : "In Transit"}
-                                      </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right whitespace-nowrap">
-                                      <div className="text-right">
-                                        <div className="text-xs text-[#5d5d5d]">Transport: GHC {(parcel.inboundCost || 0).toFixed(2)}</div>
-                                        {(parcel.POD || parcel.typeofParcel === "ONLINE") && parcel.ItemCost > 0 && (
-                                          <div className="text-xs text-[#5d5d5d]">Item: GHC {(parcel.ItemCost || 0).toFixed(2)}</div>
-                                        )}
-                                        <div className="text-base font-bold text-[#ea690c]">
-                                          GHC {((parcel.inboundCost || 0) + ((parcel.POD || parcel.typeofParcel === "ONLINE") ? (parcel.ItemCost || 0) : 0)).toFixed(2)}
-                                        </div>
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                      <div className="flex items-center justify-center gap-2">
-                                        <Button
-                                          onClick={() => setViewParcel(parcel)}
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-8 px-3 border-[#ea690c] text-[#ea690c] hover:bg-orange-50 hover:border-[#ea690c] text-xs font-medium"
-                                        >
-                                          View
-                                        </Button>
-                                        {!parcel.hasArrivedAtOffice && (
-                                          <>
-                                            <Button
-                                              onClick={() => handlePrintParcel(parcel)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="h-8 w-8 p-0 border-[#d1d1d1] text-blue-600 hover:bg-blue-50 hover:border-blue-300"
-                                              title="Print Label"
-                                            >
-                                              <PrinterIcon className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                              onClick={() => handleEditParcel(parcel)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="h-8 w-8 p-0 border-[#d1d1d1] text-green-600 hover:bg-green-50 hover:border-green-300"
-                                              title="Edit Parcel"
-                                            >
-                                              <Edit2Icon className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                              onClick={() => { setDeleteParcel(parcel); setDeleteConfirmText(""); }}
-                                              variant="outline"
-                                              size="sm"
-                                              className="h-8 w-8 p-0 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-                                              title="Delete Parcel"
-                                            >
-                                              <TrashIcon className="h-4 w-4" />
-                                            </Button>
-                                          </>
-                                        )}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+        {/* Table Card */}
+        <Card className="border border-[#d1d1d1] bg-white rounded-2xl shadow-sm overflow-hidden">
+          {/* Card Header */}
+          <div className="px-6 py-4 border-b border-[#d1d1d1] bg-gray-50/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-orange-50 rounded-xl"><PackageIcon className="w-5 h-5 text-[#ea690c]" /></div>
+              <div>
+                <h2 className="text-base font-semibold text-neutral-800">Outgoing Parcels</h2>
+                <p className="text-xs text-[#5d5d5d]">Parcels sent from this station</p>
+              </div>
             </div>
+            <div className="relative w-full sm:w-72">
+              <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input placeholder="Search receiver, driver, tracking ID..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="pl-9 border-[#d1d1d1] h-9 text-sm" />
+            </div>
+          </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <Card className="border border-[#d1d1d1] bg-white">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-[#5d5d5d]">
-                      Showing {startIndex + 1}-{Math.min(endIndex, driverGroups.length)} of {driverGroups.length} drivers
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        disabled={currentPage === 1}
-                        variant="outline"
-                        size="sm"
-                        className="border-[#d1d1d1]"
-                      >
-                        Previous
-                      </Button>
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                          <Button
-                            key={page}
-                            onClick={() => setCurrentPage(page)}
-                            variant={currentPage === page ? "default" : "outline"}
-                            size="sm"
-                            className={currentPage === page ? "bg-[#ea690c] text-white" : "border-[#d1d1d1]"}
-                          >
-                            {page}
-                          </Button>
-                        ))}
-                      </div>
-                      <Button
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
-                        variant="outline"
-                        size="sm"
-                        className="border-[#d1d1d1]"
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          <CardContent className="p-0">
+            {/* Selection action bar */}
+            {selectedDrivers.size > 0 && (
+              <div className="flex items-center justify-between px-6 py-3 bg-orange-50 border-b border-[#d1d1d1]">
+                <span className="text-sm font-medium text-neutral-800">{selectedDrivers.size} driver{selectedDrivers.size > 1 ? 's' : ''} selected</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handlePrintSelected(driverGroups)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#ea690c] text-white text-xs font-medium hover:bg-[#d45d0a] transition-colors">
+                    <PrinterIcon className="w-3.5 h-3.5" /> Print Manifest{selectedDrivers.size > 1 ? 's' : ''}
+                  </button>
+                  <button onClick={() => setSelectedDrivers(new Set())} className="text-xs text-[#5d5d5d] hover:text-neutral-800 px-2 py-1.5">Clear</button>
+                </div>
+              </div>
             )}
-          </>
-        )}
+            {loading ? (
+              <div className="py-16 text-center">
+                <div className="h-8 w-8 border-4 border-[#ea690c] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-sm text-neutral-700">Loading parcels...</p>
+              </div>
+            ) : filteredParcels.length === 0 ? (
+              <div className="py-16 text-center">
+                <PackageIcon className="h-12 w-12 text-[#9a9a9a] mx-auto mb-3 opacity-50" />
+                <p className="text-neutral-700 font-medium">No outgoing parcels found</p>
+                <p className="text-sm text-[#5d5d5d] mt-1">{searchQuery ? "Try adjusting your search" : "Parcels sent from this station will appear here"}</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200 w-8">
+                        <input type="checkbox" checked={selectedDrivers.size === paginatedGroups.length && paginatedGroups.length > 0} onChange={() => toggleSelectAll(paginatedGroups)} className="rounded border-gray-300 text-[#ea690c] focus:ring-[#ea690c]" />
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">Driver</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">Vehicle</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">Parcels</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">In Transit</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">Arrived</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">Total Amount</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">Manifest</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white">
+                    {paginatedGroups.map((group, gi) => {
+                      const isExpanded = expandedDrivers.has(group.key);
+                      const total = group.parcels.reduce((s, p) => s + (p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0), 0);
+                      return (
+                        <>
+                          {/* Driver header row */}
+                          <tr
+                            key={group.key}
+                            className={`cursor-pointer transition-colors border-b border-gray-200 ${ isExpanded ? 'bg-orange-50' : gi % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50/40 hover:bg-gray-100/60'}`}
+                          >
+                            <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              <input type="checkbox" checked={selectedDrivers.has(group.key)} onChange={() => toggleDriverSelect(group.key)} className="rounded border-gray-300 text-[#ea690c] focus:ring-[#ea690c]" />
+                            </td>
+                            <td className="px-4 py-3" onClick={() => toggleDriver(group.key)}>
+                              <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-green-100 rounded-lg"><TruckIcon className="w-4 h-4 text-green-600" /></div>
+                                <div>
+                                  <p className="text-sm font-semibold text-neutral-800">{group.driverName || 'Unknown Driver'}</p>
+                                  <p className="text-xs text-[#5d5d5d]">{group.driverPhoneNumber || ''}</p>
+                                </div>
+                                {isExpanded
+                                  ? <ChevronDownIcon className="w-4 h-4 text-[#ea690c] ml-1" />
+                                  : <ChevronRightIcon className="w-4 h-4 text-gray-400 ml-1" />}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3" onClick={() => toggleDriver(group.key)}>
+                              <span className="text-sm text-neutral-700">{group.vehicleNumber || '—'}</span>
+                            </td>
+                            <td className="px-4 py-3 text-center" onClick={() => toggleDriver(group.key)}>
+                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-[#ea690c] text-xs font-bold">{group.parcels.length}</span>
+                            </td>
+                            <td className="px-4 py-3 text-center" onClick={() => toggleDriver(group.key)}>
+                              <span className="text-sm font-medium text-yellow-700">{group.parcels.filter(p => !p.hasArrivedAtOffice).length}</span>
+                            </td>
+                            <td className="px-4 py-3 text-center" onClick={() => toggleDriver(group.key)}>
+                              <span className="text-sm font-medium text-green-700">{group.parcels.filter(p => p.hasArrivedAtOffice).length}</span>
+                            </td>
+                            <td className="px-4 py-3 text-right" onClick={() => toggleDriver(group.key)}>
+                              <span className="text-sm font-bold text-neutral-800">GHC {total.toFixed(2)}</span>
+                            </td>
+                            <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => handlePrintManifest(group)}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#ea690c] text-[#ea690c] hover:bg-orange-50 text-xs font-medium transition-colors mx-auto"
+                              >
+                                <PrinterIcon className="w-3.5 h-3.5" /> Manifest
+                              </button>
+                            </td>
+                          </tr>
+
+                          {/* Expanded parcel rows */}
+                          {isExpanded && group.parcels.map((parcel, pi) => (
+                            <tr key={parcel.parcelId} className={`border-b border-gray-100 ${pi % 2 === 0 ? 'bg-orange-50/30' : 'bg-orange-50/10'} hover:bg-orange-50/50 transition-colors`}>
+                              <td className="px-4 py-2.5 border-l-2 border-[#ea690c]"></td>
+                              <td className="px-4 py-2.5" colSpan={2}>
+                                <div className="flex items-center gap-3">
+                                  <div>
+                                    <p className="text-sm font-medium text-neutral-800">{parcel.receiverName}</p>
+                                    <p className="text-xs text-[#5d5d5d]">{parcel.recieverPhoneNumber}</p>
+                                  </div>
+                                  <span className="text-xs font-mono text-[#ea690c] bg-orange-50 px-1.5 py-0.5 rounded">{parcel.parcelId.slice(-8)}</span>
+                                  {parcel.to?.officeName && <span className="text-xs text-[#5d5d5d]">→ {parcel.to.officeName}</span>}
+                                </div>
+                              </td>
+                              <td className="px-4 py-2.5 text-center">
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${ parcel.POD ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                  {parcel.POD ? 'POD' : 'Regular'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-center" colSpan={2}>
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${ parcel.hasArrivedAtOffice ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                  {parcel.hasArrivedAtOffice ? 'Arrived' : 'In Transit'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5" colSpan={2}>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-semibold text-neutral-800 ml-auto">
+                                    GHC {((parcel.inboundCost || 0) + (parcel.POD ? (parcel.ItemCost || 0) : 0)).toFixed(2)}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={(e) => { e.stopPropagation(); setViewParcel(parcel); }} className="p-1 rounded text-[#5d5d5d] hover:bg-white hover:text-neutral-800 transition-colors" title="View"><UserIcon className="w-3.5 h-3.5" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handlePrintParcel(parcel); }} className="p-1 rounded text-[#5d5d5d] hover:bg-white hover:text-neutral-800 transition-colors" title="Print"><PrinterIcon className="w-3.5 h-3.5" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleEditParcel(parcel); }} className="p-1 rounded text-[#5d5d5d] hover:bg-white hover:text-neutral-800 transition-colors" title="Edit"><Edit2Icon className="w-3.5 h-3.5" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); setDeleteParcel(parcel); }} className="p-1 rounded text-[#5d5d5d] hover:bg-red-50 hover:text-red-600 transition-colors" title="Delete"><TrashIcon className="w-3.5 h-3.5" /></button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Edit Parcel Modal */}
         {editParcel && (
@@ -1182,100 +773,6 @@ export const OutgoingParcels = (): JSX.Element => {
           </div>
         )}
 
-        {/* Bulk Print Labels Modal */}
-        {bulkPrintParcels && (
-          <>
-            <style>{`
-              @media print {
-                body * {
-                  visibility: hidden;
-                }
-                #bulk-labels-print, #bulk-labels-print * {
-                  visibility: visible;
-                }
-                #bulk-labels-print {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                }
-                @page {
-                  size: A4 landscape;
-                  margin: 8mm;
-                }
-                .label-page-break {
-                  page-break-after: always;
-                }
-              }
-            `}</style>
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl border border-[#d1d1d1] w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div className="sticky top-0 bg-white border-b border-[#d1d1d1] p-4 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-neutral-800">Bulk Print Labels ({bulkPrintParcels.length} items)</h3>
-                  <Button
-                    onClick={() => setBulkPrintParcels(null)}
-                    variant="outline"
-                    className="border border-[#d1d1d1] text-neutral-700 hover:bg-gray-50"
-                  >
-                    Close
-                  </Button>
-                </div>
-                
-                <div className="p-6" id="bulk-labels-print">
-                  {bulkPrintParcels.map((parcel, index) => (
-                    <div key={`${parcel.parcelId}-${index}`} className={index < bulkPrintParcels.length - 1 ? 'label-page-break mb-8' : ''}>
-                      <ParcelLabel parcel={parcel} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Manifest Print Modal */}
-        {manifestDriver && (
-          <>
-            <style>{`
-              @media print {
-                body * {
-                  visibility: hidden;
-                }
-                #manifest-print, #manifest-print * {
-                  visibility: visible;
-                }
-                #manifest-print {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                }
-                @page {
-                  size: A4 portrait;
-                  margin: 10mm;
-                }
-              }
-            `}</style>
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl border border-[#d1d1d1] w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                <div className="sticky top-0 bg-white border-b border-[#d1d1d1] p-4 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-neutral-800">Driver Manifest</h3>
-                  <Button
-                    onClick={() => setManifestDriver(null)}
-                    variant="outline"
-                    className="border border-[#d1d1d1] text-neutral-700 hover:bg-gray-50"
-                  >
-                    Close
-                  </Button>
-                </div>
-                
-                <div className="p-6" id="manifest-print">
-                  <DriverManifest driver={manifestDriver} />
-                </div>
-              </div>
-            </div>
-          </>
-        )}
 
         {/* View Parcel Details Modal */}
         {viewParcel && (
@@ -1471,110 +968,6 @@ export const OutgoingParcels = (): JSX.Element => {
           </div>
         )}
 
-        {/* Bulk Assign Driver Modal */}
-        {showBulkAssignModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-lg border border-[#d1d1d1] bg-white shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <TruckIcon className="w-5 h-5 text-green-600" />
-                    <h3 className="text-lg font-bold text-neutral-800">Assign Driver to Selected Parcels</h3>
-                  </div>
-                  <button
-                    onClick={() => { setShowBulkAssignModal(false); setBulkAssignForm({ driverName: "", driverPhoneNumber: "", vehicleNumber: "" }); }}
-                    className="text-[#9a9a9a] hover:text-neutral-800"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-sm font-semibold text-blue-800">
-                      {selectedParcels.size} parcel(s) selected for driver assignment
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                        Driver Name <span className="text-red-600">*</span>
-                      </label>
-                      <Input
-                        value={bulkAssignForm.driverName}
-                        onChange={(e) => setBulkAssignForm({ ...bulkAssignForm, driverName: e.target.value })}
-                        placeholder="Enter driver name"
-                        className="border-[#d1d1d1]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                        Driver Phone <span className="text-red-600">*</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-medium pointer-events-none z-10">
-                          +233
-                        </span>
-                        <Input
-                          value={bulkAssignForm.driverPhoneNumber?.startsWith("+233") ? bulkAssignForm.driverPhoneNumber.substring(4) : (bulkAssignForm.driverPhoneNumber || "")}
-                          onChange={(e) => {
-                            const digits = e.target.value.replace(/\D/g, "").substring(0, 10);
-                            const normalized = digits ? normalizePhoneNumber(digits) : "";
-                            setBulkAssignForm({ ...bulkAssignForm, driverPhoneNumber: normalized });
-                          }}
-                          placeholder="0XXXXXXXXX or XXXXXXXXX"
-                          className="pl-14 pr-3 border-[#d1d1d1]"
-                          maxLength={10}
-                        />
-                      </div>
-                      <p className="text-[11px] text-[#5d5d5d] mt-1">Enter 10 digits starting with 0 or 9 digits</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                        Vehicle Number <span className="text-red-600">*</span>
-                      </label>
-                      <Input
-                        value={bulkAssignForm.vehicleNumber}
-                        onChange={(e) => setBulkAssignForm({ ...bulkAssignForm, vehicleNumber: e.target.value })}
-                        placeholder="e.g., GR-1234-20"
-                        className="border-[#d1d1d1]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 pt-4 border-t border-[#d1d1d1]">
-                    <Button
-                      onClick={() => { setShowBulkAssignModal(false); setBulkAssignForm({ driverName: "", driverPhoneNumber: "", vehicleNumber: "" }); }}
-                      variant="outline"
-                      className="flex-1 border border-[#d1d1d1]"
-                      disabled={isUpdating}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleBulkAssignDriver}
-                      disabled={isUpdating || !bulkAssignForm.driverName || !bulkAssignForm.driverPhoneNumber || !bulkAssignForm.vehicleNumber}
-                      className="flex-1 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {isUpdating ? (
-                        <>
-                          <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                          Assigning...
-                        </>
-                      ) : (
-                        "Assign Driver"
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
         {/* Print Preview Modal */}
         {printParcel && (
           <>
@@ -1625,170 +1018,155 @@ export const OutgoingParcels = (): JSX.Element => {
             </div>
           </>
         )}
+
+        {/* Manifest Print Modal */}
+        {manifestGroup && (
+          <>
+            <style>{`
+              @media print {
+                body * { visibility: hidden; }
+                #manifest-print, #manifest-print * { visibility: visible; }
+                #manifest-print { position: absolute; left: 0; top: 0; width: 100%; }
+                @page { size: A4 portrait; margin: 10mm; }
+              }
+            `}</style>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-xl border border-[#d1d1d1] w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                <div className="sticky top-0 bg-white border-b border-[#d1d1d1] p-4 flex items-center justify-between">
+                  <h3 className="text-base font-bold text-neutral-800">Driver Manifest — {manifestGroup.driverName}</h3>
+                  <div className="flex items-center gap-2">
+                    <Button onClick={() => window.print()} className="bg-[#ea690c] text-white hover:bg-[#d45d0a] h-9 text-sm">
+                      <PrinterIcon className="w-4 h-4 mr-1.5" /> Print
+                    </Button>
+                    <Button onClick={() => setManifestGroup(null)} variant="outline" className="border border-[#d1d1d1] h-9 text-sm">Close</Button>
+                  </div>
+                </div>
+                <div className="p-6" id="manifest-print">
+                  <DriverManifest group={manifestGroup} />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 };
 
-// Driver Manifest Component for printing
+// Driver Manifest Component
 interface DriverManifestProps {
-  driver: {
-    driverKey: string;
-    driverName: string;
-    driverPhoneNumber: string;
-    vehicleNumber: string;
-    parcels: Parcel[];
-  };
+  group: { key: string; driverName: string; driverPhoneNumber: string; vehicleNumber: string; parcels: Parcel[] };
 }
-
-const DriverManifest: React.FC<DriverManifestProps> = ({ driver }) => {
-  // Group parcels by destination station
-  const parcelsByStation = driver.parcels.reduce((acc, parcel) => {
-    const stationKey = parcel.toOfficeId || 'unknown';
-    const stationName = parcel.to?.officeName || 'Unknown Station';
-    if (!acc[stationKey]) {
-      acc[stationKey] = {
-        stationName,
-        parcels: [],
-      };
-    }
-    acc[stationKey].parcels.push(parcel);
-    return acc;
-  }, {} as Record<string, { stationName: string; parcels: Parcel[] }>);
-
-  const stations = Object.values(parcelsByStation);
-
+const DriverManifest: React.FC<DriverManifestProps> = ({ group }) => {
+  const total = group.parcels.reduce((s, p) => s + (p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0), 0);
+  const podCount = group.parcels.filter(p => p.POD).length;
   return (
-    <div className="space-y-8">
-      {stations.map((station, stationIndex) => {
-        const totalAmount = station.parcels.reduce((sum, p) => sum + (p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0), 0);
-        const podCount = station.parcels.filter(p => p.POD).length;
-        const regularCount = station.parcels.length - podCount;
+    <div className="bg-white border-2 border-black p-4">
+      {/* Header — same as ParcelLabel */}
+      <div className="text-center border-b-2 border-black pb-2 mb-3">
+        <div className="flex items-center justify-center gap-3 mb-1">
+          <img src="/logo-1.png" alt="M&M Logo" className="h-16 w-16 object-contain" />
+          <div>
+            <h1 className="text-3xl font-bold text-black">Mealex &amp; Mailex (M&amp;M)</h1>
+            <p className="text-base text-black">Parcel Delivery System</p>
+          </div>
+        </div>
+      </div>
 
-        return (
-          <div key={stationIndex} className="border-2 border-black p-6" style={{ pageBreakAfter: stationIndex < stations.length - 1 ? 'always' : 'auto' }}>
-            {/* Header */}
-            <div className="text-center border-b-2 border-black pb-4 mb-4">
-              <div className="flex items-center justify-center gap-3 mb-2">
-                <img
-                  src="/logo-1.png"
-                  alt="M&M Logo"
-                  className="h-16 w-16 object-contain"
-                />
-                <div>
-                  <h1 className="text-2xl font-bold text-black">
-                    Mealex & Mailex (M&M)
-                  </h1>
-                  <p className="text-sm text-black">Parcel Delivery Manifest</p>
-                </div>
-              </div>
+      {/* Manifest title bar — black bar like tracking number bar */}
+      <div className="text-center mb-3 bg-black text-white py-3 px-4">
+        <p className="text-sm font-semibold mb-0.5">DRIVER MANIFEST</p>
+        <p className="text-2xl font-bold tracking-wider">{new Date().toLocaleDateString()} · {new Date().toLocaleTimeString()}</p>
+      </div>
+
+      {/* Driver info + summary counts — bordered boxes like sender/receiver */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="border-2 border-black p-2">
+          <p className="text-xs font-bold text-black mb-1">DRIVER INFORMATION</p>
+          <p className="text-base text-black mb-0.5"><span className="font-bold">NAME:</span> {group.driverName || '—'}</p>
+          <p className="text-base text-black mb-0.5"><span className="font-bold">PHONE:</span> {group.driverPhoneNumber || '—'}</p>
+          <p className="text-base text-black"><span className="font-bold">VEHICLE:</span> {group.vehicleNumber || '—'}</p>
+        </div>
+        <div className="border-2 border-black p-2">
+          <p className="text-xs font-bold text-black mb-1">PARCEL SUMMARY</p>
+          <div className="grid grid-cols-3 gap-1 mt-1">
+            <div className="border border-black p-1 text-center">
+              <p className="text-xs font-bold text-black">TOTAL</p>
+              <p className="text-2xl font-bold text-black">{group.parcels.length}</p>
             </div>
-
-            {/* Manifest Info */}
-            <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b-2 border-black">
-              <div>
-                <p className="text-sm font-bold text-black mb-2">DRIVER INFORMATION</p>
-                <p className="text-sm text-black"><span className="font-bold">Name:</span> {driver.driverName}</p>
-                <p className="text-sm text-black"><span className="font-bold">Phone:</span> {driver.driverPhoneNumber}</p>
-                <p className="text-sm text-black"><span className="font-bold">Vehicle:</span> {driver.vehicleNumber}</p>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-black mb-2">DESTINATION STATION</p>
-                <p className="text-lg font-bold text-black">{station.stationName}</p>
-                <p className="text-sm text-black mt-2"><span className="font-bold">Date:</span> {new Date().toLocaleDateString()}</p>
-                <p className="text-sm text-black"><span className="font-bold">Time:</span> {new Date().toLocaleTimeString()}</p>
-              </div>
+            <div className="border border-black p-1 text-center">
+              <p className="text-xs font-bold text-black">REGULAR</p>
+              <p className="text-2xl font-bold text-black">{group.parcels.length - podCount}</p>
             </div>
-
-            {/* Summary */}
-            <div className="grid grid-cols-4 gap-3 mb-4 pb-4 border-b-2 border-black">
-              <div className="bg-gray-100 p-3 border border-black">
-                <p className="text-xs font-bold text-black">TOTAL PARCELS</p>
-                <p className="text-2xl font-bold text-black">{station.parcels.length}</p>
-              </div>
-              <div className="bg-blue-100 p-3 border border-black">
-                <p className="text-xs font-bold text-black">REGULAR</p>
-                <p className="text-2xl font-bold text-black">{regularCount}</p>
-              </div>
-              <div className="bg-purple-100 p-3 border border-black">
-                <p className="text-xs font-bold text-black">POD</p>
-                <p className="text-2xl font-bold text-black">{podCount}</p>
-              </div>
-              <div className="bg-green-100 p-3 border border-black">
-                <p className="text-xs font-bold text-black">TOTAL VALUE</p>
-                <p className="text-xl font-bold text-black">GHC {totalAmount.toFixed(2)}</p>
-              </div>
-            </div>
-
-            {/* Parcels Table */}
-            <table className="w-full border-2 border-black">
-              <thead>
-                <tr className="bg-gray-200 border-b-2 border-black">
-                  <th className="border-r border-black px-2 py-2 text-left text-xs font-bold text-black">#</th>
-                  <th className="border-r border-black px-2 py-2 text-center text-xs font-bold text-black">✓</th>
-                  <th className="border-r border-black px-2 py-2 text-left text-xs font-bold text-black">TRACKING ID</th>
-                  <th className="border-r border-black px-2 py-2 text-left text-xs font-bold text-black">RECEIVER</th>
-                  <th className="border-r border-black px-2 py-2 text-left text-xs font-bold text-black">PHONE</th>
-                  <th className="border-r border-black px-2 py-2 text-left text-xs font-bold text-black">DESCRIPTION</th>
-                  <th className="border-r border-black px-2 py-2 text-center text-xs font-bold text-black">TYPE</th>
-                  <th className="px-2 py-2 text-right text-xs font-bold text-black">AMOUNT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {station.parcels.map((parcel, index) => {
-                  const shortTrackingId = parcel.parcelId.slice(-6);
-                  const truncatedDescription = parcel.parcelDescription && parcel.parcelDescription.length > 30 
-                    ? parcel.parcelDescription.substring(0, 30) + '...' 
-                    : parcel.parcelDescription || '-';
-                  
-                  return (
-                    <tr key={parcel.parcelId} className="border-b border-black">
-                      <td className="border-r border-black px-2 py-2 text-xs text-black">{index + 1}</td>
-                      <td className="border-r border-black px-2 py-2 text-center">
-                        <div className="w-4 h-4 border-2 border-black mx-auto"></div>
-                      </td>
-                      <td className="border-r border-black px-2 py-2 text-xs font-semibold text-black">{shortTrackingId}</td>
-                      <td className="border-r border-black px-2 py-2 text-xs text-black">{parcel.receiverName}</td>
-                      <td className="border-r border-black px-2 py-2 text-xs text-black">{parcel.recieverPhoneNumber}</td>
-                      <td className="border-r border-black px-2 py-2 text-xs text-black">{truncatedDescription}</td>
-                      <td className="border-r border-black px-2 py-2 text-center text-xs text-black">
-                        <span className={`inline-block px-2 py-0.5 rounded ${parcel.POD ? 'bg-purple-200' : 'bg-blue-200'}`}>
-                          {parcel.POD ? 'POD' : 'REG'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-xs text-right font-semibold text-black">
-                        GHC {((parcel.inboundCost || 0) + (parcel.POD ? (parcel.ItemCost || 0) : 0)).toFixed(2)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-gray-200 border-t-2 border-black">
-                  <td colSpan={7} className="border-r border-black px-2 py-2 text-sm font-bold text-black text-right">TOTAL:</td>
-                  <td className="px-2 py-2 text-sm font-bold text-black text-right">GHC {totalAmount.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-            </table>
-
-            {/* Signatures */}
-            <div className="grid grid-cols-2 gap-8 mt-8 pt-4 border-t-2 border-black">
-              <div>
-                <p className="text-sm font-bold text-black mb-8">DRIVER SIGNATURE</p>
-                <div className="border-b-2 border-black mb-2"></div>
-                <p className="text-xs text-black">Name: {driver.driverName}</p>
-                <p className="text-xs text-black">Date: _________________</p>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-black mb-8">RECEIVER SIGNATURE</p>
-                <div className="border-b-2 border-black mb-2"></div>
-                <p className="text-xs text-black">Name: _________________</p>
-                <p className="text-xs text-black">Date: _________________</p>
-              </div>
+            <div className="border border-black p-1 text-center">
+              <p className="text-xs font-bold text-black">POD</p>
+              <p className="text-2xl font-bold text-black">{podCount}</p>
             </div>
           </div>
-        );
-      })}
+        </div>
+      </div>
+
+      {/* Parcel table */}
+      <table className="w-full border-2 border-black mb-3">
+        <thead>
+          <tr className="bg-black text-white">
+            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">#</th>
+            <th className="border-r border-white px-2 py-2 text-center text-xs font-bold">✓</th>
+            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">Tracking ID</th>
+            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">Receiver</th>
+            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">Phone</th>
+            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">Destination</th>
+            <th className="border-r border-white px-2 py-2 text-center text-xs font-bold">Type</th>
+            <th className="px-2 py-2 text-right text-xs font-bold">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {group.parcels.map((p, i) => (
+            <tr key={p.parcelId} className="border-b border-black">
+              <td className="border-r border-black px-2 py-1.5 text-xs text-black">{i + 1}</td>
+              <td className="border-r border-black px-2 py-1.5 text-center"><div className="w-4 h-4 border-2 border-black mx-auto" /></td>
+              <td className="border-r border-black px-2 py-1.5 text-xs font-semibold text-black">{p.parcelId.slice(-8)}</td>
+              <td className="border-r border-black px-2 py-1.5 text-xs text-black">{p.receiverName}</td>
+              <td className="border-r border-black px-2 py-1.5 text-xs text-black">{p.recieverPhoneNumber}</td>
+              <td className="border-r border-black px-2 py-1.5 text-xs text-black">{p.to?.officeName || '—'}</td>
+              <td className="border-r border-black px-2 py-1.5 text-center text-xs text-black">
+                <span className="inline-block border border-black px-1.5 py-0.5 text-xs font-bold">{p.POD ? 'POD' : 'REG'}</span>
+              </td>
+              <td className="px-2 py-1.5 text-xs text-right font-semibold text-black">GHC {((p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0)).toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="bg-black text-white">
+            <td colSpan={7} className="border-r border-white px-2 py-2 text-sm font-bold text-right">TOTAL AMOUNT:</td>
+            <td className="px-2 py-2 text-sm font-bold text-right">GHC {total.toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      {/* Signature section — bordered like payment details */}
+      <div className="border-2 border-black p-2 mb-3">
+        <p className="text-sm font-bold text-black mb-3">SIGNATURES</p>
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <p className="text-xs font-bold text-black mb-6">Driver Signature</p>
+            <div className="border-b-2 border-black mb-1" />
+            <p className="text-xs text-black">Name: {group.driverName || '_________________'}</p>
+            <p className="text-xs text-black mt-0.5">Date: _________________</p>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-black mb-6">Authorised By</p>
+            <div className="border-b-2 border-black mb-1" />
+            <p className="text-xs text-black">Name: _________________</p>
+            <p className="text-xs text-black mt-0.5">Date: _________________</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer — same as ParcelLabel */}
+      <div className="pt-2 border-t border-black text-center">
+        <p className="text-sm text-black">For inquiries, contact M&amp;M Parcel Services</p>
+      </div>
     </div>
   );
 };

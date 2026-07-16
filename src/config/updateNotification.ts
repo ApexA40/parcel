@@ -10,7 +10,7 @@
 
 export const updateNotificationConfig = {
   /** Set to false to stop showing this notification to all users (current and future). */
-  enabled: true,
+  enabled: false,
 
   /**
    * Unique id for this notification. Change this when you publish new content

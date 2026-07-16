@@ -189,6 +189,7 @@ export const PickupRequest = (): JSX.Element => {
   };
 
   return (
+    <div className="w-full max-w-3xl mx-auto">
     <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
       <CardContent className="p-6">
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -387,5 +388,6 @@ export const PickupRequest = (): JSX.Element => {
         </form>
       </CardContent>
     </Card>
+    </div>
   );
 };

@@ -8,7 +8,13 @@ import { DriverTrackerProvider } from "./contexts/DriverTrackerContext";
 import { ShelfProvider } from "./contexts/ShelfContext";
 import { ToastProvider } from "./components/ui/toast";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { BrandingProvider } from "./contexts/BrandingContext";
+import { TenantProvider } from "./contexts/TenantContext";
 import { MainLayout } from "./layouts/MainLayout";
+import { ParcelLayout } from "./layouts/ParcelLayout";
+import { DeliveryLayout } from "./layouts/DeliveryLayout";
+import { AdminLayout } from "./layouts/AdminLayout";
+import { SuperAdminLayout } from "./layouts/SuperAdminLayout";
 import { RiderLayout } from "./layouts/RiderLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ScrollController } from "./components/ScrollController";
@@ -44,6 +50,10 @@ import { AdminReconciliation } from "./screens/Admin/AdminReconciliation/AdminRe
 import { AdminFinancialDashboard } from "./screens/Admin/AdminFinancialDashboard/AdminFinancialDashboard";
 import { Preferences } from "./screens/Preferences/Preferences";
 import { Help } from "./screens/Help/Help";
+import { BranchSettings } from "./screens/BranchSettings/BranchSettings";
+import { TenantSettings } from "./screens/Admin/TenantSettings/TenantSettings";
+import { TenantManagement } from "./screens/Admin/TenantManagement/TenantManagement";
+import { CrossTenantAnalytics } from "./screens/Admin/CrossTenantAnalytics/CrossTenantAnalytics";
 import { TrackParcel } from "./screens/TrackParcel/TrackParcel";
 import { CustomerParcelHub } from "./screens/CustomerParcelHub/CustomerParcelHub";
 import { CustomerAuthProvider } from "./contexts/CustomerAuthContext";
@@ -62,487 +72,162 @@ import { ReconciliationAnalytics } from "./screens/ReconciliationAnalytics";
 import { RiderDetail } from "./screens/ReconciliationAnalytics/RiderDetail";
 import { PartnerPortal } from "./screens/PartnerPortal/PartnerPortal";
 import { ParcelScan } from "./screens/ParcelScan/ParcelScan";
+import { AddressManagement } from "./screens/AddressManagement/AddressManagement";
+
+const PARCEL_ROLES = ["FRONTDESK", "MANAGER"];
+const DELIVERY_ROLES = ["MANAGER", "CALLER"];
+const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 export const App = (): JSX.Element => {
-  // Some environments cache component prop types aggressively; this keeps routing flexible.
   return (
     <ThemeProvider>
-      <StationProvider>
-        <LocationProvider>
-          <UserProvider>
-            <ParcelProvider>
-              <FrontdeskParcelProvider>
-                <DriverTrackerProvider>
-                <ShelfProvider>
-                  <ToastProvider>
-                    <BrowserRouter>
-                      <Routes>
-                        {/* Auth Routes */}
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/forgot-password" element={<ForgotPassword />} />
-                        <Route path="/password-request-sent" element={<PasswordRequestSent />} />
-                        <Route path="/reset-password" element={<ResetPassword />} />
+      <BrandingProvider>
+        <TenantProvider>
+          <StationProvider>
+            <LocationProvider>
+              <UserProvider>
+                <ParcelProvider>
+                  <FrontdeskParcelProvider>
+                    <DriverTrackerProvider>
+                      <ShelfProvider>
+                        <ToastProvider>
+                          <BrowserRouter>
+                            <Routes>
+                              {/* ── Auth ── */}
+                              <Route path="/login" element={<Login />} />
+                              <Route path="/forgot-password" element={<ForgotPassword />} />
+                              <Route path="/password-request-sent" element={<PasswordRequestSent />} />
+                              <Route path="/reset-password" element={<ResetPassword />} />
 
-                        {/* Public: Customer parcel lookup (no login) */}
-                        <Route path="/track" element={<TrackParcel />} />
-                        <Route path="/p/:parcelId" element={<ParcelScan />} />
-                        <Route path="/scan" element={<ParcelScan />} />
-                        <Route
-                          path="/receive"
-                          element={
-                            <CustomerAuthProvider>
-                              <CustomerParcelHub />
-                            </CustomerAuthProvider>
-                          }
-                        />
+                              {/* ── Public ── */}
+                              <Route path="/track" element={<TrackParcel />} />
+                              <Route path="/p/:parcelId" element={<ParcelScan />} />
+                              <Route path="/scan" element={<ParcelScan />} />
+                              <Route path="/receive" element={<CustomerAuthProvider><CustomerParcelHub /></CustomerAuthProvider>} />
 
-                        {/* Vendor partner portal */}
-                        <Route
-                          path="/partner/*"
-                          element={
-                            <ProtectedRoute allowedRoles={["VENDOR"]}>
-                              <PartnerPortal />
-                            </ProtectedRoute>
-                          }
-                        />
+                              {/* ── Partner Portal ── */}
+                              <Route path="/partner/*" element={<ProtectedRoute allowedRoles={["VENDOR"]}><PartnerPortal /></ProtectedRoute>} />
 
-                        {/* Root - Redirect to login */}
-                        <Route path="/" element={<Navigate to="/login" replace />} />
+                              {/* ── Root ── */}
+                              <Route path="/" element={<Navigate to="/login" replace />} />
 
+                              {/* ════════════════════════════════
+                                  PARCEL HUB  /parcel/*
+                              ════════════════════════════════ */}
+                              <Route path="/parcel/intake" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><ParcelRegistration /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/search" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><ParcelSearch /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/smart-search" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><SmartSearch /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/edit" element={<ProtectedRoute allowedRoles={["MANAGER"]}><ParcelLayout><ParcelEdit /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/transfer" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><ParcelTransfer /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/incoming" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><IncomingParcels /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/outgoing" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><OutgoingParcels /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/shelf" element={<ProtectedRoute allowedRoles={["MANAGER"]}><ParcelLayout><ShelfManagement /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/pickup" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><PickupRequest /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/driver-tracker" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><DriverInboundReconciliation /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/driver-tracker/:phoneKey" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><DriverTrackerDetail /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/assignments" element={<ProtectedRoute allowedRoles={["MANAGER"]}><ParcelLayout><ParcelSelection /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/settings" element={<ProtectedRoute allowedRoles={["MANAGER"]}><ParcelLayout><BranchSettings /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/preferences" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><Preferences /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/help" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><Help /></ParcelLayout></ProtectedRoute>} />
 
-                        <Route
-                          path="/smart-search"
-                          element={
-                            <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", "ADMIN", "CALLER"]}>
-                              <MainLayout>
-                                <SmartSearch />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
+                              {/* Parcel flow sub-pages (layout-less, keep MainLayout for now) */}
+                              <Route path="/parcel-costs-pod" element={<MainLayout><ParcelCostsAndPOD /></MainLayout>} />
+                              <Route path="/parcel-review" element={<MainLayout><ParcelReview /></MainLayout>} />
+                              <Route path="/parcel-sms-success" element={<MainLayout><ParcelSMSSuccess /></MainLayout>} />
 
-                        <Route
-                          path="/parcel-search"
-                          element={
-                            <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", "ADMIN"]}>
-                              <MainLayout>
-                                <ParcelSearch />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/parcel-intake"
-                          element={
-                            <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", "ADMIN"]}>
-                              <MainLayout>
-                                <ParcelRegistration />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/parcel-transfer"
-                          element={
-                            <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", "ADMIN"]}>
-                              <MainLayout>
-                                <ParcelTransfer />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/outgoing-parcels"
-                          element={
-                            <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", "ADMIN"]}>
-                              <MainLayout>
-                                <OutgoingParcels />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/incoming-parcels"
-                          element={
-                            <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER", "ADMIN"]}>
-                              <MainLayout>
-                                <IncomingParcels />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/pickup-request"
-                          element={
-                            <ProtectedRoute allowedRoles={["FRONTDESK", "MANAGER",]}>
-                              <MainLayout>
-                                <PickupRequest />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/call-center"
-                          element={
-                            <ProtectedRoute allowedRoles={["CALLER", "FRONTDESK", "MANAGER", "ADMIN"]}>
-                              <MainLayout>
-                                <PreDeliveryQueue />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/call-center/follow-up"
-                          element={
-                            <ProtectedRoute allowedRoles={["CALLER"]}>
-                              <MainLayout>
-                                <PostDeliveryFollowUp />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/call-center/home-delivery"
-                          element={
-                            <ProtectedRoute allowedRoles={["CALLER"]}>
-                              <MainLayout>
-                                <HomeDeliveryWatchlist />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        {/* Call Center demo page (no auth, UI only) */}
+                              {/* ════════════════════════════════
+                                  DELIVERY HUB  /delivery/*
+                              ════════════════════════════════ */}
+                              <Route path="/delivery/assignments" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ParcelSelection /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/rider-selection" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ParcelRiderSelection /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/active" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ActiveDeliveries /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/reconciliation" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><Reconciliation /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/reconciliation-confirmation" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ReconciliationConfirmation /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/analytics" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ReconciliationAnalytics /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/rider-detail" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><RiderDetail /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/financial" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><FinancialDashboard /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/fuel-requests" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><AdminFuelRequests /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/call-center" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><PreDeliveryQueue /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/call-center/follow-up" element={<ProtectedRoute allowedRoles={["CALLER"]}><DeliveryLayout><PostDeliveryFollowUp /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/call-center/home-delivery" element={<ProtectedRoute allowedRoles={["CALLER"]}><DeliveryLayout><HomeDeliveryWatchlist /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/search" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><ParcelSearch /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/pickup" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><PickupRequest /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/addresses" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><AddressManagement /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/addresses" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><AddressManagement /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/smart-search" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><SmartSearch /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/settings" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><BranchSettings /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/preferences" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><Preferences /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/help" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><Help /></DeliveryLayout></ProtectedRoute>} />
 
-                        <Route
-                          path="/parcel-costs-pod"
-                          element={
-                            <MainLayout>
-                              <ParcelCostsAndPOD />
-                            </MainLayout>
-                          }
-                        />
-                        <Route
-                          path="/parcel-review"
-                          element={
-                            <MainLayout>
-                              <ParcelReview />
-                            </MainLayout>
-                          }
-                        />
-                        <Route
-                          path="/parcel-sms-success"
-                          element={
-                            <MainLayout>
-                              <ParcelSMSSuccess />
-                            </MainLayout>
-                          }
-                        />
-                        <Route
-                          path="/package-assignments"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
-                              <MainLayout>
-                                <ParcelSelection />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/rider-selection"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
-                              <MainLayout>
-                                <ParcelRiderSelection />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/active-deliveries"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
-                              <MainLayout>
-                                <ActiveDeliveries />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/rider/dashboard"
-                          element={
-                            <ProtectedRoute allowedRoles={["RIDER"]}>
-                              <RiderLayout>
-                                <RiderDashboard />
-                              </RiderLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/rider/history"
-                          element={
-                            <ProtectedRoute allowedRoles={["RIDER"]}>
-                              <RiderLayout>
-                                <RiderHistory />
-                              </RiderLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/rider/earnings"
-                          element={
-                            <ProtectedRoute allowedRoles={["RIDER"]}>
-                              <RiderLayout>
-                                <RiderEarnings />
-                              </RiderLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/rider/fuel-request"
-                          element={
-                            <ProtectedRoute allowedRoles={["RIDER"]}>
-                              <RiderLayout>
-                                <RiderFuelRequest />
-                              </RiderLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/driver-tracker"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
-                              <MainLayout>
-                                <DriverInboundReconciliation />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/driver-tracker/:phoneKey"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
-                              <MainLayout>
-                                <DriverTrackerDetail />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route path="/reconciliation-history" element={<Navigate to="/reconciliation" replace />} />
-                        <Route
-                          path="/rider-detail"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
-                              <MainLayout>
-                                <RiderDetail />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/reconciliation-analytics"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
-                              <MainLayout>
-                                <ReconciliationAnalytics />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/reconciliation"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK", "CALLER"]}>
-                              <MainLayout>
-                                <Reconciliation />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/reconciliation-confirmation"
-                          element={
-                            <ProtectedRoute>
-                              <MainLayout>
-                                <ReconciliationConfirmation />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/financial-dashboard"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
-                              <MainLayout>
-                                <FinancialDashboard />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/shelf-management"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "ADMIN", "FRONTDESK"]}>
-                              <MainLayout>
-                                <ShelfManagement />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                        <Route
-                          path="/parcel-edit"
-                          element={
-                            <ProtectedRoute allowedRoles={["MANAGER", "FRONTDESK"]}>
-                              <MainLayout>
-                                <ParcelEdit />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
+                              {/* ════════════════════════════════
+                                  ADMIN SHELL  /admin/*
+                              ════════════════════════════════ */}
+                              <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminStatistics /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/statistics" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminStatistics /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/stations" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><StationManagement /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/users" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><UserManagement /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/parcels" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><SystemParcelOverview /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/reconciliation" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminReconciliation /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/financial" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminFinancialDashboard /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/financial-reports" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><FinancialReports /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/system-logs" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><SystemLogs /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/fuel-requests" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminFuelRequests /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><TenantSettings /></AdminLayout></ProtectedRoute>} />
 
-                        {/* Admin Routes */}
-                        <Route
-                          path="/admin/dashboard"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN"]}>
-                              <MainLayout>
-                                <AdminStatistics />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
+                              {/* Super Admin only */}
+                              <Route path="/admin/tenants" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminLayout><TenantManagement /></SuperAdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminLayout><CrossTenantAnalytics /></SuperAdminLayout></ProtectedRoute>} />
 
-                        <Route
-                          path="/admin/stations"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN"]}>
-                              <MainLayout>
-                                <StationManagement />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
+                              {/* ════════════════════════════════
+                                  RIDER APP  /rider/*  (unchanged)
+                              ════════════════════════════════ */}
+                              <Route path="/rider/dashboard" element={<ProtectedRoute allowedRoles={["RIDER"]}><RiderLayout><RiderDashboard /></RiderLayout></ProtectedRoute>} />
+                              <Route path="/rider/history" element={<ProtectedRoute allowedRoles={["RIDER"]}><RiderLayout><RiderHistory /></RiderLayout></ProtectedRoute>} />
+                              <Route path="/rider/earnings" element={<ProtectedRoute allowedRoles={["RIDER"]}><RiderLayout><RiderEarnings /></RiderLayout></ProtectedRoute>} />
+                              <Route path="/rider/fuel-request" element={<ProtectedRoute allowedRoles={["RIDER"]}><RiderLayout><RiderFuelRequest /></RiderLayout></ProtectedRoute>} />
 
-                        <Route
-                          path="/admin/users"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN"]}>
-                              <MainLayout>
-                                <UserManagement />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/admin/parcels"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN"]}>
-                              <MainLayout>
-                                <SystemParcelOverview />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/admin/reconciliation"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN"]}>
-                              <MainLayout>
-                                <AdminReconciliation />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/admin/financial"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN"]}>
-                              <MainLayout>
-                                <AdminFinancialDashboard />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/admin/system-logs"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN"]}>
-                              <MainLayout>
-                                <SystemLogs />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/admin/financial-reports"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN"]}>
-                              <MainLayout>
-                                <FinancialReports />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/admin/statistics"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN"]}>
-                              <MainLayout>
-                                <AdminFinancialDashboard />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/admin/fuel-requests"
-                          element={
-                            <ProtectedRoute allowedRoles={["ADMIN", "MANAGER"]}>
-                              <MainLayout>
-                                <AdminFuelRequests />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/preferences"
-                          element={
-                            <ProtectedRoute>
-                              <MainLayout>
-                                <Preferences />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/help"
-                          element={
-                            <ProtectedRoute>
-                              <MainLayout>
-                                <Help />
-                              </MainLayout>
-                            </ProtectedRoute>
-                          }
-                        />
-                      </Routes>
-                    <ScrollController />
-                    </BrowserRouter>
-                  </ToastProvider>
-                </ShelfProvider>
-                </DriverTrackerProvider>
-              </FrontdeskParcelProvider>
-            </ParcelProvider>
-          </UserProvider>
-        </LocationProvider>
-      </StationProvider>
+                              {/* ════════════════════════════════
+                                  LEGACY REDIRECTS (backward compat)
+                              ════════════════════════════════ */}
+                              <Route path="/parcel-intake" element={<Navigate to="/parcel/intake" replace />} />
+                              <Route path="/parcel-search" element={<Navigate to="/parcel/search" replace />} />
+                              <Route path="/parcel-edit" element={<Navigate to="/parcel/edit" replace />} />
+                              <Route path="/parcel-transfer" element={<Navigate to="/parcel/transfer" replace />} />
+                              <Route path="/incoming-parcels" element={<Navigate to="/parcel/incoming" replace />} />
+                              <Route path="/outgoing-parcels" element={<Navigate to="/parcel/outgoing" replace />} />
+                              <Route path="/shelf-management" element={<Navigate to="/parcel/shelf" replace />} />
+                              <Route path="/pickup-request" element={<Navigate to="/parcel/pickup" replace />} />
+                              <Route path="/driver-tracker" element={<Navigate to="/parcel/driver-tracker" replace />} />
+                              <Route path="/driver-tracker/:phoneKey" element={<Navigate to="/parcel/driver-tracker" replace />} />
+                              <Route path="/smart-search" element={<Navigate to="/parcel/smart-search" replace />} />
+                              <Route path="/package-assignments" element={<Navigate to="/delivery/assignments" replace />} />
+                              <Route path="/rider-selection" element={<Navigate to="/delivery/rider-selection" replace />} />
+                              <Route path="/active-deliveries" element={<Navigate to="/delivery/active" replace />} />
+                              <Route path="/reconciliation" element={<Navigate to="/delivery/reconciliation" replace />} />
+                              <Route path="/reconciliation-history" element={<Navigate to="/delivery/reconciliation" replace />} />
+                              <Route path="/reconciliation-confirmation" element={<Navigate to="/delivery/reconciliation-confirmation" replace />} />
+                              <Route path="/reconciliation-analytics" element={<Navigate to="/delivery/analytics" replace />} />
+                              <Route path="/rider-detail" element={<Navigate to="/delivery/rider-detail" replace />} />
+                              <Route path="/financial-dashboard" element={<Navigate to="/delivery/financial" replace />} />
+                              <Route path="/call-center" element={<Navigate to="/delivery/call-center" replace />} />
+                              <Route path="/call-center/follow-up" element={<Navigate to="/delivery/call-center/follow-up" replace />} />
+                              <Route path="/call-center/home-delivery" element={<Navigate to="/delivery/call-center/home-delivery" replace />} />
+                              <Route path="/preferences" element={<Navigate to="/parcel/preferences" replace />} />
+                              <Route path="/help" element={<Navigate to="/parcel/help" replace />} />
+                              <Route path="/admin/fuel-requests-old" element={<Navigate to="/admin/fuel-requests" replace />} />
+                            </Routes>
+                            <ScrollController />
+                          </BrowserRouter>
+                        </ToastProvider>
+                      </ShelfProvider>
+                    </DriverTrackerProvider>
+                  </FrontdeskParcelProvider>
+                </ParcelProvider>
+              </UserProvider>
+            </LocationProvider>
+          </StationProvider>
+        </TenantProvider>
+      </BrandingProvider>
     </ThemeProvider>
   );
 };
-
