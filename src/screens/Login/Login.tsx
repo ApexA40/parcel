@@ -38,7 +38,7 @@ export const Login = (): JSX.Element => {
         if (userRole === "SUPER_ADMIN") {
           navigate("/admin/dashboard", { replace: true });
         } else if (userRole === "ADMIN") {
-          navigate("/admin/financial", { replace: true });
+          navigate("/admin/dashboard", { replace: true });
         } else if (userRole === "MANAGER") {
           navigate("/delivery/search", { replace: true });
         } else if (userRole === "FRONTDESK") {
@@ -166,7 +166,7 @@ export const Login = (): JSX.Element => {
           if (normalizedRole === "SUPER_ADMIN") {
             navigate("/admin/dashboard", { replace: true });
           } else if (normalizedRole === "ADMIN") {
-            navigate("/admin/financial", { replace: true });
+            navigate("/admin/dashboard", { replace: true });
           } else if (normalizedRole === "MANAGER") {
             navigate("/delivery/search", { replace: true });
           } else if (normalizedRole === "FRONTDESK") {

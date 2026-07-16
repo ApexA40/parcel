@@ -17,7 +17,6 @@ const navItems = [
     { label: "System Parcels",      path: "/admin/parcels",           icon: Package,         roles: ["ADMIN", "SUPER_ADMIN"] },
     { label: "Reconciliation",      path: "/admin/reconciliation",    icon: DollarSignIcon,  roles: ["ADMIN", "SUPER_ADMIN"] },
     { label: "Financial Reports",   path: "/admin/financial-reports", icon: BarChart2,       roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "Financial Dashboard", path: "/admin/financial",         icon: DollarSignIcon,  roles: ["ADMIN", "SUPER_ADMIN"] },
     { label: "System Logs",         path: "/admin/system-logs",       icon: ScrollTextIcon,  roles: ["ADMIN", "SUPER_ADMIN"] },
     { label: "Fuel Requests",       path: "/admin/fuel-requests",     icon: Fuel,            roles: ["ADMIN", "SUPER_ADMIN"] },
     { label: "Tenant Settings",     path: "/admin/settings",          icon: Settings,        roles: ["ADMIN", "SUPER_ADMIN"] },
