@@ -10,9 +10,6 @@ import {
     Phone, Printer, RotateCcw, Save, UploadCloud, X,
 } from "lucide-react";
 
-const DEFAULT_PRIMARY = "#ea690c";
-const DEFAULT_SECONDARY = "#1e40af";
-
 const inputCls =
     "h-10 rounded-lg border-[#dcdcdc] bg-white shadow-none " +
     "focus-visible:ring-2 focus-visible:ring-[#ea690c]/20 focus-visible:border-[#ea690c]";
@@ -39,39 +36,6 @@ const IconInput = ({ icon: Icon, className, ...props }: IconInputProps) => (
     </div>
 );
 
-interface ColorFieldProps {
-    label: string;
-    hint: string;
-    value: string;
-    onChange: (value: string) => void;
-}
-
-const ColorField = ({ label, hint, value, onChange }: ColorFieldProps) => (
-    <div>
-        <Label className={labelCls}>{label}</Label>
-        <div className="flex items-center gap-2.5">
-            <label
-                className="relative h-10 w-10 flex-shrink-0 cursor-pointer overflow-hidden rounded-lg ring-1 ring-inset ring-black/10 transition-transform hover:scale-105"
-                style={{ backgroundColor: value }}
-            >
-                <input
-                    type="color"
-                    value={value}
-                    onChange={e => onChange(e.target.value)}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    aria-label={label}
-                />
-            </label>
-            <Input
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                className={cn(inputCls, "font-mono text-sm uppercase")}
-            />
-        </div>
-        <p className={hintCls}>{hint}</p>
-    </div>
-);
-
 export const BranchSettings = (): JSX.Element => {
     const { branding, setBranchBranding, resetBranchBranding } = useBranding();
     const { showToast } = useToast();
@@ -82,8 +46,6 @@ export const BranchSettings = (): JSX.Element => {
     const [form, setForm] = useState({
         branchName: branding.branchName || "",
         logoUrl: branding.logoUrl || "",
-        primaryColor: branding.primaryColor,
-        secondaryColor: branding.secondaryColor,
         branchAddress: branding.branchAddress || "",
         branchPhone: branding.branchPhone || "",
         branchEmail: branding.branchEmail || "",
@@ -97,8 +59,6 @@ export const BranchSettings = (): JSX.Element => {
     const savedValues = {
         branchName: branding.branchName || "",
         logoUrl: branding.logoUrl || "",
-        primaryColor: branding.primaryColor,
-        secondaryColor: branding.secondaryColor,
         branchAddress: branding.branchAddress || "",
         branchPhone: branding.branchPhone || "",
         branchEmail: branding.branchEmail || "",
@@ -147,8 +107,6 @@ export const BranchSettings = (): JSX.Element => {
         setBranchBranding({
             branchName: form.branchName || undefined,
             logoUrl: form.logoUrl || undefined,
-            primaryColor: form.primaryColor,
-            secondaryColor: form.secondaryColor,
             branchAddress: form.branchAddress || undefined,
             branchPhone: form.branchPhone || undefined,
             branchEmail: form.branchEmail || undefined,
@@ -162,7 +120,7 @@ export const BranchSettings = (): JSX.Element => {
     const handleReset = () => {
         resetBranchBranding();
         setForm({
-            branchName: "", logoUrl: "", primaryColor: DEFAULT_PRIMARY, secondaryColor: DEFAULT_SECONDARY,
+            branchName: "", logoUrl: "",
             branchAddress: "", branchPhone: "", branchEmail: "", operatingHours: "",
             companyTagline: "", printFooterNote: "",
         });
@@ -172,7 +130,7 @@ export const BranchSettings = (): JSX.Element => {
 
     return (
         <div className="w-full">
-            <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            <div className="mx-auto w-full px-4 py-6 sm:px-6 lg:w-[80%] lg:max-w-none lg:px-0 lg:py-8">
 
                 {/* ── Page header with actions ── */}
                 <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -292,20 +250,6 @@ export const BranchSettings = (): JSX.Element => {
                                 <p className={hintCls}>Shown in the navbar and on printed labels.</p>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                <ColorField
-                                    label="Primary Color"
-                                    hint="Buttons, accents and highlights."
-                                    value={form.primaryColor}
-                                    onChange={v => setField("primaryColor", v)}
-                                />
-                                <ColorField
-                                    label="Secondary Color"
-                                    hint="Secondary UI elements."
-                                    value={form.secondaryColor}
-                                    onChange={v => setField("secondaryColor", v)}
-                                />
-                            </div>
                             </div>
 
                             {/* Live brand preview */}
@@ -313,7 +257,7 @@ export const BranchSettings = (): JSX.Element => {
                                 <div className="lg:sticky lg:top-24">
                                 <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Live Preview</p>
                                 <div className="overflow-hidden rounded-xl border border-[#e3e3e3]">
-                                    <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: form.primaryColor }}>
+                                    <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: branding.primaryColor }}>
                                         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/95">
                                             {logoPreview
                                                 ? <img src={logoPreview} alt="Logo" className="h-full w-full object-contain p-0.5" />
@@ -324,15 +268,15 @@ export const BranchSettings = (): JSX.Element => {
                                         </span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2.5 bg-[#fafafa] px-4 py-3.5">
-                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: form.primaryColor }}>
+                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: branding.primaryColor }}>
                                             Primary Button
                                         </span>
-                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: form.secondaryColor }}>
+                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: branding.secondaryColor }}>
                                             Secondary Button
                                         </span>
                                         <span
                                             className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                                            style={{ backgroundColor: `${form.secondaryColor}1a`, color: form.secondaryColor }}
+                                            style={{ backgroundColor: `${branding.secondaryColor}1a`, color: branding.secondaryColor }}
                                         >
                                             Status Badge
                                         </span>
