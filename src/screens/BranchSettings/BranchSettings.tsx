@@ -1,70 +1,38 @@
 import { useRef, useState } from "react";
-import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { useBranding } from "../../contexts/BrandingContext";
 import { useToast } from "../../components/ui/toast";
+import { cn } from "../../lib/utils";
 import {
     Building2, Clock, ImageIcon, Mail, Paintbrush,
-    Phone, Printer, RotateCcw, Save, Upload, X,
+    Phone, Printer, RotateCcw, Save, UploadCloud, X,
 } from "lucide-react";
 
-const DEFAULT_PRIMARY = "#ea690c";
-const DEFAULT_SECONDARY = "#1e40af";
+const inputCls =
+    "h-10 rounded-lg border-[#dcdcdc] bg-white shadow-none " +
+    "focus-visible:ring-2 focus-visible:ring-[#ea690c]/20 focus-visible:border-[#ea690c]";
 
-interface SectionCardProps {
+const labelCls = "text-[13px] font-medium text-neutral-700 mb-1.5 block";
+const hintCls = "text-xs text-[#9a9a9a] mt-1.5";
+
+type TabId = "identity" | "info" | "print";
+
+const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: "identity", label: "Visual Identity", icon: Paintbrush },
+    { id: "info", label: "Branch Info", icon: Building2 },
+    { id: "print", label: "Printing", icon: Printer },
+];
+
+interface IconInputProps extends React.ComponentProps<typeof Input> {
     icon: React.ComponentType<{ className?: string }>;
-    title: string;
-    description: string;
-    children: React.ReactNode;
 }
 
-const SectionCard = ({ icon: Icon, title, description, children }: SectionCardProps) => (
-    <Card className="border border-[#d1d1d1] bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 sm:px-6 border-b border-[#ececec]">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-orange-50">
-                <Icon className="h-[18px] w-[18px] text-[#ea690c]" />
-            </div>
-            <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-neutral-800">{title}</h2>
-                <p className="text-xs text-[#8a8a8a] mt-0.5">{description}</p>
-            </div>
-        </div>
-        <CardContent className="p-5 sm:p-6">{children}</CardContent>
-    </Card>
-);
-
-interface ColorFieldProps {
-    label: string;
-    hint: string;
-    value: string;
-    onChange: (value: string) => void;
-}
-
-const ColorField = ({ label, hint, value, onChange }: ColorFieldProps) => (
-    <div>
-        <Label className="text-sm font-medium text-neutral-800 mb-1.5 block">{label}</Label>
-        <div className="flex items-center gap-2">
-            <label
-                className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[#d1d1d1] shadow-sm"
-                style={{ backgroundColor: value }}
-            >
-                <input
-                    type="color"
-                    value={value}
-                    onChange={e => onChange(e.target.value)}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    aria-label={label}
-                />
-            </label>
-            <Input
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                className="border-[#d1d1d1] font-mono text-sm uppercase"
-            />
-        </div>
-        <p className="text-xs text-[#9a9a9a] mt-1.5">{hint}</p>
+const IconInput = ({ icon: Icon, className, ...props }: IconInputProps) => (
+    <div className="relative">
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a8a8a8]" />
+        <Input {...props} className={cn(inputCls, "pl-9", className)} />
     </div>
 );
 
@@ -72,12 +40,12 @@ export const BranchSettings = (): JSX.Element => {
     const { branding, setBranchBranding, resetBranchBranding } = useBranding();
     const { showToast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [activeTab, setActiveTab] = useState<TabId>("identity");
+    const [dragActive, setDragActive] = useState(false);
 
     const [form, setForm] = useState({
         branchName: branding.branchName || "",
         logoUrl: branding.logoUrl || "",
-        primaryColor: branding.primaryColor,
-        secondaryColor: branding.secondaryColor,
         branchAddress: branding.branchAddress || "",
         branchPhone: branding.branchPhone || "",
         branchEmail: branding.branchEmail || "",
@@ -91,8 +59,6 @@ export const BranchSettings = (): JSX.Element => {
     const savedValues = {
         branchName: branding.branchName || "",
         logoUrl: branding.logoUrl || "",
-        primaryColor: branding.primaryColor,
-        secondaryColor: branding.secondaryColor,
         branchAddress: branding.branchAddress || "",
         branchPhone: branding.branchPhone || "",
         branchEmail: branding.branchEmail || "",
@@ -107,9 +73,7 @@ export const BranchSettings = (): JSX.Element => {
     const setField = <K extends keyof typeof form>(key: K, value: string) =>
         setForm(f => ({ ...f, [key]: value }));
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const processLogoFile = (file: File) => {
         if (!file.type.startsWith("image/")) { showToast("Please select a valid image file.", "error"); return; }
         if (file.size > 2 * 1024 * 1024) { showToast("Image must be under 2MB.", "error"); return; }
         const reader = new FileReader();
@@ -119,6 +83,18 @@ export const BranchSettings = (): JSX.Element => {
             setForm(f => ({ ...f, logoUrl: base64 }));
         };
         reader.readAsDataURL(file);
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) processLogoFile(file);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setDragActive(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) processLogoFile(file);
     };
 
     const handleRemoveLogo = () => {
@@ -131,8 +107,6 @@ export const BranchSettings = (): JSX.Element => {
         setBranchBranding({
             branchName: form.branchName || undefined,
             logoUrl: form.logoUrl || undefined,
-            primaryColor: form.primaryColor,
-            secondaryColor: form.secondaryColor,
             branchAddress: form.branchAddress || undefined,
             branchPhone: form.branchPhone || undefined,
             branchEmail: form.branchEmail || undefined,
@@ -146,7 +120,7 @@ export const BranchSettings = (): JSX.Element => {
     const handleReset = () => {
         resetBranchBranding();
         setForm({
-            branchName: "", logoUrl: "", primaryColor: DEFAULT_PRIMARY, secondaryColor: DEFAULT_SECONDARY,
+            branchName: "", logoUrl: "",
             branchAddress: "", branchPhone: "", branchEmail: "", operatingHours: "",
             companyTagline: "", printFooterNote: "",
         });
@@ -155,242 +129,262 @@ export const BranchSettings = (): JSX.Element => {
     };
 
     return (
-        <div className="w-full min-h-full flex flex-col">
-            <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="w-full">
+            <div className="mx-auto w-full px-4 py-6 sm:px-6 lg:w-[80%] lg:max-w-none lg:px-0 lg:py-8">
 
-                {/* ── Page header ── */}
-                <div className="mb-6">
-                    <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 tracking-tight">Branch Settings</h1>
-                    <p className="text-sm text-[#7a7a7a] mt-1">
-                        Manage your branch's identity, contact details, and print settings.
-                    </p>
+                {/* ── Page header with actions ── */}
+                <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Branch Settings</h1>
+                        <p className="mt-1 text-sm text-[#7d7d7d]">
+                            Customise how your branch appears in the app and on printed materials.
+                        </p>
+                    </div>
+                    <div className="flex flex-shrink-0 items-center gap-2.5">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleReset}
+                            className="gap-1.5 rounded-lg border-[#dcdcdc] text-neutral-600 hover:bg-gray-100"
+                        >
+                            <RotateCcw className="h-3.5 w-3.5" /> Reset
+                        </Button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={!isDirty}
+                            className="relative gap-2 rounded-lg bg-[#ea690c] px-5 text-white shadow-sm hover:bg-[#ea690c]/90"
+                        >
+                            <Save className="h-4 w-4" /> Save Settings
+                            {isDirty && (
+                                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#1e40af]" />
+                            )}
+                        </Button>
+                    </div>
                 </div>
 
-                <div className="flex flex-col gap-5">
+                {/* ── Tabs ── */}
+                <div className="mb-6 flex w-full rounded-xl bg-[#ececec] p-1 sm:w-auto sm:self-start sm:inline-flex">
+                    {TABS.map(({ id, label, icon: Icon }) => (
+                        <button
+                            key={id}
+                            type="button"
+                            onClick={() => setActiveTab(id)}
+                            className={cn(
+                                "flex flex-1 items-center justify-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all sm:flex-initial sm:px-4 sm:text-sm",
+                                activeTab === id
+                                    ? "bg-white text-neutral-900 shadow-sm"
+                                    : "text-[#7d7d7d] hover:text-neutral-800"
+                            )}
+                        >
+                            <Icon className={cn("hidden h-4 w-4 sm:block", activeTab === id ? "text-[#ea690c]" : "text-[#a8a8a8]")} />
+                            <span>{label}</span>
+                        </button>
+                    ))}
+                </div>
 
-                    {/* ── Visual identity ── */}
-                    <SectionCard
-                        icon={Paintbrush}
-                        title="Visual Identity"
-                        description="Logo, branch name and brand colours shown across the app"
-                    >
-                        <div className="space-y-6">
-                            <div>
-                                <Label className="text-sm font-medium text-neutral-800 mb-1.5 block">Branch Name</Label>
-                                <Input
-                                    value={form.branchName}
-                                    onChange={e => setField("branchName", e.target.value)}
-                                    placeholder="e.g. Kumasi Branch"
-                                    className="border-[#d1d1d1] max-w-sm"
-                                />
-                                <p className="text-xs text-[#9a9a9a] mt-1.5">Shown in the navbar and on printed labels.</p>
-                            </div>
+                {/* ── Panel ── */}
+                <div className="rounded-2xl border border-[#e3e3e3] bg-white p-5 shadow-sm sm:p-7">
 
+                    {/* ═══ Visual Identity ═══ */}
+                    {activeTab === "identity" && (
+                        <div className="grid grid-cols-1 gap-7 lg:grid-cols-5 lg:gap-10">
+                            <div className="space-y-7 lg:col-span-3">
                             <div>
-                                <Label className="text-sm font-medium text-neutral-800 mb-1.5 block">Branch Logo</Label>
-                                <div className="flex flex-col sm:flex-row items-start gap-4">
-                                    <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-[#d1d1d1] bg-gray-50">
+                                <Label className={labelCls}>Branch Logo</Label>
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+                                    <div className="flex h-28 w-28 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#e3e3e3] bg-[#fafafa]">
                                         {logoPreview
-                                            ? <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain p-1.5" />
-                                            : <ImageIcon className="h-8 w-8 text-[#c4c4c4]" />}
+                                            ? <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain p-2" />
+                                            : <ImageIcon className="h-8 w-8 text-[#cfcfcf]" />}
                                     </div>
-                                    <div className="w-full max-w-sm space-y-2">
+                                    <div className="flex-1">
                                         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-                                        <div className="flex items-center gap-3">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => fileInputRef.current?.click()}
-                                                className="border-[#d1d1d1] text-neutral-700 hover:bg-gray-50 gap-1.5"
-                                            >
-                                                <Upload className="h-3.5 w-3.5" /> Upload Image
-                                            </Button>
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            onDragOver={e => { e.preventDefault(); setDragActive(true); }}
+                                            onDragLeave={() => setDragActive(false)}
+                                            onDrop={handleDrop}
+                                            className={cn(
+                                                "flex h-28 w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed transition-colors",
+                                                dragActive
+                                                    ? "border-[#ea690c] bg-orange-50/60"
+                                                    : "border-[#dcdcdc] bg-white hover:border-[#ea690c]/50 hover:bg-orange-50/30"
+                                            )}
+                                        >
+                                            <UploadCloud className={cn("h-6 w-6", dragActive ? "text-[#ea690c]" : "text-[#b0b0b0]")} />
+                                            <span className="text-sm font-medium text-neutral-700">
+                                                Click to upload <span className="font-normal text-[#9a9a9a]">or drag &amp; drop</span>
+                                            </span>
+                                            <span className="text-xs text-[#a8a8a8]">PNG, JPG or SVG · Max 2MB</span>
+                                        </button>
+                                        <div className="mt-2 flex items-center gap-3">
+                                            <Input
+                                                value={logoPreview.startsWith("data:") ? "" : form.logoUrl}
+                                                onChange={e => { setField("logoUrl", e.target.value); setLogoPreview(e.target.value); }}
+                                                placeholder="Or paste an image URL..."
+                                                className={cn(inputCls, "h-9 text-sm")}
+                                            />
                                             {logoPreview && (
                                                 <button
                                                     type="button"
                                                     onClick={handleRemoveLogo}
-                                                    className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 transition-colors"
+                                                    className="flex flex-shrink-0 items-center gap-1 text-xs font-medium text-red-500 transition-colors hover:text-red-700"
                                                 >
                                                     <X className="h-3.5 w-3.5" /> Remove
                                                 </button>
                                             )}
                                         </div>
-                                        <Input
-                                            value={logoPreview.startsWith("data:") ? "" : form.logoUrl}
-                                            onChange={e => { setField("logoUrl", e.target.value); setLogoPreview(e.target.value); }}
-                                            placeholder="Or paste an image URL..."
-                                            className="border-[#d1d1d1] text-sm"
-                                        />
-                                        <p className="text-xs text-[#9a9a9a]">PNG, JPG or SVG · Max 2MB</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                <ColorField
-                                    label="Primary Color"
-                                    hint="Buttons, accents and highlights."
-                                    value={form.primaryColor}
-                                    onChange={v => setField("primaryColor", v)}
+                            <div>
+                                <Label className={labelCls}>Branch Name</Label>
+                                <Input
+                                    value={form.branchName}
+                                    onChange={e => setField("branchName", e.target.value)}
+                                    placeholder="e.g. Kumasi Branch"
+                                    className={cn(inputCls, "max-w-sm")}
                                 />
-                                <ColorField
-                                    label="Secondary Color"
-                                    hint="Secondary UI elements."
-                                    value={form.secondaryColor}
-                                    onChange={v => setField("secondaryColor", v)}
-                                />
+                                <p className={hintCls}>Shown in the navbar and on printed labels.</p>
                             </div>
 
-                            <div className="rounded-lg border border-[#ececec] bg-gray-50/60 p-4">
-                                <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wide mb-3">Preview</p>
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <span className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm" style={{ backgroundColor: form.primaryColor }}>
-                                        Primary Button
-                                    </span>
-                                    <span className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm" style={{ backgroundColor: form.secondaryColor }}>
-                                        Secondary Button
-                                    </span>
+                            </div>
+
+                            {/* Live brand preview */}
+                            <div className="lg:col-span-2">
+                                <div className="lg:sticky lg:top-24">
+                                <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Live Preview</p>
+                                <div className="overflow-hidden rounded-xl border border-[#e3e3e3]">
+                                    <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: branding.primaryColor }}>
+                                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/95">
+                                            {logoPreview
+                                                ? <img src={logoPreview} alt="Logo" className="h-full w-full object-contain p-0.5" />
+                                                : <ImageIcon className="h-4 w-4 text-gray-400" />}
+                                        </div>
+                                        <span className="truncate text-sm font-semibold text-white">
+                                            {form.branchName || "Branch Name"}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2.5 bg-[#fafafa] px-4 py-3.5">
+                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: branding.primaryColor }}>
+                                            Primary Button
+                                        </span>
+                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: branding.secondaryColor }}>
+                                            Secondary Button
+                                        </span>
+                                        <span
+                                            className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                            style={{ backgroundColor: `${branding.secondaryColor}1a`, color: branding.secondaryColor }}
+                                        >
+                                            Status Badge
+                                        </span>
+                                    </div>
+                                </div>
                                 </div>
                             </div>
                         </div>
-                    </SectionCard>
+                    )}
 
-                    {/* ── Branch information ── */}
-                    <SectionCard
-                        icon={Building2}
-                        title="Branch Information"
-                        description="Contact details and operating hours"
-                    >
-                        <div className="space-y-5">
+                    {/* ═══ Branch Info ═══ */}
+                    {activeTab === "info" && (
+                        <div className="space-y-6">
                             <div>
-                                <Label className="text-sm font-medium text-neutral-800 mb-1.5 flex items-center gap-1.5">
-                                    <Building2 className="h-3.5 w-3.5 text-[#9a9a9a]" /> Physical Address
-                                </Label>
-                                <Input
+                                <Label className={labelCls}>Physical Address</Label>
+                                <IconInput
+                                    icon={Building2}
                                     value={form.branchAddress}
                                     onChange={e => setField("branchAddress", e.target.value)}
                                     placeholder="e.g. 12 Adum Street, Kumasi, Ghana"
-                                    className="border-[#d1d1d1]"
                                 />
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                                 <div>
-                                    <Label className="text-sm font-medium text-neutral-800 mb-1.5 flex items-center gap-1.5">
-                                        <Phone className="h-3.5 w-3.5 text-[#9a9a9a]" /> Phone Number
-                                    </Label>
-                                    <Input
+                                    <Label className={labelCls}>Phone Number</Label>
+                                    <IconInput
+                                        icon={Phone}
                                         type="tel"
                                         value={form.branchPhone}
                                         onChange={e => setField("branchPhone", e.target.value)}
-                                        placeholder="e.g. +233 24 000 0000"
-                                        className="border-[#d1d1d1]"
+                                        placeholder="+233 24 000 0000"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-sm font-medium text-neutral-800 mb-1.5 flex items-center gap-1.5">
-                                        <Mail className="h-3.5 w-3.5 text-[#9a9a9a]" /> Email Address
-                                    </Label>
-                                    <Input
+                                    <Label className={labelCls}>Email Address</Label>
+                                    <IconInput
+                                        icon={Mail}
                                         type="email"
                                         value={form.branchEmail}
                                         onChange={e => setField("branchEmail", e.target.value)}
-                                        placeholder="e.g. kumasi@mnm.com"
-                                        className="border-[#d1d1d1]"
+                                        placeholder="kumasi@mnm.com"
                                     />
                                 </div>
                             </div>
                             <div>
-                                <Label className="text-sm font-medium text-neutral-800 mb-1.5 flex items-center gap-1.5">
-                                    <Clock className="h-3.5 w-3.5 text-[#9a9a9a]" /> Operating Hours
-                                </Label>
-                                <Input
+                                <Label className={labelCls}>Operating Hours</Label>
+                                <IconInput
+                                    icon={Clock}
                                     value={form.operatingHours}
                                     onChange={e => setField("operatingHours", e.target.value)}
                                     placeholder="e.g. Mon – Fri: 8am – 6pm · Sat: 9am – 2pm"
-                                    className="border-[#d1d1d1]"
                                 />
-                                <p className="text-xs text-[#9a9a9a] mt-1.5">Shown on printed labels and customer-facing pages.</p>
+                                <p className={hintCls}>Shown on printed labels and customer-facing pages.</p>
                             </div>
                         </div>
-                    </SectionCard>
+                    )}
 
-                    {/* ── Print settings ── */}
-                    <SectionCard
-                        icon={Printer}
-                        title="Print Settings"
-                        description="Text shown on labels and manifests"
-                    >
-                        <div className="space-y-5">
+                    {/* ═══ Printing ═══ */}
+                    {activeTab === "print" && (
+                        <div className="grid grid-cols-1 gap-7 lg:grid-cols-5 lg:gap-10">
+                            <div className="space-y-6 lg:col-span-3">
                             <div>
-                                <Label className="text-sm font-medium text-neutral-800 mb-1.5 block">Company Tagline</Label>
+                                <Label className={labelCls}>Company Tagline</Label>
                                 <Input
                                     value={form.companyTagline}
                                     onChange={e => setField("companyTagline", e.target.value)}
                                     placeholder="e.g. Parcel Delivery System"
-                                    className="border-[#d1d1d1]"
+                                    className={inputCls}
                                 />
-                                <p className="text-xs text-[#9a9a9a] mt-1.5">Appears below the company name on printed labels and manifests.</p>
+                                <p className={hintCls}>Appears below the company name on printed labels and manifests.</p>
                             </div>
                             <div>
-                                <Label className="text-sm font-medium text-neutral-800 mb-1.5 block">Footer Note</Label>
+                                <Label className={labelCls}>Footer Note</Label>
                                 <Input
                                     value={form.printFooterNote}
                                     onChange={e => setField("printFooterNote", e.target.value)}
                                     placeholder="e.g. For inquiries, contact M&M Parcel Services"
-                                    className="border-[#d1d1d1]"
+                                    className={inputCls}
                                 />
-                                <p className="text-xs text-[#9a9a9a] mt-1.5">Printed at the bottom of every label and manifest.</p>
+                                <p className={hintCls}>Printed at the bottom of every label and manifest.</p>
+                            </div>
                             </div>
 
-                            <div className="rounded-lg border border-[#ececec] bg-gray-50/60 p-4">
-                                <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wide mb-3">Label Header Preview</p>
-                                <div className="max-w-sm border-2 border-black bg-white p-3">
-                                    <div className="flex items-center justify-center gap-3 border-b-2 border-black pb-2">
-                                        {logoPreview
-                                            ? <img src={logoPreview} alt="Logo" className="h-10 w-10 object-contain" />
-                                            : (
-                                                <div className="flex h-10 w-10 items-center justify-center rounded bg-gray-200">
-                                                    <ImageIcon className="h-5 w-5 text-gray-400" />
-                                                </div>
-                                            )}
-                                        <div>
-                                            <p className="text-base font-bold leading-tight text-black">{form.branchName || "Branch Name"}</p>
-                                            <p className="text-xs text-black">{form.companyTagline || "Parcel Delivery System"}</p>
+                            <div className="lg:col-span-2">
+                                <div className="lg:sticky lg:top-24">
+                                <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Label Header Preview</p>
+                                <div className="rounded-xl bg-[#fafafa] p-5 sm:p-6">
+                                    <div className="mx-auto max-w-sm border-2 border-black bg-white p-3 shadow-sm">
+                                        <div className="flex items-center justify-center gap-3 border-b-2 border-black pb-2">
+                                            {logoPreview
+                                                ? <img src={logoPreview} alt="Logo" className="h-10 w-10 object-contain" />
+                                                : (
+                                                    <div className="flex h-10 w-10 items-center justify-center rounded bg-gray-200">
+                                                        <ImageIcon className="h-5 w-5 text-gray-400" />
+                                                    </div>
+                                                )}
+                                            <div>
+                                                <p className="text-base font-bold leading-tight text-black">{form.branchName || "Branch Name"}</p>
+                                                <p className="text-xs text-black">{form.companyTagline || "Parcel Delivery System"}</p>
+                                            </div>
                                         </div>
+                                        <p className="mt-2 text-center text-[10px] text-black">{form.printFooterNote || "For inquiries, contact M&M Parcel Services"}</p>
                                     </div>
-                                    <p className="mt-2 text-center text-[10px] text-black">{form.printFooterNote || "For inquiries, contact M&M Parcel Services"}</p>
+                                </div>
                                 </div>
                             </div>
                         </div>
-                    </SectionCard>
-                </div>
-            </div>
-
-            {/* ── Sticky action bar ── */}
-            <div className="sticky bottom-0 z-10 border-t border-[#e5e5e5] bg-white/95 backdrop-blur-sm">
-                <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
-                    <button
-                        type="button"
-                        onClick={handleReset}
-                        className="flex items-center gap-1.5 text-sm font-medium text-[#8a8a8a] hover:text-neutral-700 transition-colors"
-                    >
-                        <RotateCcw className="h-3.5 w-3.5" /> Reset to Defaults
-                    </button>
-                    <div className="flex items-center gap-3">
-                        {isDirty && (
-                            <span className="hidden sm:flex items-center gap-1.5 text-xs text-[#9a9a9a]">
-                                <span className="h-1.5 w-1.5 rounded-full bg-[#ea690c]" /> Unsaved changes
-                            </span>
-                        )}
-                        <Button
-                            onClick={handleSave}
-                            disabled={!isDirty}
-                            className="bg-[#ea690c] text-white hover:bg-[#ea690c]/90 gap-2"
-                        >
-                            <Save className="h-4 w-4" /> Save Settings
-                        </Button>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>
