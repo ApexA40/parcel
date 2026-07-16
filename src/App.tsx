@@ -49,7 +49,6 @@ import { UserManagement } from "./screens/Admin/UserManagement/UserManagement";
 import { SystemParcelOverview } from "./screens/Admin/SystemParcelOverview/SystemParcelOverview";
 import { FinancialReports } from "./screens/Admin/FinancialReports/FinancialReports";
 import { AdminReconciliation } from "./screens/Admin/AdminReconciliation/AdminReconciliation";
-import { AdminFinancialDashboard } from "./screens/Admin/AdminFinancialDashboard/AdminFinancialDashboard";
 import { Preferences } from "./screens/Preferences/Preferences";
 import { Help } from "./screens/Help/Help";
 import { BranchSettings } from "./screens/BranchSettings/BranchSettings";
@@ -171,7 +170,7 @@ export const App = (): JSX.Element => {
                               <Route path="/admin/users" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><UserManagement /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/parcels" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><SystemParcelOverview /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/reconciliation" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminReconciliation /></AdminLayout></ProtectedRoute>} />
-                              <Route path="/admin/financial" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminFinancialDashboard /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/financial" element={<Navigate to="/admin/dashboard" replace />} />
                               <Route path="/admin/financial-reports" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><FinancialReports /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/system-logs" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><SystemLogs /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/fuel-requests" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminFuelRequests /></AdminLayout></ProtectedRoute>} />
