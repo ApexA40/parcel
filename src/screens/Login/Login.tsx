@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
-  UserIcon,
+  PhoneIcon,
   LockIcon,
   EyeIcon,
   EyeOffIcon,
   ArrowRightIcon,
-  PackageIcon,
   TruckIcon,
   MapPinIcon,
   AlertCircleIcon,
@@ -17,7 +16,6 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { Card, CardContent } from "../../components/ui/card";
 import { useStation, normalizeRole } from "../../contexts/StationContext";
 import authService from "../../services/authService";
 
@@ -204,98 +202,99 @@ export const Login = (): JSX.Element => {
   }, []);
 
   return (
-    <div className="min-h-screen min-h-[100dvh] w-full overflow-x-hidden flex flex-col lg:flex-row">
+    <div className="min-h-screen min-h-[100dvh] w-full overflow-x-hidden flex flex-col lg:flex-row bg-white">
       {/* LEFT SIDE - Brand Hero (Desktop Only) */}
-      <div className="hidden lg:flex lg:w-1/2 lg:min-h-screen bg-gradient-to-br from-[#ea690c] via-orange-600 to-orange-700 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-10 animate-float" style={{ animationDelay: '0s' }}>
-            <PackageIcon className="w-32 h-32 text-white" />
+      <div className="relative hidden overflow-hidden border-r border-orange-100 bg-gradient-to-b from-[#fff4ea] via-[#fbfaf8] to-[#fff7f0] lg:flex lg:w-[45%] lg:min-h-screen lg:flex-col lg:justify-between p-10 xl:p-14">
+        {/* dotted texture */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{ backgroundImage: "radial-gradient(rgba(20,20,20,0.06) 1px, transparent 1px)", backgroundSize: "26px 26px" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -left-24 top-1/4 h-[420px] w-[420px] rounded-full opacity-[0.14] blur-3xl"
+          style={{ background: "radial-gradient(circle, #ea690c, transparent 70%)" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-32 right-0 h-[380px] w-[380px] rounded-full opacity-[0.12] blur-3xl"
+          style={{ background: "radial-gradient(circle, #1e40af, transparent 70%)" }}
+        />
+
+        {/* logo */}
+        <div className="relative flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white p-2 shadow-md">
+            <img src="/logo-1.png" alt="M&M Logo" className="h-full w-full object-contain" />
           </div>
-          <div className="absolute top-40 right-20 animate-float" style={{ animationDelay: '1s' }}>
-            <TruckIcon className="w-40 h-40 text-white" />
-          </div>
-          <div className="absolute bottom-20 left-20 animate-float" style={{ animationDelay: '2s' }}>
-            <MapPinIcon className="w-36 h-36 text-white" />
-          </div>
-          <div className="absolute bottom-40 right-10 animate-float" style={{ animationDelay: '1.5s' }}>
-            <PackageIcon className="w-28 h-28 text-white" />
-          </div>
-          <div className="absolute top-1/2 left-1/4 animate-float" style={{ animationDelay: '0.5s' }}>
-            <Zap className="w-24 h-24 text-white" />
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-neutral-900">Mealex &amp; Mailex</h1>
+            <p className="text-sm text-neutral-500">Parcel Delivery System</p>
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-col justify-center px-16 text-white">
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-2xl p-2">
-                <img src="/logo-1.png" alt="M&M Logo" className="w-full h-full object-contain" />
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold tracking-tight">Mealex & Mailex</h1>
-                <p className="text-orange-100 text-lg">Parcel Delivery System</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6 max-w-md">
-            <h2 className="text-3xl font-bold leading-tight">
-              Fast, Reliable Delivery
-              <br />
-              <span className="text-orange-200">Across Ghana</span>
-            </h2>
-            <p className="text-orange-100 text-lg leading-relaxed">
-              Manage parcels, track deliveries, and streamline operations with our comprehensive delivery management platform.
-            </p>
-
-            <div className="flex flex-wrap gap-3 pt-4">
-              {[
-                { icon: CheckCircle2, label: "Real-time Tracking" },
-                { icon: Zap, label: "Fast Processing" },
-                { icon: TruckIcon, label: "Reliable Fleet" },
-              ].map((f) => (
-                <div key={f.label} className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 border border-white/20">
-                  <f.icon className="w-4 h-4" />
-                  <span className="text-sm font-medium">{f.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="absolute bottom-12 left-16 right-16 grid grid-cols-3 gap-8">
+        {/* headline + features */}
+        <div className="relative">
+          <h2 className="text-3xl font-extrabold leading-tight tracking-tight text-neutral-900 xl:text-4xl">
+            Fast, reliable delivery
+            <br />
+            <span className="bg-gradient-to-r from-[#ea690c] to-[#ff8c3a] bg-clip-text text-transparent">across Ghana.</span>
+          </h2>
+          <p className="mt-4 max-w-md text-base leading-relaxed text-neutral-500">
+            Manage parcels, track deliveries, and streamline operations — all from one purpose-built workspace.
+          </p>
+          <ul className="mt-8 space-y-4">
             {[
-              { value: "10K+", label: "Parcels Delivered" },
-              { value: "10+", label: "Active Stations" },
-              { value: "99%", label: "Success Rate" },
-            ].map((s) => (
-              <div key={s.label} className="text-center">
-                <p className="text-3xl font-bold mb-1">{s.value}</p>
-                <p className="text-orange-200 text-sm">{s.label}</p>
+              { icon: MapPinIcon, label: "Real-time delivery tracking across every branch" },
+              { icon: Zap, label: "Fast parcel intake and rider dispatch" },
+              { icon: TruckIcon, label: "Reliable fleet and automated reconciliation" },
+            ].map((f) => (
+              <li key={f.label} className="flex items-start gap-3 text-sm text-neutral-600">
+                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-orange-50">
+                  <f.icon className="h-4 w-4 text-[#ea690c]" />
+                </span>
+                {f.label}
+              </li>
+            ))}
+          </ul>
+
+          {/* stat strip */}
+          <div className="mt-10 flex items-center gap-6">
+            {[
+              { value: "10K+", label: "Parcels delivered" },
+              { value: "10+", label: "Active stations" },
+              { value: "99%", label: "Success rate" },
+            ].map((s, i) => (
+              <div key={s.label} className={i > 0 ? "border-l border-neutral-200 pl-6" : ""}>
+                <p className="text-2xl font-extrabold text-neutral-900">{s.value}</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-wider text-neutral-400">{s.label}</p>
               </div>
             ))}
           </div>
         </div>
+
+        <p className="relative text-xs text-neutral-400">© 2026 Mealex &amp; Mailex · Every parcel. Every branch. One platform.</p>
       </div>
 
       {/* RIGHT SIDE - Login Form */}
-      <div className="w-full lg:w-1/2 lg:min-h-screen flex flex-1 items-start sm:items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:p-8 bg-gray-50 overflow-y-auto">
-        <div className="w-full max-w-md min-w-0 mx-auto">
+      <div className="flex w-full flex-1 items-start justify-center overflow-y-auto bg-white px-4 py-8 sm:items-center sm:px-6 lg:w-[55%] lg:min-h-screen lg:p-8">
+        <div className="mx-auto w-full max-w-md min-w-0">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-2.5 sm:gap-3 mb-6 sm:mb-8 min-w-0">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg p-2 shrink-0">
-              <img src="/logo-1.png" alt="M&M Logo" className="w-full h-full object-contain" />
+          <div className="mb-8 flex items-center gap-3 min-w-0 lg:hidden">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white p-2 shadow-md sm:h-14 sm:w-14">
+              <img src="/logo-1.png" alt="M&M Logo" className="h-full w-full object-contain" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-2xl font-bold text-neutral-800 leading-tight">Mealex & Mailex</h1>
-              <p className="text-xs sm:text-sm text-gray-500">Parcel Delivery System</p>
+              <h1 className="text-lg font-bold leading-tight text-neutral-900 sm:text-xl">Mealex &amp; Mailex</h1>
+              <p className="text-xs text-gray-500 sm:text-sm">Parcel Delivery System</p>
             </div>
           </div>
-          <Card className="border-0 shadow-xl bg-white rounded-2xl">
-            <CardContent className="p-5 sm:p-8">
-              <div className="mb-6 sm:mb-8">
-                <h2 className="text-xl sm:text-2xl font-bold text-neutral-800 mb-2">Welcome Back!</h2>
-                <p className="text-sm sm:text-base text-gray-500">Sign in to access your dashboard</p>
-              </div>
+
+          <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="mb-7">
+              <h2 className="text-2xl font-extrabold tracking-tight text-neutral-900 sm:text-3xl">Welcome back</h2>
+              <p className="mt-1.5 text-sm text-gray-500 sm:text-base">Sign in to access your dashboard.</p>
+            </div>
 
               {error && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 animate-fade-in">
@@ -310,7 +309,7 @@ export const Login = (): JSX.Element => {
                     Phone Number
                   </Label>
                   <div className="relative group">
-                    <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[#ea690c] transition-colors pointer-events-none z-10" />
+                    <PhoneIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[#ea690c] transition-colors pointer-events-none z-10" />
                     <Input
                       id="phone"
                       type="tel"
@@ -417,13 +416,17 @@ export const Login = (): JSX.Element => {
                 </Button>
               </form>
 
-              <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-100 text-center">
-                <p className="text-xs text-gray-400">
-                  Version 1.0.0 · Secure API Integration
-                </p>
+              <p className="mt-6 text-center text-sm text-gray-500">
+                Don't have an account?{" "}
+                <Link to="/signup" className="font-semibold text-[#ea690c] hover:underline">
+                  Create one
+                </Link>
+              </p>
+
+              <div className="mt-6 border-t border-gray-100 pt-5 text-center">
+                <p className="text-xs text-gray-400">Version 1.0.0 · Secure API Integration</p>
               </div>
-            </CardContent>
-          </Card>
+          </div>
         </div>
       </div>
     </div>
