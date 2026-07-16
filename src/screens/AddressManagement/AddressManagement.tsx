@@ -74,10 +74,10 @@ export const AddressManagement = (): JSX.Element => {
     const closeModal = () => { setShowAddModal(false); setNewAddressName(""); setNewAddressCost(""); };
 
     return (
-        <div className="w-full min-h-screen bg-gray-50/50">
-            <div className="mx-auto max-w-4xl flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-                <Card className="border border-[#d1d1d1] bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-[#d1d1d1] bg-gray-50/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col px-4 py-6 sm:px-6 lg:px-8 lg:py-8" style={{ height: "calc(100vh - 64px)" }}>
+            <div className="mx-auto w-full max-w-6xl flex flex-col flex-1 min-h-0">
+                <Card className="border border-[#d1d1d1] bg-white rounded-2xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-[#d1d1d1] bg-gray-50/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="p-2.5 bg-orange-50 rounded-xl">
                                 <MapPin className="w-5 h-5 text-[#ea690c]" />
@@ -94,14 +94,14 @@ export const AddressManagement = (): JSX.Element => {
                         )}
                     </div>
 
-                    <CardContent className="p-6">
-                        <div className="mb-4">
-                            <div className="relative max-w-sm">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by address name..." className="pl-9 border border-[#d1d1d1] rounded-lg bg-gray-50/50 focus:bg-white" />
-                            </div>
+                    <div className="px-6 pt-4 pb-3 border-b border-gray-100 shrink-0">
+                        <div className="relative max-w-sm">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by address name..." className="pl-9 border border-[#d1d1d1] rounded-lg bg-gray-50/50 focus:bg-white" />
                         </div>
+                    </div>
 
+                    <CardContent className="p-0 flex-1 min-h-0 overflow-y-auto">
                         {loading ? (
                             <div className="py-16 text-center">
                                 <Loader className="w-10 h-10 text-[#ea690c] mx-auto mb-4 animate-spin" />
@@ -122,24 +122,24 @@ export const AddressManagement = (): JSX.Element => {
                                 <p className="text-sm text-[#5d5d5d] mt-1">No addresses match "{search}".</p>
                             </div>
                         ) : (
-                            <div className="rounded-xl border border-[#d1d1d1] overflow-hidden">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Address name</th>
-                                            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Cost</th>
+                            <table className="w-full">
+                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="text-left py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-100 w-8">#</th>
+                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-100">Address name</th>
+                                        <th className="text-right py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-100">Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {filtered.map((addr, i) => (
+                                        <tr key={addr.id} className="bg-white hover:bg-gray-50/80 transition-colors">
+                                            <td className="py-3.5 px-6 text-xs text-[#9a9a9a]">{i + 1}</td>
+                                            <td className="py-3.5 px-4 text-sm font-medium text-neutral-800">{addr.name}</td>
+                                            <td className="py-3.5 px-6 text-sm text-right font-semibold text-[#ea690c]">{formatCurrency(addr.cost)}</td>
                                         </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {filtered.map((addr) => (
-                                            <tr key={addr.id} className="bg-white hover:bg-gray-50/80 transition-colors">
-                                                <td className="py-3.5 px-4 text-sm font-medium text-neutral-800">{addr.name}</td>
-                                                <td className="py-3.5 px-4 text-sm text-right font-semibold text-[#ea690c]">{formatCurrency(addr.cost)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    ))}
+                                </tbody>
+                            </table>
                         )}
                     </CardContent>
                 </Card>

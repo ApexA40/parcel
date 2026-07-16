@@ -6,8 +6,8 @@ import { useBranding } from "../../contexts/BrandingContext";
 import { useToast } from "../../components/ui/toast";
 import { cn } from "../../lib/utils";
 import {
-    Building2, Clock, ImageIcon, Mail, Paintbrush,
-    Phone, Printer, RotateCcw, Save, UploadCloud, X,
+    AlertCircle, Building2, Clock, ImageIcon, Mail, Paintbrush,
+    Phone, Printer, RotateCcw, Save, UploadCloud,
 } from "lucide-react";
 
 const inputCls =
@@ -33,6 +33,20 @@ const IconInput = ({ icon: Icon, className, ...props }: IconInputProps) => (
     <div className="relative">
         <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a8a8a8]" />
         <Input {...props} className={cn(inputCls, "pl-9", className)} />
+    </div>
+);
+
+const InfoRow = ({
+    icon: Icon, label, value, placeholder,
+}: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; placeholder: string }) => (
+    <div className="flex items-start gap-3 px-4 py-3">
+        <Icon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-[#b0b0b0]" />
+        <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#b0b0b0]">{label}</p>
+            <p className={cn("mt-0.5 text-sm truncate", value ? "text-neutral-800" : "text-[#c0c0c0] italic")}>
+                {value || placeholder}
+            </p>
+        </div>
     </div>
 );
 
@@ -139,6 +153,12 @@ export const BranchSettings = (): JSX.Element => {
                         <p className="mt-1 text-sm text-[#7d7d7d]">
                             Customise how your branch appears in the app and on printed materials.
                         </p>
+                        {isDirty && (
+                            <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                                <AlertCircle className="h-3 w-3" />
+                                Unsaved changes
+                            </div>
+                        )}
                     </div>
                     <div className="flex flex-shrink-0 items-center gap-2.5">
                         <Button
@@ -152,31 +172,28 @@ export const BranchSettings = (): JSX.Element => {
                         <Button
                             onClick={handleSave}
                             disabled={!isDirty}
-                            className="relative gap-2 rounded-lg bg-[#ea690c] px-5 text-white shadow-sm hover:bg-[#ea690c]/90"
+                            className="gap-2 rounded-lg bg-[#ea690c] px-5 text-white shadow-sm hover:bg-[#ea690c]/90 disabled:opacity-40"
                         >
                             <Save className="h-4 w-4" /> Save Settings
-                            {isDirty && (
-                                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#1e40af]" />
-                            )}
                         </Button>
                     </div>
                 </div>
 
                 {/* ── Tabs ── */}
-                <div className="mb-6 flex w-full rounded-xl bg-[#ececec] p-1 sm:w-auto sm:self-start sm:inline-flex">
+                <div className="mb-6 flex w-full border-b border-[#e3e3e3]">
                     {TABS.map(({ id, label, icon: Icon }) => (
                         <button
                             key={id}
                             type="button"
                             onClick={() => setActiveTab(id)}
                             className={cn(
-                                "flex flex-1 items-center justify-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all sm:flex-initial sm:px-4 sm:text-sm",
+                                "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 -mb-px",
                                 activeTab === id
-                                    ? "bg-white text-neutral-900 shadow-sm"
-                                    : "text-[#7d7d7d] hover:text-neutral-800"
+                                    ? "border-[#ea690c] text-[#ea690c]"
+                                    : "border-transparent text-[#7d7d7d] hover:text-neutral-800 hover:border-[#dcdcdc]"
                             )}
                         >
-                            <Icon className={cn("hidden h-4 w-4 sm:block", activeTab === id ? "text-[#ea690c]" : "text-[#a8a8a8]")} />
+                            <Icon className={cn("h-4 w-4", activeTab === id ? "text-[#ea690c]" : "text-[#a8a8a8]")} />
                             <span>{label}</span>
                         </button>
                     ))}
@@ -187,18 +204,48 @@ export const BranchSettings = (): JSX.Element => {
 
                     {/* ═══ Visual Identity ═══ */}
                     {activeTab === "identity" && (
-                        <div className="grid grid-cols-1 gap-7 lg:grid-cols-5 lg:gap-10">
-                            <div className="space-y-7 lg:col-span-3">
-                            <div>
-                                <Label className={labelCls}>Branch Logo</Label>
-                                <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
-                                    <div className="flex h-28 w-28 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#e3e3e3] bg-[#fafafa]">
-                                        {logoPreview
-                                            ? <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain p-2" />
-                                            : <ImageIcon className="h-8 w-8 text-[#cfcfcf]" />}
-                                    </div>
-                                    <div className="flex-1">
-                                        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-5 lg:gap-10">
+                            {/* Left: fields */}
+                            <div className="space-y-8 lg:col-span-3">
+
+                                {/* Logo upload */}
+                                <div>
+                                    <Label className={labelCls}>Branch Logo</Label>
+                                    <p className={hintCls + " mb-3"}>Used in the sidebar, printed labels, and manifests.</p>
+                                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+
+                                    {logoPreview ? (
+                                        /* Logo set — show preview + actions */
+                                        <div className="flex items-center gap-4 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
+                                            <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e3e3e3] bg-white shadow-sm">
+                                                <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain p-1.5" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-neutral-800 truncate">
+                                                    {logoPreview.startsWith("data:") ? "Uploaded image" : logoPreview}
+                                                </p>
+                                                <p className="text-xs text-[#9a9a9a] mt-0.5">Logo is set and ready to use</p>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                        className="text-xs font-medium text-[#ea690c] hover:underline"
+                                                    >
+                                                        Replace
+                                                    </button>
+                                                    <span className="text-[#dcdcdc]">·</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleRemoveLogo}
+                                                        className="text-xs font-medium text-red-500 hover:underline"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        /* No logo — show upload zone */
                                         <button
                                             type="button"
                                             onClick={() => fileInputRef.current?.click()}
@@ -206,82 +253,91 @@ export const BranchSettings = (): JSX.Element => {
                                             onDragLeave={() => setDragActive(false)}
                                             onDrop={handleDrop}
                                             className={cn(
-                                                "flex h-28 w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed transition-colors",
+                                                "flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed py-10 transition-colors",
                                                 dragActive
-                                                    ? "border-[#ea690c] bg-orange-50/60"
-                                                    : "border-[#dcdcdc] bg-white hover:border-[#ea690c]/50 hover:bg-orange-50/30"
+                                                    ? "border-[#ea690c] bg-orange-50/40"
+                                                    : "border-[#dcdcdc] bg-[#fafafa] hover:border-[#ea690c]/50 hover:bg-orange-50/20"
                                             )}
                                         >
-                                            <UploadCloud className={cn("h-6 w-6", dragActive ? "text-[#ea690c]" : "text-[#b0b0b0]")} />
-                                            <span className="text-sm font-medium text-neutral-700">
-                                                Click to upload <span className="font-normal text-[#9a9a9a]">or drag &amp; drop</span>
-                                            </span>
-                                            <span className="text-xs text-[#a8a8a8]">PNG, JPG or SVG · Max 2MB</span>
+                                            <div className={cn("flex h-12 w-12 items-center justify-center rounded-xl border", dragActive ? "border-[#ea690c]/30 bg-orange-50" : "border-[#e3e3e3] bg-white")}>
+                                                <UploadCloud className={cn("h-5 w-5", dragActive ? "text-[#ea690c]" : "text-[#b0b0b0]")} />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-sm font-medium text-neutral-700">
+                                                    Click to upload <span className="font-normal text-[#9a9a9a]">or drag &amp; drop</span>
+                                                </p>
+                                                <p className="text-xs text-[#a8a8a8] mt-0.5">PNG, JPG or SVG · Max 2MB</p>
+                                            </div>
                                         </button>
-                                        <div className="mt-2 flex items-center gap-3">
-                                            <Input
-                                                value={logoPreview.startsWith("data:") ? "" : form.logoUrl}
-                                                onChange={e => { setField("logoUrl", e.target.value); setLogoPreview(e.target.value); }}
-                                                placeholder="Or paste an image URL..."
-                                                className={cn(inputCls, "h-9 text-sm")}
-                                            />
-                                            {logoPreview && (
-                                                <button
-                                                    type="button"
-                                                    onClick={handleRemoveLogo}
-                                                    className="flex flex-shrink-0 items-center gap-1 text-xs font-medium text-red-500 transition-colors hover:text-red-700"
-                                                >
-                                                    <X className="h-3.5 w-3.5" /> Remove
-                                                </button>
-                                            )}
-                                        </div>
+                                    )}
+
+                                    {/* URL paste — always visible */}
+                                    <div className="mt-3">
+                                        <Input
+                                            value={logoPreview.startsWith("data:") ? "" : form.logoUrl}
+                                            onChange={e => { setField("logoUrl", e.target.value); setLogoPreview(e.target.value); }}
+                                            placeholder="Or paste an image URL…"
+                                            className={cn(inputCls, "h-9 text-sm")}
+                                        />
                                     </div>
+                                </div>
+
+                                {/* Branch name */}
+                                <div>
+                                    <Label className={labelCls}>Branch Name</Label>
+                                    <Input
+                                        value={form.branchName}
+                                        onChange={e => setField("branchName", e.target.value)}
+                                        placeholder="e.g. Kumasi Branch"
+                                        className={cn(inputCls, "max-w-sm")}
+                                    />
+                                    <p className={hintCls}>Shown in the navbar and on printed labels.</p>
                                 </div>
                             </div>
 
-                            <div>
-                                <Label className={labelCls}>Branch Name</Label>
-                                <Input
-                                    value={form.branchName}
-                                    onChange={e => setField("branchName", e.target.value)}
-                                    placeholder="e.g. Kumasi Branch"
-                                    className={cn(inputCls, "max-w-sm")}
-                                />
-                                <p className={hintCls}>Shown in the navbar and on printed labels.</p>
-                            </div>
-
-                            </div>
-
-                            {/* Live brand preview */}
+                            {/* Right: live sidebar preview */}
                             <div className="lg:col-span-2">
                                 <div className="lg:sticky lg:top-24">
-                                <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Live Preview</p>
-                                <div className="overflow-hidden rounded-xl border border-[#e3e3e3]">
-                                    <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: branding.primaryColor }}>
-                                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/95">
-                                            {logoPreview
-                                                ? <img src={logoPreview} alt="Logo" className="h-full w-full object-contain p-0.5" />
-                                                : <ImageIcon className="h-4 w-4 text-gray-400" />}
+                                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Sidebar Preview</p>
+                                    <div className="overflow-hidden rounded-xl border border-[#e3e3e3] shadow-sm">
+                                        {/* Sidebar header */}
+                                        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10" style={{ backgroundColor: branding.primaryColor }}>
+                                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/95 shadow">
+                                                {logoPreview
+                                                    ? <img src={logoPreview} alt="Logo" className="h-full w-full object-contain p-0.5" />
+                                                    : <ImageIcon className="h-4 w-4 text-gray-400" />}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-bold text-white leading-tight">
+                                                    {form.branchName || "Branch Name"}
+                                                </p>
+                                                <p className="text-[10px] text-white/60 uppercase tracking-wider">Parcel Delivery</p>
+                                            </div>
                                         </div>
-                                        <span className="truncate text-sm font-semibold text-white">
-                                            {form.branchName || "Branch Name"}
-                                        </span>
+                                        {/* Fake nav items */}
+                                        <div className="bg-white px-3 py-3 space-y-1">
+                                            {["Parcel Search", "Parcel Intake", "Active Deliveries"].map((item, i) => (
+                                                <div
+                                                    key={item}
+                                                    className={cn(
+                                                        "flex items-center gap-2.5 rounded-lg px-3 py-2",
+                                                        i === 0 ? "text-white" : "bg-transparent"
+                                                    )}
+                                                    style={i === 0 ? { backgroundColor: branding.primaryColor } : {}}
+                                                >
+                                                    <div className={cn("h-2 w-2 rounded-full flex-shrink-0", i === 0 ? "bg-white/60" : "bg-[#dcdcdc]")} />
+                                                    <span className={cn("text-xs font-medium", i === 0 ? "text-white" : "text-[#7d7d7d]")}>{item}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {/* Bottom logout strip */}
+                                        <div className="border-t border-[#f0f0f0] bg-white px-3 py-2.5">
+                                            <div className="flex items-center gap-2 rounded-lg bg-[#fafafa] px-3 py-2">
+                                                <div className="h-2 w-2 rounded-full bg-red-300" />
+                                                <span className="text-xs font-medium text-[#9a9a9a]">Logout</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2.5 bg-[#fafafa] px-4 py-3.5">
-                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: branding.primaryColor }}>
-                                            Primary Button
-                                        </span>
-                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: branding.secondaryColor }}>
-                                            Secondary Button
-                                        </span>
-                                        <span
-                                            className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                                            style={{ backgroundColor: `${branding.secondaryColor}1a`, color: branding.secondaryColor }}
-                                        >
-                                            Status Badge
-                                        </span>
-                                    </div>
-                                </div>
                                 </div>
                             </div>
                         </div>
@@ -289,98 +345,157 @@ export const BranchSettings = (): JSX.Element => {
 
                     {/* ═══ Branch Info ═══ */}
                     {activeTab === "info" && (
-                        <div className="space-y-6">
-                            <div>
-                                <Label className={labelCls}>Physical Address</Label>
-                                <IconInput
-                                    icon={Building2}
-                                    value={form.branchAddress}
-                                    onChange={e => setField("branchAddress", e.target.value)}
-                                    placeholder="e.g. 12 Adum Street, Kumasi, Ghana"
-                                />
-                            </div>
-                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-5 lg:gap-10">
+                            {/* Left: fields */}
+                            <div className="space-y-6 lg:col-span-3">
                                 <div>
-                                    <Label className={labelCls}>Phone Number</Label>
+                                    <Label className={labelCls}>Physical Address</Label>
                                     <IconInput
-                                        icon={Phone}
-                                        type="tel"
-                                        value={form.branchPhone}
-                                        onChange={e => setField("branchPhone", e.target.value)}
-                                        placeholder="+233 24 000 0000"
+                                        icon={Building2}
+                                        value={form.branchAddress}
+                                        onChange={e => setField("branchAddress", e.target.value)}
+                                        placeholder="e.g. 12 Adum Street, Kumasi, Ghana"
                                     />
                                 </div>
+                                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                    <div>
+                                        <Label className={labelCls}>Phone Number</Label>
+                                        <IconInput
+                                            icon={Phone}
+                                            type="tel"
+                                            value={form.branchPhone}
+                                            onChange={e => setField("branchPhone", e.target.value)}
+                                            placeholder="+233 24 000 0000"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label className={labelCls}>Email Address</Label>
+                                        <IconInput
+                                            icon={Mail}
+                                            type="email"
+                                            value={form.branchEmail}
+                                            onChange={e => setField("branchEmail", e.target.value)}
+                                            placeholder="kumasi@mnm.com"
+                                        />
+                                    </div>
+                                </div>
                                 <div>
-                                    <Label className={labelCls}>Email Address</Label>
+                                    <Label className={labelCls}>Operating Hours</Label>
                                     <IconInput
-                                        icon={Mail}
-                                        type="email"
-                                        value={form.branchEmail}
-                                        onChange={e => setField("branchEmail", e.target.value)}
-                                        placeholder="kumasi@mnm.com"
+                                        icon={Clock}
+                                        value={form.operatingHours}
+                                        onChange={e => setField("operatingHours", e.target.value)}
+                                        placeholder="e.g. Mon – Fri: 8am – 6pm · Sat: 9am – 2pm"
                                     />
+                                    <p className={hintCls}>Shown on printed labels and customer-facing pages.</p>
                                 </div>
                             </div>
-                            <div>
-                                <Label className={labelCls}>Operating Hours</Label>
-                                <IconInput
-                                    icon={Clock}
-                                    value={form.operatingHours}
-                                    onChange={e => setField("operatingHours", e.target.value)}
-                                    placeholder="e.g. Mon – Fri: 8am – 6pm · Sat: 9am – 2pm"
-                                />
-                                <p className={hintCls}>Shown on printed labels and customer-facing pages.</p>
+
+                            {/* Right: info summary card */}
+                            <div className="lg:col-span-2">
+                                <div className="lg:sticky lg:top-24">
+                                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Contact Card Preview</p>
+                                    <div className="rounded-xl border border-[#e3e3e3] bg-[#fafafa] overflow-hidden">
+                                        {/* Card header */}
+                                        <div className="px-4 py-3.5 border-b border-[#e3e3e3] bg-white flex items-center gap-3">
+                                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#e3e3e3] bg-[#fafafa]">
+                                                {logoPreview
+                                                    ? <img src={logoPreview} alt="Logo" className="h-full w-full object-contain p-0.5" />
+                                                    : <Building2 className="h-4 w-4 text-[#c0c0c0]" />}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-neutral-800">{form.branchName || "Branch Name"}</p>
+                                                <p className="text-xs text-[#9a9a9a]">Branch contact details</p>
+                                            </div>
+                                        </div>
+                                        {/* Info rows */}
+                                        <div className="divide-y divide-[#f0f0f0]">
+                                            <InfoRow icon={Building2} label="Address" value={form.branchAddress} placeholder="Not set" />
+                                            <InfoRow icon={Phone} label="Phone" value={form.branchPhone} placeholder="Not set" />
+                                            <InfoRow icon={Mail} label="Email" value={form.branchEmail} placeholder="Not set" />
+                                            <InfoRow icon={Clock} label="Hours" value={form.operatingHours} placeholder="Not set" />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
 
                     {/* ═══ Printing ═══ */}
                     {activeTab === "print" && (
-                        <div className="grid grid-cols-1 gap-7 lg:grid-cols-5 lg:gap-10">
+                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-5 lg:gap-10">
                             <div className="space-y-6 lg:col-span-3">
-                            <div>
-                                <Label className={labelCls}>Company Tagline</Label>
-                                <Input
-                                    value={form.companyTagline}
-                                    onChange={e => setField("companyTagline", e.target.value)}
-                                    placeholder="e.g. Parcel Delivery System"
-                                    className={inputCls}
-                                />
-                                <p className={hintCls}>Appears below the company name on printed labels and manifests.</p>
-                            </div>
-                            <div>
-                                <Label className={labelCls}>Footer Note</Label>
-                                <Input
-                                    value={form.printFooterNote}
-                                    onChange={e => setField("printFooterNote", e.target.value)}
-                                    placeholder="e.g. For inquiries, contact M&M Parcel Services"
-                                    className={inputCls}
-                                />
-                                <p className={hintCls}>Printed at the bottom of every label and manifest.</p>
-                            </div>
+                                <div>
+                                    <Label className={labelCls}>Company Tagline</Label>
+                                    <Input
+                                        value={form.companyTagline}
+                                        onChange={e => setField("companyTagline", e.target.value)}
+                                        placeholder="e.g. Parcel Delivery System"
+                                        className={inputCls}
+                                    />
+                                    <p className={hintCls}>Appears below the company name on printed labels and manifests.</p>
+                                </div>
+                                <div>
+                                    <Label className={labelCls}>Footer Note</Label>
+                                    <Input
+                                        value={form.printFooterNote}
+                                        onChange={e => setField("printFooterNote", e.target.value)}
+                                        placeholder="e.g. For inquiries, contact M&M Parcel Services"
+                                        className={inputCls}
+                                    />
+                                    <p className={hintCls}>Printed at the bottom of every label and manifest.</p>
+                                </div>
                             </div>
 
+                            {/* Right: full label header preview */}
                             <div className="lg:col-span-2">
                                 <div className="lg:sticky lg:top-24">
-                                <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Label Header Preview</p>
-                                <div className="rounded-xl bg-[#fafafa] p-5 sm:p-6">
-                                    <div className="mx-auto max-w-sm border-2 border-black bg-white p-3 shadow-sm">
-                                        <div className="flex items-center justify-center gap-3 border-b-2 border-black pb-2">
-                                            {logoPreview
-                                                ? <img src={logoPreview} alt="Logo" className="h-10 w-10 object-contain" />
-                                                : (
-                                                    <div className="flex h-10 w-10 items-center justify-center rounded bg-gray-200">
-                                                        <ImageIcon className="h-5 w-5 text-gray-400" />
+                                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Label Preview</p>
+                                    <div className="rounded-xl border border-[#e3e3e3] bg-[#fafafa] p-5">
+                                        <div className="border-2 border-black bg-white p-3 shadow-sm">
+                                            {/* Label header */}
+                                            <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-2">
+                                                <div className="w-8" />
+                                                <div className="flex items-center gap-2">
+                                                    {logoPreview ? (
+                                                        <img src={logoPreview} alt="Logo" className="h-10 w-10 object-contain" />
+                                                    ) : (
+                                                        <div className="flex h-10 w-10 items-center justify-center rounded border border-[#e3e3e3] bg-[#f5f5f5]">
+                                                            <ImageIcon className="h-5 w-5 text-[#c0c0c0]" />
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <p className="text-sm font-bold leading-tight text-black">{form.branchName || "Branch Name"}</p>
+                                                        <p className="text-[10px] text-black">{form.companyTagline || "Parcel Delivery System"}</p>
                                                     </div>
-                                                )}
-                                            <div>
-                                                <p className="text-base font-bold leading-tight text-black">{form.branchName || "Branch Name"}</p>
-                                                <p className="text-xs text-black">{form.companyTagline || "Parcel Delivery System"}</p>
+                                                </div>
+                                                <div className="h-10 w-10 rounded border border-[#e3e3e3] bg-[#f5f5f5] flex items-center justify-center">
+                                                    <p className="text-[8px] text-[#b0b0b0] text-center leading-tight">QR<br/>Code</p>
+                                                </div>
+                                            </div>
+                                            {/* Fake tracking number */}
+                                            <div className="bg-black text-white text-center py-1 mb-2">
+                                                <p className="text-[8px] font-semibold">TRACKING NUMBER</p>
+                                                <p className="text-xs font-bold tracking-wider">MM-2024-00001</p>
+                                            </div>
+                                            {/* Fake sender/receiver */}
+                                            <div className="grid grid-cols-2 gap-1.5 mb-2">
+                                                <div className="border border-black p-1">
+                                                    <p className="text-[9px] text-black"><span className="font-bold">SENDER:</span> John Doe</p>
+                                                    <p className="text-[9px] text-black"><span className="font-bold">CONTACT:</span> 0241234567</p>
+                                                </div>
+                                                <div className="border border-black p-1">
+                                                    <p className="text-[9px] text-black"><span className="font-bold">RECEIVER:</span> Jane Smith</p>
+                                                    <p className="text-[9px] text-black"><span className="font-bold">CONTACT:</span> 0557654321</p>
+                                                </div>
+                                            </div>
+                                            {/* Footer */}
+                                            <div className="border-t border-black pt-1.5 text-center">
+                                                <p className="text-[9px] text-black">{form.printFooterNote || "For inquiries, contact M&M Parcel Services"}</p>
                                             </div>
                                         </div>
-                                        <p className="mt-2 text-center text-[10px] text-black">{form.printFooterNote || "For inquiries, contact M&M Parcel Services"}</p>
+                                        <p className="mt-2.5 text-center text-[10px] text-[#a0a0a0]">This is how your label header will appear when printed</p>
                                     </div>
-                                </div>
                                 </div>
                             </div>
                         </div>

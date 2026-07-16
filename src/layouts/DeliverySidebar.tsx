@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, ClipboardListIcon, TruckIcon, DollarSignIcon, PhoneIcon, HomeIcon, CheckCircleIcon, BarChart2, LogOut, ZapIcon, SearchIcon, Settings, HelpCircle, SlidersHorizontal, Package, MapPin } from "lucide-react";
+import { X, ClipboardListIcon, TruckIcon, DollarSignIcon, PhoneIcon, HomeIcon, CheckCircleIcon, BarChart2, LogOut, ZapIcon, SearchIcon, Package, MapPin } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 import { useBranding } from "../contexts/BrandingContext";
 
@@ -10,11 +10,9 @@ interface SidebarProps {
 }
 
 const navItems = [
-
-    // /parcel/search": { title: "Parcel Search", description: "Find parcels by recipient, phone, ID, or date range" },
     { label: "Parcel Search", path: "/delivery/search", icon: SearchIcon, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Parcel Intake", path: "/parcel/intake", icon: ClipboardListIcon, roles: ["FRONTDESK", "MANAGER"] },
     { label: "Pickup Request", path: "/delivery/pickup", icon: Package, roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Addresses", path: "/delivery/addresses", icon: MapPin, roles: ["FRONTDESK", "MANAGER"] },
     { label: "Package Assignments", path: "/delivery/assignments", icon: ClipboardListIcon, roles: ["MANAGER"] },
     { label: "Active Deliveries", path: "/delivery/active", icon: TruckIcon, roles: ["MANAGER"] },
     { label: "Pre-Delivery", path: "/delivery/call-center", icon: PhoneIcon, roles: ["MANAGER", "CALLER"] },
@@ -22,12 +20,8 @@ const navItems = [
     { label: "Post-Delivery", path: "/delivery/call-center/follow-up", icon: CheckCircleIcon, roles: ["CALLER"] },
     { label: "Reconciliation", path: "/delivery/reconciliation", icon: DollarSignIcon, roles: ["MANAGER"] },
     { label: "Analytics", path: "/delivery/analytics", icon: BarChart2, roles: ["MANAGER"] },
-    // { label: "Financial Dashboard", path: "/delivery/financial",                icon: DollarSignIcon,    roles: ["MANAGER"] },
-    // { label: "Fuel Requests",       path: "/delivery/fuel-requests",            icon: Fuel,              roles: ["MANAGER"] },
     { label: "Smart Search", path: "/delivery/smart-search", icon: ZapIcon, roles: ["MANAGER", "CALLER"] },
-    { label: "Branch Settings", path: "/delivery/settings", icon: SlidersHorizontal, roles: ["MANAGER"] },
-    { label: "Preferences", path: "/delivery/preferences", icon: Settings, roles: ["MANAGER", "CALLER"] },
-    { label: "Help", path: "/delivery/help", icon: HelpCircle, roles: ["MANAGER", "CALLER"] },
+    { label: "Addresses", path: "/delivery/addresses", icon: MapPin, roles: ["FRONTDESK", "MANAGER"] },
 ];
 
 export const DeliverySidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {

@@ -363,9 +363,9 @@ export const ParcelSearch = (): JSX.Element => {
     const uniqueShelves = [...new Set(parcels.map((p: ParcelResponse) => p.shelfName || p.shelfNumber).filter(Boolean))].sort() as string[];
 
     return (
-        <div className="w-full">
-            <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-                <main className="flex-1 space-y-6">
+        <div className="flex flex-col px-4 py-4 sm:px-6 lg:px-8" style={{ height: "calc(100vh - 64px)" }}>
+            <div className="mx-auto w-full max-w-7xl flex flex-col flex-1 min-h-0 gap-4">
+                <div className="shrink-0">
                     {/* Header */}
                     {/* <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div>
@@ -553,15 +553,16 @@ export const ParcelSearch = (): JSX.Element => {
                         </CardContent>
 
                     </Card>
+                </div>
 
-                    {/* Results Summary */}
-                    {loading ? (
-                        <div className="text-center py-8">
-                            <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
-                            <p className="text-sm text-neutral-700">Loading parcels...</p>
-                        </div>
-                    ) : (
-                        <>
+                {/* Results + Table */}
+                {loading ? (
+                    <div className="text-center py-8">
+                        <Loader className="w-8 h-8 text-[#ea690c] mx-auto mb-4 animate-spin" />
+                        <p className="text-sm text-neutral-700">Loading parcels...</p>
+                    </div>
+                ) : (
+                    <div className="flex flex-col flex-1 min-h-0 gap-3">
                             <div className="flex items-center justify-between text-xs text-[#5d5d5d] mb-2">
                                 <span className="flex items-center gap-2">
                                     Showing {filteredParcels.length} of {pagination.totalElements} parcel(s)
@@ -613,9 +614,9 @@ export const ParcelSearch = (): JSX.Element => {
                             )}
 
                             {/* Parcels Table */}
-                            <Card className="border border-[#d1d1d1] bg-white overflow-hidden">
-                                <CardContent className="p-0">
-                                    <div className="overflow-x-auto max-h-[calc(100vh-200px)] overflow-y-auto">
+                            <Card className="border border-[#d1d1d1] bg-white overflow-hidden flex flex-col flex-1 min-h-0">
+                                <CardContent className="p-0 flex flex-col flex-1 min-h-0">
+                                    <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0">
                                         <table className="w-full divide-y divide-[#d1d1d1] text-xs">
                                             <thead className="bg-gray-50 sticky top-0 z-10">
                                                 <tr>
@@ -844,9 +845,8 @@ export const ParcelSearch = (): JSX.Element => {
                                     </div>
                                 </div>
                             )}
-                        </>
-                    )}
-                </main>
+                    </div>
+                )}
             </div>
 
             {/* Pickup Modal */}
