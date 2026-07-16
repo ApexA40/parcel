@@ -220,13 +220,6 @@ const ActivityCard = () => (
 
 export const Landing = (): JSX.Element => {
     const [menuOpen, setMenuOpen] = useState(false);
-    const [wordIndex, setWordIndex] = useState(0);
-
-    useEffect(() => {
-        const t = setInterval(() => setWordIndex(i => (i + 1) % HERO_WORDS.length), 2200);
-        return () => clearInterval(t);
-    }, []);
-
     const navLinks = [
         { label: "Product", href: "#workspaces" },
         { label: "Features", href: "#features" },
@@ -320,55 +313,45 @@ export const Landing = (): JSX.Element => {
                 <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-4 pb-16 pt-16 sm:px-6 sm:pt-24 lg:grid-cols-2 lg:gap-8 lg:px-8">
                     {/* ── Left: editorial type ── */}
                     <div className="animate-slide-up text-center lg:text-left">
-                        <span className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/70 backdrop-blur">
-                            <Zap className="h-3.5 w-3.5 text-[#ea690c]" />
-                            The operating system for delivery businesses
+                        <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-[11px] font-medium text-white/60">
+                            <Zap className="h-3 w-3 text-[#ea690c]" />
+                            Built for delivery businesses
                         </span>
-                        <h1 className="text-[2.7rem] font-extrabold leading-[1.02] tracking-tight sm:text-6xl lg:text-[3.6rem] xl:text-[4.4rem]">
-                            <span className="block whitespace-nowrap">Every parcel.</span>
-                            <span
-                                className="block whitespace-nowrap text-transparent"
-                                style={{ WebkitTextStroke: "2px rgba(255,255,255,0.9)" }}
-                            >
-                                Every branch.
-                            </span>
-                            <span className="block whitespace-nowrap bg-gradient-to-r from-[#ea690c] via-[#ff8c3a] to-[#ea690c] bg-clip-text text-transparent">
+                        <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.2rem]">
+                            Every parcel.{" "}
+                            <span className="text-white/30">Every branch.</span>
+                            <br />
+                            <span className="bg-gradient-to-r from-[#ea690c] to-[#ff8c3a] bg-clip-text text-transparent">
                                 One platform.
                             </span>
                         </h1>
-                        <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-white/60 sm:text-lg lg:mx-0">
-                            From intake to doorstep — a purpose-built workspace for your front desk,
-                            dispatch, call center and riders. Built to{" "}
-                            <span key={wordIndex} className="inline-block animate-fade-in font-semibold text-[#ea690c]">
-                                {HERO_WORDS[wordIndex]}
-                            </span>
-                            .
+                        <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-white/50 sm:text-base lg:mx-0">
+                            From intake to doorstep — one workspace for your front desk, dispatch, call center, and riders.
                         </p>
-                        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
+                        <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
                             <Link
                                 to="/signup"
-                                className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[#ea690c] px-7 py-3.5 text-base font-semibold text-white shadow-xl shadow-orange-900/40 transition-all hover:bg-[#ff7a1a] sm:w-auto"
+                                className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[#ea690c] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-900/40 transition-all hover:bg-[#ff7a1a] sm:w-auto"
                             >
                                 Start Free Trial
                                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                             </Link>
                             <a
                                 href="#how-it-works"
-                                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-7 py-3.5 text-base font-semibold text-white/90 backdrop-blur transition-colors hover:bg-white/10 sm:w-auto"
+                                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 sm:w-auto"
                             >
                                 See How It Works
                             </a>
                         </div>
-                        {/* stat strip */}
-                        <div className="mt-10 flex items-center justify-center gap-6 lg:justify-start">
+                        <div className="mt-8 flex items-center justify-center gap-6 lg:justify-start">
                             {[
                                 { value: "12k+", label: "parcels daily" },
                                 { value: "98.4%", label: "on-time rate" },
-                                { value: "40+", label: "branches served" },
+                                { value: "40+", label: "branches" },
                             ].map(({ value, label }, i) => (
                                 <div key={label} className={`${i > 0 ? "border-l border-white/10 pl-6" : ""}`}>
-                                    <p className="text-xl font-extrabold text-white sm:text-2xl">{value}</p>
-                                    <p className="mt-0.5 text-[11px] uppercase tracking-wider text-white/40">{label}</p>
+                                    <p className="text-lg font-extrabold text-white">{value}</p>
+                                    <p className="mt-0.5 text-[10px] uppercase tracking-wider text-white/35">{label}</p>
                                 </div>
                             ))}
                         </div>
