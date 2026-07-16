@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
     ArrowRight, BarChart3, Bike, Building2, CheckCircle2, ClipboardList,
@@ -55,11 +55,11 @@ const Logo = ({ light = false }: { light?: boolean }) => (
 
 /* ── Hero dashboard mockup (pure CSS, tilted 3D) ─────────────── */
 
-const DashboardMockup = () => (
+const DashboardMockup = ({ transform }: { transform?: string }) => (
     <div className="relative mx-auto w-full max-w-3xl" style={{ perspective: "1600px" }}>
         <div
             className="animate-float rounded-2xl border border-white/10 bg-[#11131f]/90 shadow-[0_40px_120px_-20px_rgba(234,105,12,0.35)] backdrop-blur"
-            style={{ transform: "rotateX(14deg) rotateZ(-2deg)" }}
+            style={{ transform: transform ?? "rotateX(14deg) rotateZ(-2deg)" }}
         >
             {/* window chrome */}
             <div className="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
@@ -132,20 +132,86 @@ const DashboardMockup = () => (
                 </div>
             </div>
         </div>
-        {/* floating badges */}
-        <div className="absolute -left-4 top-10 hidden animate-float rounded-xl border border-white/10 bg-white/10 px-3.5 py-2.5 backdrop-blur-md md:block" style={{ animationDelay: "1.2s" }}>
-            <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-400" />
-                <span className="text-xs font-semibold text-white">Parcel delivered</span>
-            </div>
-            <p className="mt-0.5 text-[10px] text-white/50">Kumasi → Accra · #PF-88213</p>
+    </div>
+);
+
+/* ── Hero-only pieces ────────────────────────────────────────── */
+
+const HERO_WORDS = ["register parcels", "dispatch riders", "track deliveries", "reconcile cash", "grow branches"];
+
+const TICKER_EVENTS: { icon: React.ComponentType<{ className?: string }>; text: string }[] = [
+    { icon: CheckCircle2, text: "PF-88213 delivered · Kumasi → Accra" },
+    { icon: Bike, text: "Rider dispatched · Adum Station" },
+    { icon: Wallet, text: "GH₵ 2,140 reconciled · 0 discrepancies" },
+    { icon: Package, text: "New parcel registered · East Legon" },
+    { icon: MapPin, text: "Out for delivery · Tema Branch" },
+    { icon: Building2, text: "Branch transfer complete · Takoradi" },
+];
+
+const TrackingCard = () => (
+    <div className="w-60 rounded-2xl border border-white/10 bg-[#11131f]/95 p-4 shadow-2xl shadow-black/50 backdrop-blur">
+        <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Tracking</p>
+            <span className="rounded-full bg-[#ea690c]/15 px-2 py-0.5 text-[10px] font-bold text-[#ea690c]">#PF-88213</span>
         </div>
-        <div className="absolute -right-2 bottom-8 hidden animate-float rounded-xl border border-white/10 bg-white/10 px-3.5 py-2.5 backdrop-blur-md md:block" style={{ animationDelay: "2.4s" }}>
-            <div className="flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-[#ea690c]" />
-                <span className="text-xs font-semibold text-white">Day reconciled</span>
-            </div>
-            <p className="mt-0.5 text-[10px] text-white/50">32 riders · 0 discrepancies</p>
+        <div className="mt-3 space-y-0">
+            {[
+                { label: "Registered · Kumasi", state: "done" },
+                { label: "In transit · Accra hub", state: "done" },
+                { label: "Out for delivery", state: "active" },
+                { label: "Delivered", state: "todo" },
+            ].map(({ label, state }, i, arr) => (
+                <div key={label} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                        <span
+                            className={
+                                state === "done" ? "h-2.5 w-2.5 rounded-full bg-[#ea690c]"
+                                : state === "active" ? "relative h-2.5 w-2.5 rounded-full bg-[#ea690c]"
+                                : "h-2.5 w-2.5 rounded-full border border-white/25"
+                            }
+                        >
+                            {state === "active" && (
+                                <span className="absolute -inset-1 animate-ping rounded-full bg-[#ea690c]/50" />
+                            )}
+                        </span>
+                        {i < arr.length - 1 && (
+                            <span className={`w-px flex-1 ${state === "done" ? "bg-[#ea690c]/60" : "bg-white/10"}`} style={{ minHeight: 14 }} />
+                        )}
+                    </div>
+                    <p className={`pb-3 text-xs ${state === "todo" ? "text-white/30" : state === "active" ? "font-semibold text-white" : "text-white/60"}`}>
+                        {label}
+                    </p>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+const ActivityCard = () => (
+    <div className="w-64 rounded-2xl border border-white/10 bg-[#11131f]/95 p-4 shadow-2xl shadow-black/50 backdrop-blur">
+        <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+                <span className="absolute h-full w-full animate-ping rounded-full bg-green-400/60" />
+                <span className="h-2 w-2 rounded-full bg-green-400" />
+            </span>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Live across your branches</p>
+        </div>
+        <div className="mt-3 space-y-2.5">
+            {[
+                { icon: Bike, text: "Kwame collected 12 parcels", sub: "Adum Station · just now" },
+                { icon: Wallet, text: "GH₵ 2,140 reconciled", sub: "End of day · 2 min ago" },
+                { icon: Package, text: "Pickup request received", sub: "East Legon · 5 min ago" },
+            ].map(({ icon: Icon, text, sub }) => (
+                <div key={text} className="flex items-start gap-2.5">
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/5">
+                        <Icon className="h-3.5 w-3.5 text-[#ea690c]" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-white/90">{text}</p>
+                        <p className="text-[10px] text-white/35">{sub}</p>
+                    </div>
+                </div>
+            ))}
         </div>
     </div>
 );
@@ -154,6 +220,12 @@ const DashboardMockup = () => (
 
 export const Landing = (): JSX.Element => {
     const [menuOpen, setMenuOpen] = useState(false);
+    const [wordIndex, setWordIndex] = useState(0);
+
+    useEffect(() => {
+        const t = setInterval(() => setWordIndex(i => (i + 1) % HERO_WORDS.length), 2200);
+        return () => clearInterval(t);
+    }, []);
 
     const navLinks = [
         { label: "Product", href: "#workspaces" },
@@ -212,27 +284,67 @@ export const Landing = (): JSX.Element => {
 
             {/* ══ 1. HERO ══ */}
             <section className="relative overflow-hidden pt-16">
+                <style>{`
+                    @keyframes pf-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+                    @keyframes pf-dash { to { stroke-dashoffset: -200; } }
+                `}</style>
                 <DotGrid />
-                <Blob color={ORANGE} className="-top-40 left-1/4 h-[500px] w-[500px]" />
-                <Blob color={BLUE} className="right-0 top-40 h-[450px] w-[450px]" />
-                <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-20 text-center sm:px-6 sm:pt-28 lg:px-8">
-                    <div className="animate-slide-up">
-                        <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/70 backdrop-blur">
+                <Blob color={ORANGE} className="-top-40 left-1/3 h-[500px] w-[500px]" />
+                <Blob color={BLUE} className="-right-20 top-64 h-[450px] w-[450px]" />
+
+                {/* ghost brand word */}
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute -bottom-6 left-0 select-none whitespace-nowrap text-[16vw] font-extrabold leading-none tracking-tighter opacity-[0.04]"
+                    style={{ WebkitTextStroke: "2px #fff", color: "transparent" }}
+                >
+                    PARCELFLOW
+                </span>
+
+                {/* animated route line across the hero */}
+                <svg aria-hidden className="pointer-events-none absolute inset-x-0 top-24 h-[520px] w-full opacity-25" viewBox="0 0 1440 520" fill="none" preserveAspectRatio="none">
+                    <path
+                        d="M-40 420 C 240 300, 420 480, 720 330 S 1200 140, 1500 220"
+                        stroke={ORANGE} strokeWidth="2" strokeDasharray="10 12"
+                        style={{ animation: "pf-dash 6s linear infinite" }}
+                    />
+                    <path
+                        d="M-40 200 C 300 320, 560 120, 880 220 S 1300 380, 1500 300"
+                        stroke={BLUE} strokeWidth="2" strokeDasharray="4 14"
+                        style={{ animation: "pf-dash 9s linear infinite" }}
+                    />
+                    <circle cx="720" cy="330" r="6" fill={ORANGE} />
+                    <circle cx="880" cy="220" r="6" fill={BLUE} />
+                </svg>
+
+                <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-4 pb-16 pt-16 sm:px-6 sm:pt-24 lg:grid-cols-2 lg:gap-8 lg:px-8">
+                    {/* ── Left: editorial type ── */}
+                    <div className="animate-slide-up text-center lg:text-left">
+                        <span className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/70 backdrop-blur">
                             <Zap className="h-3.5 w-3.5 text-[#ea690c]" />
-                            Every parcel. Every branch. One platform.
+                            The operating system for delivery businesses
                         </span>
-                        <h1 className="mx-auto max-w-4xl text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
-                            Run Your Entire Delivery Business.{" "}
-                            <span className="bg-gradient-to-r from-[#ea690c] via-[#ff8c3a] to-[#ea690c] bg-clip-text text-transparent">
-                                From One Dashboard.
+                        <h1 className="text-[2.7rem] font-extrabold leading-[1.02] tracking-tight sm:text-6xl lg:text-[3.6rem] xl:text-[4.4rem]">
+                            <span className="block whitespace-nowrap">Every parcel.</span>
+                            <span
+                                className="block whitespace-nowrap text-transparent"
+                                style={{ WebkitTextStroke: "2px rgba(255,255,255,0.9)" }}
+                            >
+                                Every branch.
+                            </span>
+                            <span className="block whitespace-nowrap bg-gradient-to-r from-[#ea690c] via-[#ff8c3a] to-[#ea690c] bg-clip-text text-transparent">
+                                One platform.
                             </span>
                         </h1>
-                        <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/60 sm:text-lg">
-                            ParcelFlow gives your team — from front desk to field riders — a purpose-built
-                            workspace. Register parcels, dispatch riders, track deliveries, and reconcile
-                            payments. All in real time.
+                        <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-white/60 sm:text-lg lg:mx-0">
+                            From intake to doorstep — a purpose-built workspace for your front desk,
+                            dispatch, call center and riders. Built to{" "}
+                            <span key={wordIndex} className="inline-block animate-fade-in font-semibold text-[#ea690c]">
+                                {HERO_WORDS[wordIndex]}
+                            </span>
+                            .
                         </p>
-                        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
                             <Link
                                 to="/signup"
                                 className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[#ea690c] px-7 py-3.5 text-base font-semibold text-white shadow-xl shadow-orange-900/40 transition-all hover:bg-[#ff7a1a] sm:w-auto"
@@ -247,10 +359,45 @@ export const Landing = (): JSX.Element => {
                                 See How It Works
                             </a>
                         </div>
-                        <p className="mt-4 text-xs text-white/40">No credit card required · Set up in under 5 minutes</p>
+                        {/* stat strip */}
+                        <div className="mt-10 flex items-center justify-center gap-6 lg:justify-start">
+                            {[
+                                { value: "12k+", label: "parcels daily" },
+                                { value: "98.4%", label: "on-time rate" },
+                                { value: "40+", label: "branches served" },
+                            ].map(({ value, label }, i) => (
+                                <div key={label} className={`${i > 0 ? "border-l border-white/10 pl-6" : ""}`}>
+                                    <p className="text-xl font-extrabold text-white sm:text-2xl">{value}</p>
+                                    <p className="mt-0.5 text-[11px] uppercase tracking-wider text-white/40">{label}</p>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                    <div className="mt-16 sm:mt-20">
-                        <DashboardMockup />
+
+                    {/* ── Right: layered product composition ── */}
+                    <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
+                        <DashboardMockup transform="rotateY(-10deg) rotateX(6deg) rotateZ(1deg)" />
+                        <div className="absolute -top-8 -right-2 hidden animate-float sm:block lg:-right-4" style={{ animationDelay: "1.4s" }}>
+                            <TrackingCard />
+                        </div>
+                        <div className="absolute -bottom-10 -left-2 hidden animate-float sm:block lg:-left-6" style={{ animationDelay: "2.6s" }}>
+                            <ActivityCard />
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── Live events ticker ── */}
+                <div className="relative border-t border-white/5 bg-white/[0.02] py-3.5">
+                    <div className="overflow-hidden" style={{ maskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)" }}>
+                        <div className="flex w-max items-center gap-10" style={{ animation: "pf-marquee 32s linear infinite" }}>
+                            {[...TICKER_EVENTS, ...TICKER_EVENTS].map(({ icon: Icon, text }, i) => (
+                                <div key={i} className="flex items-center gap-2.5 whitespace-nowrap">
+                                    <Icon className="h-3.5 w-3.5 text-[#ea690c]" />
+                                    <span className="text-xs font-medium text-white/50">{text}</span>
+                                    <span className="ml-6 h-1 w-1 rounded-full bg-white/15" />
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </section>
