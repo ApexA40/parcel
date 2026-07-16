@@ -171,15 +171,37 @@ export const BranchSettings = (): JSX.Element => {
     };
 
     return (
-        <div className="flex min-h-full w-full flex-col">
-            <div className="mx-auto w-full max-w-3xl flex-1 px-4 pb-8 pt-8 sm:px-6 lg:px-8">
+        <div className="w-full">
+            <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
 
-                {/* ── Page header ── */}
-                <div className="mb-7">
-                    <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Branch Settings</h1>
-                    <p className="mt-1 text-sm text-[#7d7d7d]">
-                        Customise how your branch appears in the app and on printed materials.
-                    </p>
+                {/* ── Page header with actions ── */}
+                <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Branch Settings</h1>
+                        <p className="mt-1 text-sm text-[#7d7d7d]">
+                            Customise how your branch appears in the app and on printed materials.
+                        </p>
+                    </div>
+                    <div className="flex flex-shrink-0 items-center gap-2.5">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleReset}
+                            className="gap-1.5 rounded-lg border-[#dcdcdc] text-neutral-600 hover:bg-gray-100"
+                        >
+                            <RotateCcw className="h-3.5 w-3.5" /> Reset
+                        </Button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={!isDirty}
+                            className="relative gap-2 rounded-lg bg-[#ea690c] px-5 text-white shadow-sm hover:bg-[#ea690c]/90"
+                        >
+                            <Save className="h-4 w-4" /> Save Settings
+                            {isDirty && (
+                                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#1e40af]" />
+                            )}
+                        </Button>
+                    </div>
                 </div>
 
                 {/* ── Tabs ── */}
@@ -207,7 +229,8 @@ export const BranchSettings = (): JSX.Element => {
 
                     {/* ═══ Visual Identity ═══ */}
                     {activeTab === "identity" && (
-                        <div className="space-y-7">
+                        <div className="grid grid-cols-1 gap-7 lg:grid-cols-5 lg:gap-10">
+                            <div className="space-y-7 lg:col-span-3">
                             <div>
                                 <Label className={labelCls}>Branch Logo</Label>
                                 <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
@@ -283,9 +306,11 @@ export const BranchSettings = (): JSX.Element => {
                                     onChange={v => setField("secondaryColor", v)}
                                 />
                             </div>
+                            </div>
 
                             {/* Live brand preview */}
-                            <div>
+                            <div className="lg:col-span-2">
+                                <div className="lg:sticky lg:top-24">
                                 <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Live Preview</p>
                                 <div className="overflow-hidden rounded-xl border border-[#e3e3e3]">
                                     <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: form.primaryColor }}>
@@ -312,6 +337,7 @@ export const BranchSettings = (): JSX.Element => {
                                             Status Badge
                                         </span>
                                     </div>
+                                </div>
                                 </div>
                             </div>
                         </div>
@@ -366,7 +392,8 @@ export const BranchSettings = (): JSX.Element => {
 
                     {/* ═══ Printing ═══ */}
                     {activeTab === "print" && (
-                        <div className="space-y-6">
+                        <div className="grid grid-cols-1 gap-7 lg:grid-cols-5 lg:gap-10">
+                            <div className="space-y-6 lg:col-span-3">
                             <div>
                                 <Label className={labelCls}>Company Tagline</Label>
                                 <Input
@@ -387,8 +414,10 @@ export const BranchSettings = (): JSX.Element => {
                                 />
                                 <p className={hintCls}>Printed at the bottom of every label and manifest.</p>
                             </div>
+                            </div>
 
-                            <div>
+                            <div className="lg:col-span-2">
+                                <div className="lg:sticky lg:top-24">
                                 <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Label Header Preview</p>
                                 <div className="rounded-xl bg-[#fafafa] p-5 sm:p-6">
                                     <div className="mx-auto max-w-sm border-2 border-black bg-white p-3 shadow-sm">
@@ -408,36 +437,10 @@ export const BranchSettings = (): JSX.Element => {
                                         <p className="mt-2 text-center text-[10px] text-black">{form.printFooterNote || "For inquiries, contact M&M Parcel Services"}</p>
                                     </div>
                                 </div>
+                                </div>
                             </div>
                         </div>
                     )}
-                </div>
-            </div>
-
-            {/* ── Sticky action bar ── */}
-            <div className="sticky bottom-0 z-10 border-t border-[#e5e5e5] bg-white/95 backdrop-blur-sm">
-                <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
-                    <button
-                        type="button"
-                        onClick={handleReset}
-                        className="flex items-center gap-1.5 text-sm font-medium text-[#8a8a8a] transition-colors hover:text-neutral-700"
-                    >
-                        <RotateCcw className="h-3.5 w-3.5" /> Reset to Defaults
-                    </button>
-                    <div className="flex items-center gap-3">
-                        {isDirty && (
-                            <span className="hidden items-center gap-1.5 text-xs text-[#9a9a9a] sm:flex">
-                                <span className="h-1.5 w-1.5 rounded-full bg-[#ea690c]" /> Unsaved changes
-                            </span>
-                        )}
-                        <Button
-                            onClick={handleSave}
-                            disabled={!isDirty}
-                            className="gap-2 rounded-lg bg-[#ea690c] px-5 text-white shadow-sm hover:bg-[#ea690c]/90"
-                        >
-                            <Save className="h-4 w-4" /> Save Settings
-                        </Button>
-                    </div>
                 </div>
             </div>
         </div>
