@@ -19,6 +19,8 @@ import { RiderLayout } from "./layouts/RiderLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ScrollController } from "./components/ScrollController";
 import { Login } from "./screens/Login";
+import { Landing } from "./screens/Landing/Landing";
+import { Signup } from "./screens/Signup/Signup";
 import { ForgotPassword } from "./screens/ForgotPassword";
 import { PasswordRequestSent } from "./screens/PasswordRequestSent";
 import { ResetPassword } from "./screens/ResetPassword";
@@ -108,8 +110,9 @@ export const App = (): JSX.Element => {
                               {/* ── Partner Portal ── */}
                               <Route path="/partner/*" element={<ProtectedRoute allowedRoles={["VENDOR"]}><PartnerPortal /></ProtectedRoute>} />
 
-                              {/* ── Root ── */}
-                              <Route path="/" element={<Navigate to="/login" replace />} />
+                              {/* ── Root / Marketing ── */}
+                              <Route path="/" element={<Landing />} />
+                              <Route path="/signup" element={<Signup />} />
 
                               {/* ════════════════════════════════
                                   PARCEL HUB  /parcel/*
