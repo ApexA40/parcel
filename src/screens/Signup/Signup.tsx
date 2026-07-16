@@ -93,28 +93,28 @@ export const Signup = (): JSX.Element => {
         <div className="flex min-h-screen bg-white font-sans antialiased">
 
             {/* ── Left brand panel ── */}
-            <div className="relative hidden w-[45%] flex-col justify-between overflow-hidden bg-[#0b0d17] p-10 text-white lg:flex xl:p-14">
+            <div className="relative hidden w-[45%] flex-col justify-between overflow-hidden border-r border-orange-100 bg-gradient-to-b from-[#fff4ea] via-[#fbfaf8] to-[#fff7f0] p-10 text-neutral-900 lg:flex xl:p-14">
                 <div
                     aria-hidden
                     className="pointer-events-none absolute inset-0"
                     style={{
-                        backgroundImage: "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)",
+                        backgroundImage: "radial-gradient(rgba(20,20,20,0.06) 1px, transparent 1px)",
                         backgroundSize: "26px 26px",
                     }}
                 />
                 <div
                     aria-hidden
-                    className="pointer-events-none absolute -left-24 top-1/4 h-[420px] w-[420px] rounded-full opacity-30 blur-3xl"
+                    className="pointer-events-none absolute -left-24 top-1/4 h-[420px] w-[420px] rounded-full opacity-[0.14] blur-3xl"
                     style={{ background: `radial-gradient(circle, ${ORANGE}, transparent 70%)` }}
                 />
                 <div
                     aria-hidden
-                    className="pointer-events-none absolute -bottom-32 right-0 h-[380px] w-[380px] rounded-full opacity-25 blur-3xl"
+                    className="pointer-events-none absolute -bottom-32 right-0 h-[380px] w-[380px] rounded-full opacity-[0.12] blur-3xl"
                     style={{ background: `radial-gradient(circle, ${BLUE}, transparent 70%)` }}
                 />
 
                 <Link to="/" className="relative flex w-fit items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#ea690c] to-[#c2470a] shadow-lg shadow-orange-900/30">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#ea690c] to-[#c2470a] shadow-lg shadow-orange-200">
                         <Package className="h-5 w-5 text-white" />
                     </div>
                     <span className="text-lg font-bold tracking-tight">ParcelFlow</span>
@@ -136,7 +136,7 @@ export const Signup = (): JSX.Element => {
                             "Real-time rider tracking and automated reconciliation",
                             "Multi-branch, white-label — your brand on every screen",
                         ].map(item => (
-                            <li key={item} className="flex items-start gap-3 text-sm text-white/70">
+                            <li key={item} className="flex items-start gap-3 text-sm text-neutral-600">
                                 <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#ea690c]" />
                                 {item}
                             </li>
@@ -144,25 +144,25 @@ export const Signup = (): JSX.Element => {
                     </ul>
 
                     {/* mini route illustration */}
-                    <div className="relative mt-10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur">
-                        <svg className="absolute inset-0 h-full w-full opacity-30" viewBox="0 0 300 120" preserveAspectRatio="none">
+                    <div className="relative mt-10 overflow-hidden rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                        <svg className="absolute inset-0 h-full w-full opacity-20" viewBox="0 0 300 120" preserveAspectRatio="none">
                             <path d="M10 100 Q80 30 160 70 T290 20" fill="none" stroke={ORANGE} strokeWidth="2" strokeDasharray="5 5" />
                             <circle cx="10" cy="100" r="4" fill={ORANGE} />
-                            <circle cx="290" cy="20" r="4" fill="#fff" />
+                            <circle cx="290" cy="20" r="4" fill={BLUE} />
                         </svg>
                         <div className="relative flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ea690c]/20">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50">
                                 <MapPin className="h-5 w-5 text-[#ea690c]" />
                             </div>
                             <div>
-                                <p className="text-sm font-semibold">"What used to take 3 people and a spreadsheet now runs automatically."</p>
-                                <p className="mt-1 text-xs text-white/40">— Operations Director, Regional Logistics Company</p>
+                                <p className="text-sm font-semibold text-neutral-800">"What used to take 3 people and a spreadsheet now runs automatically."</p>
+                                <p className="mt-1 text-xs text-neutral-400">— Operations Director, Regional Logistics Company</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <p className="relative text-xs text-white/30">© 2026 Synergetics Hub · Every parcel. Every branch. One platform.</p>
+                <p className="relative text-xs text-neutral-400">© 2026 Synergetics Hub · Every parcel. Every branch. One platform.</p>
             </div>
 
             {/* ── Right form panel ── */}
