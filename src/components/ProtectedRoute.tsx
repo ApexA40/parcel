@@ -9,8 +9,8 @@ interface ProtectedRouteProps {
 const roleDefaultPath: Record<string, string> = {
     SUPER_ADMIN: "/admin/dashboard",
     ADMIN:       "/admin/dashboard",
-    MANAGER:     "/delivery/assignments",
-    FRONTDESK:   "/parcel/intake",
+    MANAGER:     "/delivery/search",
+    FRONTDESK:   "/parcel/search",
     CALLER:      "/delivery/call-center",
     RIDER:       "/rider/dashboard",
     VENDOR:      "/partner",

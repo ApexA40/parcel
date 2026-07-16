@@ -40,9 +40,9 @@ export const Login = (): JSX.Element => {
         } else if (userRole === "ADMIN") {
           navigate("/admin/financial", { replace: true });
         } else if (userRole === "MANAGER") {
-          navigate("/delivery/assignments", { replace: true });
+          navigate("/delivery/search", { replace: true });
         } else if (userRole === "FRONTDESK") {
-          navigate("/parcel/intake", { replace: true });
+          navigate("/parcel/search", { replace: true });
         } else if (userRole === "CALLER") {
           navigate("/delivery/call-center", { replace: true });
         } else if (userRole === "RIDER") {
@@ -168,9 +168,9 @@ export const Login = (): JSX.Element => {
           } else if (normalizedRole === "ADMIN") {
             navigate("/admin/financial", { replace: true });
           } else if (normalizedRole === "MANAGER") {
-            navigate("/delivery/assignments", { replace: true });
+            navigate("/delivery/search", { replace: true });
           } else if (normalizedRole === "FRONTDESK") {
-            navigate("/parcel/intake", { replace: true });
+            navigate("/parcel/search", { replace: true });
           } else if (normalizedRole === "CALLER") {
             navigate("/delivery/call-center", { replace: true });
           } else if (normalizedRole === "RIDER") {
