@@ -31,7 +31,7 @@ export const SuperAdminLayout: React.FC<SuperAdminLayoutProps> = ({ children }) 
                     {!tenant && <span className="opacity-70 ml-1">— All Tenants</span>}
                 </div>
 
-                <div className="sticky top-0 z-10 flex-shrink-0 bg-white dark:bg-gray-900 shadow-sm">
+                <div className="sticky top-0 z-20 flex-shrink-0 bg-white dark:bg-gray-900 shadow-sm">
                     <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
                 </div>
                 <main className="flex-1 bg-gray-50 dark:bg-gray-950">
