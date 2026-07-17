@@ -466,6 +466,154 @@ export const AdminReconciliation = (): JSX.Element => {
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <main className="flex-1 space-y-6">
 
+          {/* Filters */}
+          <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                    Location
+                  </label>
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <select
+                      value={selectedLocationId}
+                      onChange={(e) => setSelectedLocationId(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ea690c] text-sm bg-white"
+                    >
+                      <option value="ALL">All Locations</option>
+                      {locations.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                    Station
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <select
+                      value={selectedOfficeId}
+                      onChange={(e) => setSelectedOfficeId(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ea690c] text-sm bg-white"
+                    >
+                      <option value="ALL">All Stations</option>
+                      {filteredOffices.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                    Date
+                  </label>
+                  <div className="relative">
+                    <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="date"
+                      value={getDateKey(selectedDate)}
+                      max={getDateKey(new Date())}
+                      onChange={(e) => {
+                        if (!e.target.value) return;
+                        const [yy, mm, dd] = e.target.value.split("-").map(Number);
+                        const d = new Date(yy, mm - 1, dd);
+                        d.setHours(0, 0, 0, 0);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const safe = d > today ? today : d;
+                        setSelectedDate(safe);
+                        setSelectedMonth(new Date(safe.getFullYear(), safe.getMonth(), 1));
+                      }}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ea690c] text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="block text-sm font-semibold text-neutral-800">
+                    Quick Actions
+                  </label>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      onClick={() => setSelectedDate(new Date())}
+                      variant="outline"
+                      size="sm"
+                      className="border border-gray-300 text-neutral-800 hover:bg-gray-50 text-xs"
+                    >
+                      Today
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const d = new Date(selectedDate);
+                        d.setDate(d.getDate() - 1);
+                        setSelectedDate(d);
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="border border-gray-300 text-neutral-800 hover:bg-gray-50 text-xs"
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const d = new Date(selectedDate);
+                        d.setDate(d.getDate() + 1);
+                        if (d <= new Date()) setSelectedDate(d);
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="border border-gray-300 text-neutral-800 hover:bg-gray-50 text-xs"
+                      disabled={
+                        new Date(selectedDate).setHours(23, 59, 59, 999) >=
+                        new Date().getTime()
+                      }
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                    Filter by Rider
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Rider name..."
+                    value={riderSearch}
+                    onChange={(e) => setRiderSearch(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
+                  />
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                Office:{" "}
+                <span className="font-semibold text-neutral-800">
+                  {selectedOfficeName}
+                </span>
+                {" • "}
+                Date:{" "}
+                <span className="font-semibold text-neutral-800">
+                  {selectedDate.toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Monthly Calendar — only when a single station is selected */}
           {isSingleStation && (
             <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
@@ -567,8 +715,9 @@ export const AdminReconciliation = (): JSX.Element => {
                         <button
                           key={key}
                           type="button"
-                          onClick={() => { setSelectedDate(date); }}
-                          className={`flex flex-col items-center justify-between rounded-lg border px-1.5 py-1.5 text-xs transition-colors ${isSelected ? cls[variant].sel : cls[variant].base}`}
+                          disabled={isFuture}
+                          onClick={() => { if (!isFuture) setSelectedDate(date); }}
+                          className={`flex flex-col items-center justify-between rounded-lg border px-1.5 py-1.5 text-xs transition-colors ${isFuture ? "cursor-not-allowed" : ""} ${isSelected ? cls[variant].sel : cls[variant].base}`}
                         >
                           <span className="font-semibold">{day}</span>
                           {summary && summary.totalParcels > 0 ? (
@@ -614,6 +763,22 @@ export const AdminReconciliation = (): JSX.Element => {
                   </div>
                 </div>
 
+                {/* Monthly totals strip */}
+                <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg border border-orange-200 bg-orange-50/60 px-4 py-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-orange-800">Total Parcels This Month</p>
+                    <p className="text-lg sm:text-xl font-bold text-[#ea690c]">
+                      {Object.values(monthlySummaries).reduce((s, d) => s + d.totalParcels, 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-orange-800">Total Amount This Month</p>
+                    <p className="text-lg sm:text-xl font-bold text-green-700">
+                      {formatCurrency(Object.values(monthlySummaries).reduce((s, d) => s + d.totalAmount, 0))}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="mt-3 text-xs text-gray-500">
                   Showing:{" "}
                   <span className="font-semibold text-neutral-800">
@@ -623,147 +788,6 @@ export const AdminReconciliation = (): JSX.Element => {
               </CardContent>
             </Card>
           )}
-
-          {/* Filters */}
-          <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
-            <CardContent className="p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-800 mb-2">
-                    Location
-                  </label>
-                  <div className="relative">
-                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <select
-                      value={selectedLocationId}
-                      onChange={(e) => setSelectedLocationId(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ea690c] text-sm bg-white"
-                    >
-                      <option value="ALL">All Locations</option>
-                      {locations.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-800 mb-2">
-                    Station
-                  </label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <select
-                      value={selectedOfficeId}
-                      onChange={(e) => setSelectedOfficeId(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ea690c] text-sm bg-white"
-                    >
-                      <option value="ALL">All Stations</option>
-                      {filteredOffices.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-800 mb-2">
-                    Date
-                  </label>
-                  <div className="relative">
-                    <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="date"
-                      value={selectedDate.toISOString().split("T")[0]}
-                      onChange={(e) => {
-                        const d = new Date(e.target.value);
-                        d.setHours(0, 0, 0, 0);
-                        setSelectedDate(d);
-                      }}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ea690c] text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="block text-sm font-semibold text-neutral-800">
-                    Quick Actions
-                  </label>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      onClick={() => setSelectedDate(new Date())}
-                      variant="outline"
-                      size="sm"
-                      className="border border-gray-300 text-neutral-800 hover:bg-gray-50 text-xs"
-                    >
-                      Today
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        const d = new Date(selectedDate);
-                        d.setDate(d.getDate() - 1);
-                        setSelectedDate(d);
-                      }}
-                      variant="outline"
-                      size="sm"
-                      className="border border-gray-300 text-neutral-800 hover:bg-gray-50 text-xs"
-                    >
-                      Prev
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        const d = new Date(selectedDate);
-                        d.setDate(d.getDate() + 1);
-                        if (d <= new Date()) setSelectedDate(d);
-                      }}
-                      variant="outline"
-                      size="sm"
-                      className="border border-gray-300 text-neutral-800 hover:bg-gray-50 text-xs"
-                      disabled={
-                        new Date(selectedDate).setHours(23, 59, 59, 999) >=
-                        new Date().getTime()
-                      }
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-neutral-800 mb-2">
-                    Filter by Rider
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Rider name..."
-                    value={riderSearch}
-                    onChange={(e) => setRiderSearch(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
-                  />
-                </div>
-              </div>
-              <div className="mt-2 text-xs text-gray-500">
-                Office:{" "}
-                <span className="font-semibold text-neutral-800">
-                  {selectedOfficeName}
-                </span>
-                {" • "}
-                Date:{" "}
-                <span className="font-semibold text-neutral-800">
-                  {selectedDate.toLocaleDateString("en-US", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Summary */}
           {filteredRiderGroups.length > 0 && (
