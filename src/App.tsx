@@ -54,6 +54,8 @@ import { Help } from "./screens/Help/Help";
 import { BranchSettings } from "./screens/BranchSettings/BranchSettings";
 import { TenantSettings } from "./screens/Admin/TenantSettings/TenantSettings";
 import { Billing } from "./screens/Admin/Billing/Billing";
+import { DeliveryIncome } from "./screens/Admin/DeliveryIncome/DeliveryIncome";
+import { DeliveryAccountability } from "./screens/Admin/DeliveryAccountability/DeliveryAccountability";
 import { TenantManagement } from "./screens/Admin/TenantManagement/TenantManagement";
 import { CrossTenantAnalytics } from "./screens/Admin/CrossTenantAnalytics/CrossTenantAnalytics";
 import { TrackParcel } from "./screens/TrackParcel/TrackParcel";
@@ -177,6 +179,8 @@ export const App = (): JSX.Element => {
                               <Route path="/admin/fuel-requests" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminFuelRequests /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><TenantSettings /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/billing" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><Billing /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/delivery-income" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><DeliveryIncome /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/accountability" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><DeliveryAccountability /></AdminLayout></ProtectedRoute>} />
 
                               {/* Super Admin only */}
                               <Route path="/admin/tenants" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminLayout><TenantManagement /></SuperAdminLayout></ProtectedRoute>} />
