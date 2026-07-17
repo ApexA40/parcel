@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, LayoutDashboard, TrendingUp, Building2, Users, Package, DollarSignIcon, ScrollTextIcon, Fuel, BarChart2, Settings, Globe, LogOut, CreditCard } from "lucide-react";
+import { X, LayoutDashboard, TrendingUp, Building2, Users, Package, DollarSignIcon, ScrollTextIcon, Fuel, BarChart2, Settings, Globe, LogOut, CreditCard, Scale, HandCoins } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 import { useBranding } from "../contexts/BrandingContext";
 
@@ -9,21 +9,55 @@ interface SidebarProps {
     onToggle: () => void;
 }
 
-const navItems = [
-    { label: "Dashboard",           path: "/admin/dashboard",         icon: LayoutDashboard, roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "Statistics",          path: "/admin/statistics",        icon: TrendingUp,      roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "Station Management",  path: "/admin/stations",          icon: Building2,       roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "User Management",     path: "/admin/users",             icon: Users,           roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "System Parcels",      path: "/admin/parcels",           icon: Package,         roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "Reconciliation",      path: "/admin/reconciliation",    icon: DollarSignIcon,  roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "Financial Reports",   path: "/admin/financial-reports", icon: BarChart2,       roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "System Logs",         path: "/admin/system-logs",       icon: ScrollTextIcon,  roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "Fuel Requests",       path: "/admin/fuel-requests",     icon: Fuel,            roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "Tenant Settings",     path: "/admin/settings",          icon: Settings,        roles: ["ADMIN", "SUPER_ADMIN"] },
-    { label: "Billing",             path: "/admin/billing",           icon: CreditCard,      roles: ["ADMIN", "SUPER_ADMIN"] },
-    // Super Admin only
-    { label: "Tenant Management",   path: "/admin/tenants",           icon: Globe,           roles: ["SUPER_ADMIN"] },
-    { label: "Cross-Tenant Analytics", path: "/admin/analytics",      icon: BarChart2,       roles: ["SUPER_ADMIN"] },
+const BOTH = ["ADMIN", "SUPER_ADMIN"];
+
+// Parcel operations and Delivery operations are run separately, but the
+// Delivery Hub reports under the Parcel Hub — hence the accountability page
+// living in the Parcel Operations group.
+const navGroups: {
+    heading: string | null;
+    items: { label: string; path: string; icon: React.ComponentType<{ size?: number; className?: string }>; roles: string[] }[];
+}[] = [
+    {
+        heading: null,
+        items: [
+            { label: "Dashboard",              path: "/admin/dashboard",         icon: LayoutDashboard, roles: BOTH },
+            { label: "Statistics",             path: "/admin/statistics",        icon: TrendingUp,      roles: BOTH },
+        ],
+    },
+    {
+        heading: "Parcel Operations",
+        items: [
+            { label: "Station Management",     path: "/admin/stations",          icon: Building2,       roles: BOTH },
+            { label: "System Parcels",         path: "/admin/parcels",           icon: Package,         roles: BOTH },
+            { label: "Delivery Accountability",path: "/admin/accountability",    icon: Scale,           roles: BOTH },
+        ],
+    },
+    {
+        heading: "Delivery Operations",
+        items: [
+            { label: "Delivery Income",        path: "/admin/delivery-income",   icon: HandCoins,       roles: BOTH },
+            { label: "Reconciliation",         path: "/admin/reconciliation",    icon: DollarSignIcon,  roles: BOTH },
+            { label: "Financial Reports",      path: "/admin/financial-reports", icon: BarChart2,       roles: BOTH },
+            { label: "Fuel Requests",          path: "/admin/fuel-requests",     icon: Fuel,            roles: BOTH },
+        ],
+    },
+    {
+        heading: "Administration",
+        items: [
+            { label: "User Management",        path: "/admin/users",             icon: Users,           roles: BOTH },
+            { label: "System Logs",            path: "/admin/system-logs",       icon: ScrollTextIcon,  roles: BOTH },
+            { label: "Tenant Settings",        path: "/admin/settings",          icon: Settings,        roles: BOTH },
+            { label: "Billing",                path: "/admin/billing",           icon: CreditCard,      roles: BOTH },
+        ],
+    },
+    {
+        heading: "Super Admin",
+        items: [
+            { label: "Tenant Management",      path: "/admin/tenants",           icon: Globe,           roles: ["SUPER_ADMIN"] },
+            { label: "Cross-Tenant Analytics", path: "/admin/analytics",         icon: BarChart2,       roles: ["SUPER_ADMIN"] },
+        ],
+    },
 ];
 
 export const AdminSidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
@@ -32,7 +66,9 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
     const { branding } = useBranding();
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-    const filtered = navItems.filter(item => userRole && item.roles.includes(userRole));
+    const groups = navGroups
+        .map(g => ({ ...g, items: g.items.filter(item => userRole && item.roles.includes(userRole)) }))
+        .filter(g => g.items.length > 0);
     const isSuperAdmin = userRole === "SUPER_ADMIN";
 
     return (
@@ -68,28 +104,39 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
                 </div>
 
                 {/* Nav */}
-                <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-1">
-                    {filtered.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = location.pathname === item.path;
-                        return (
-                            <Link
-                                key={item.path}
-                                to={item.path}
-                                onClick={onToggle}
-                                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 ${isActive
-                                    ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/30"
-                                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:translate-x-1"
-                                }`}
-                            >
-                                <div className={`p-1.5 rounded-lg transition-colors ${isActive ? "bg-white/20" : "bg-gray-100 dark:bg-gray-800 group-hover:bg-orange-50 dark:group-hover:bg-orange-900/20"}`}>
-                                    <Icon size={18} className={isActive ? "" : "text-gray-600 dark:text-gray-400 group-hover:text-orange-600"} />
-                                </div>
-                                <span className="text-sm">{item.label}</span>
-                                {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
-                            </Link>
-                        );
-                    })}
+                <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
+                    {groups.map((group, gi) => (
+                        <div key={group.heading ?? "top"} className={gi > 0 ? "mt-5" : ""}>
+                            {group.heading && (
+                                <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">
+                                    {group.heading}
+                                </p>
+                            )}
+                            <div className="space-y-1">
+                                {group.items.map((item) => {
+                                    const Icon = item.icon;
+                                    const isActive = location.pathname === item.path;
+                                    return (
+                                        <Link
+                                            key={item.path}
+                                            to={item.path}
+                                            onClick={onToggle}
+                                            className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 ${isActive
+                                                ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/30"
+                                                : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:translate-x-1"
+                                            }`}
+                                        >
+                                            <div className={`p-1.5 rounded-lg transition-colors ${isActive ? "bg-white/20" : "bg-gray-100 dark:bg-gray-800 group-hover:bg-orange-50 dark:group-hover:bg-orange-900/20"}`}>
+                                                <Icon size={18} className={isActive ? "" : "text-gray-600 dark:text-gray-400 group-hover:text-orange-600"} />
+                                            </div>
+                                            <span className="text-sm">{item.label}</span>
+                                            {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
                 </nav>
 
                 {/* Logout */}

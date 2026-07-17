@@ -1372,3 +1372,63 @@ export const updateUser = (userId: string, updates: Partial<User>): boolean => {
     return true;
 };
 
+
+// ============================================================================
+// DELIVERY HUB ACCOUNTABILITY (Parcel Hub oversight of Delivery Hub work)
+// ============================================================================
+
+/**
+ * Parcels handled to completion by Delivery Hub riders, with the costs the
+ * Parcel Hub bears for them (inbound handling, misc ops). The Delivery Hub
+ * operates under the Parcel Hub, so the Parcel Hub admin reviews this log
+ * for accountability: delivery income generated vs costs attributed.
+ */
+export interface DeliveryAccountabilityRecord {
+    parcelId: string;
+    recipientName: string;
+    stationId: string;
+    stationName: string;
+    riderName: string;
+    deliveredDate?: string;
+    status: "delivered" | "collected";
+    deliveryFee: number;        // income collected by the Delivery Hub
+    itemValueCollected: number; // COD collected on delivery
+    inboundCost: number;        // inbound handling cost borne by the Parcel Hub
+    otherCost: number;          // misc operational cost (packaging, storage, comms)
+    netPosition: number;        // deliveryFee - inboundCost - otherCost
+}
+
+// Mock per-parcel cost attributions (backend will supply these per parcel)
+const MOCK_PARCEL_COSTS: Record<string, { inbound: number; other: number }> = {
+    "PAK-001": { inbound: 8.0, other: 2.5 },
+    "PAK-007": { inbound: 10.0, other: 3.0 },
+    "PAK-009": { inbound: 6.5, other: 1.5 },
+    "PAK-013": { inbound: 7.0, other: 2.0 },
+    "PAK-018": { inbound: 9.0, other: 2.5 },
+};
+const DEFAULT_PARCEL_COSTS = { inbound: 5.0, other: 1.0 };
+
+export const getDeliveryAccountability = (): DeliveryAccountabilityRecord[] => {
+    return mockParcels
+        .filter((p) => p.status === "delivered" || p.status === "collected")
+        .map((p) => {
+            const station = mockStations.find((s) => s.id === p.stationId);
+            const costs = MOCK_PARCEL_COSTS[p.id] || DEFAULT_PARCEL_COSTS;
+            const deliveryFee = p.deliveryFeeCollected ?? p.deliveryFee ?? 0;
+            return {
+                parcelId: p.id,
+                recipientName: p.recipientName,
+                stationId: p.stationId,
+                stationName: station?.name || p.stationId,
+                riderName: p.assignedRiderName || "—",
+                deliveredDate: p.deliveredDate || p.collectedDate,
+                status: p.status as "delivered" | "collected",
+                deliveryFee,
+                itemValueCollected: p.itemValueCollected || 0,
+                inboundCost: costs.inbound,
+                otherCost: costs.other,
+                netPosition: deliveryFee - costs.inbound - costs.other,
+            };
+        })
+        .sort((a, b) => (b.deliveredDate || "").localeCompare(a.deliveredDate || ""));
+};
