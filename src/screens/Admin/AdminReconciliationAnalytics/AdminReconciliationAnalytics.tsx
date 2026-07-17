@@ -11,7 +11,10 @@ import {
   Clock,
   Building2,
   Trophy,
+  ChevronRightIcon as ArrowRight,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import type { RiderDetailData, RiderParcel } from "../../ReconciliationAnalytics/RiderDetailModal";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -56,6 +59,7 @@ interface RiderStat {
   deliveryCost: number;
   inboundCost: number;
   activeDays: Set<number>;
+  parcels: RiderParcel[];
 }
 
 interface PaymentMethodCount {
@@ -98,6 +102,7 @@ async function runPool<T>(tasks: (() => Promise<T>)[], limit = 12): Promise<T[]>
 export const AdminReconciliationAnalytics = (): JSX.Element => {
   const { stations } = useLocation();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [scopeStationId, setScopeStationId] = useState<string>("ALL");
   const [selectedMonth, setSelectedMonth] = useState<Date>(() => {
@@ -221,7 +226,7 @@ export const AdminReconciliationAnalytics = (): JSX.Element => {
         const zoneMap = new Map<string, number>();
         let pendingTotal = 0;
 
-        results.forEach(({ stationId, stationName, day, assignments }) => {
+        results.forEach(({ stationId, stationName, day, dayOfWeek, assignments }) => {
           const dayEntry = dayMap.get(day)!;
           const stationEntry = stationMap.get(stationId)!;
 
@@ -240,6 +245,7 @@ export const AdminReconciliationAnalytics = (): JSX.Element => {
                 deliveryCost: 0,
                 inboundCost: 0,
                 activeDays: new Set(),
+                parcels: [],
               });
             }
             const rider = riderMap.get(riderId)!;
@@ -294,6 +300,25 @@ export const AdminReconciliationAnalytics = (): JSX.Element => {
                 dayEntry.pending++;
                 stationEntry.pending++;
                 pendingTotal++;
+              }
+
+              if (isDelivered || isReturned) {
+                rider.parcels.push({
+                  parcelId: parcel.parcelId,
+                  parcelDescription: parcel.parcelDescription,
+                  receiverName: parcel.receiverName,
+                  receiverPhoneNumber: parcel.receiverPhoneNumber,
+                  receiverAddress: parcel.receiverAddress,
+                  parcelAmount: amount,
+                  deliveryCost,
+                  inboundCost,
+                  paymentMethod: parcel.paymentMethod,
+                  delivered: isDelivered,
+                  returned: isReturned,
+                  day,
+                  dayOfWeek,
+                  stationName,
+                });
               }
             });
           });
@@ -829,7 +854,7 @@ export const AdminReconciliationAnalytics = (): JSX.Element => {
                         <table className="w-full border-collapse">
                           <thead className="bg-gray-50">
                             <tr>
-                              {["Rank", "Rider", "Station", "Active Days", "Delivered", "Failed", "Success Rate", "Amount", "Delivery Fees", "Inbound Fees"].map((h) => (
+                              {["Rank", "Rider", "Station", "Active Days", "Delivered", "Failed", "Success Rate", "Amount", "Delivery Fees", "Inbound Fees", ""].map((h) => (
                                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase border-b-2 border-gray-200">
                                   {h}
                                 </th>
@@ -841,7 +866,25 @@ export const AdminReconciliationAnalytics = (): JSX.Element => {
                               const total = rider.delivered + rider.failed;
                               const rate = total > 0 ? ((rider.delivered / total) * 100).toFixed(1) : "0.0";
                               return (
-                                <tr key={rider.riderId} className="border-b border-gray-100 hover:bg-orange-50 transition-colors">
+                                <tr
+                                  key={rider.riderId}
+                                  onClick={() => navigate("/admin/rider-detail", { state: {
+                                    riderId: rider.riderId,
+                                    riderName: rider.riderName,
+                                    delivered: rider.delivered,
+                                    failed: rider.failed,
+                                    totalAmount: rider.totalAmount,
+                                    deliveryCost: rider.deliveryCost,
+                                    inboundCost: rider.inboundCost,
+                                    activeDays: rider.activeDays,
+                                    parcels: rider.parcels,
+                                    daysInMonth: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate(),
+                                    monthLabel,
+                                    year: selectedMonth.getFullYear(),
+                                    month: selectedMonth.getMonth(),
+                                    stationNames: Array.from(rider.stationNames),
+                                  } as RiderDetailData })}
+                                  className="border-b border-gray-100 hover:bg-orange-50 cursor-pointer transition-colors">
                                   <td className="px-4 py-3">
                                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                                       index === 0 ? "bg-yellow-100 text-yellow-700"
@@ -875,6 +918,9 @@ export const AdminReconciliationAnalytics = (): JSX.Element => {
                                   <td className="px-4 py-3 text-sm font-bold text-[#ea690c]">{formatCurrency(rider.totalAmount)}</td>
                                   <td className="px-4 py-3 text-sm font-semibold text-emerald-600">{formatCurrency(rider.deliveryCost)}</td>
                                   <td className="px-4 py-3 text-sm font-semibold text-blue-600">{formatCurrency(rider.inboundCost)}</td>
+                                  <td className="px-4 py-3">
+                                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                                  </td>
                                 </tr>
                               );
                             })}

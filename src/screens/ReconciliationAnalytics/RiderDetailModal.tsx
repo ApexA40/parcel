@@ -20,6 +20,7 @@ export interface RiderParcel {
   returned: boolean;
   day: number; // day of month
   dayOfWeek: number; // 0=Sun
+  stationName?: string; // set when viewing across stations (admin)
 }
 
 export interface RiderDetailData {
@@ -36,6 +37,7 @@ export interface RiderDetailData {
   monthLabel: string;
   year: number;
   month: number; // 0-based
+  stationNames?: string[]; // set when viewing across stations (admin)
 }
 
 const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

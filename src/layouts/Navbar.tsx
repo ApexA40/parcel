@@ -55,6 +55,7 @@ const routeTitles: Record<string, { title: string; description: string }> = {
     "/admin/parcels": { title: "System Parcel Overview", description: "Global visibility of all parcels across all stations" },
     "/admin/reconciliation": { title: "Admin Reconciliation", description: "Reconcile payments across all stations" },
     "/admin/delivery-analytics": { title: "Delivery Analytics", description: "Monthly delivery performance and comparison across stations" },
+    "/admin/rider-detail": { title: "Rider Performance", description: "Detailed monthly performance report for a rider" },
     "/admin/financial": { title: "Financial Dashboard", description: "Financial overview across all stations" },
     "/admin/financial-reports": { title: "Financial Reports", description: "Comprehensive financial analytics and insights" },
     "/admin/system-logs": { title: "System Logs", description: "View system activity and audit logs" },

@@ -107,6 +107,7 @@ export const RiderDetail = (): JSX.Element => {
   const firstDayOfWeek = new Date(rider.year, rider.month, 1).getDay();
   const deliveredParcels = rider.parcels.filter((p) => p.delivered);
   const failedParcels = rider.parcels.filter((p) => p.returned);
+  const showStation = rider.parcels.some((p) => !!p.stationName);
 
   return (
     <div className="w-full">
@@ -122,7 +123,12 @@ export const RiderDetail = (): JSX.Element => {
           </button>
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">{rider.riderName}</h1>
-            <p className="text-sm text-gray-500">{rider.monthLabel} · Rider Performance Report</p>
+            <p className="text-sm text-gray-500">
+              {rider.monthLabel} · Rider Performance Report
+              {rider.stationNames && rider.stationNames.length > 0 && (
+                <span> · {rider.stationNames.join(", ")}</span>
+              )}
+            </p>
           </div>
         </div>
 
@@ -323,7 +329,7 @@ export const RiderDetail = (): JSX.Element => {
                 <table className="w-full border-collapse">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["Day", "Recipient", "Address", "Amount", "Del. Fee", "Inbound Fee", "Payment"].map((h) => (
+                      {["Day", ...(showStation ? ["Station"] : []), "Recipient", "Address", "Amount", "Del. Fee", "Inbound Fee", "Payment"].map((h) => (
                         <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase border-b-2 border-gray-200">{h}</th>
                       ))}
                     </tr>
@@ -332,6 +338,9 @@ export const RiderDetail = (): JSX.Element => {
                     {deliveredParcels.map((p) => (
                       <tr key={p.parcelId} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                         <td className="px-3 py-2.5 text-xs font-semibold text-gray-500 whitespace-nowrap">Day {p.day}</td>
+                        {showStation && (
+                          <td className="px-3 py-2.5 text-xs text-neutral-600 whitespace-nowrap">{p.stationName || "—"}</td>
+                        )}
                         <td className="px-3 py-2.5">
                           <div className="text-xs font-semibold text-neutral-800">{p.receiverName || "N/A"}</div>
                           {p.receiverPhoneNumber && (
@@ -385,7 +394,7 @@ export const RiderDetail = (): JSX.Element => {
                 <table className="w-full border-collapse">
                   <thead className="bg-red-50">
                     <tr>
-                      {["Day", "Recipient", "Address", "Amount", "Del. Fee", "Inbound Fee"].map((h) => (
+                      {["Day", ...(showStation ? ["Station"] : []), "Recipient", "Address", "Amount", "Del. Fee", "Inbound Fee"].map((h) => (
                         <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-red-700 uppercase border-b-2 border-red-200">{h}</th>
                       ))}
                     </tr>
@@ -394,6 +403,9 @@ export const RiderDetail = (): JSX.Element => {
                     {failedParcels.map((p) => (
                       <tr key={p.parcelId} className="border-b border-red-100 hover:bg-red-50/50 transition-colors">
                         <td className="px-3 py-2.5 text-xs font-semibold text-gray-500 whitespace-nowrap">Day {p.day}</td>
+                        {showStation && (
+                          <td className="px-3 py-2.5 text-xs text-neutral-600 whitespace-nowrap">{p.stationName || "—"}</td>
+                        )}
                         <td className="px-3 py-2.5">
                           <div className="text-xs font-semibold text-neutral-800">{p.receiverName || "N/A"}</div>
                           {p.receiverPhoneNumber && (
