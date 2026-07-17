@@ -51,7 +51,7 @@ export const AdminReconciliation = (): JSX.Element => {
   const { locations, stations } = useLocation();
   const { showToast } = useToast();
 
-  const [selectedLocationId, setSelectedLocationId] = useState<string>("ALL");
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
@@ -88,25 +88,17 @@ export const AdminReconciliation = (): JSX.Element => {
 
   // Reset office selection when location changes
   useEffect(() => {
-    if (filteredOffices.length > 0) {
-      setSelectedOfficeId(filteredOffices.length === 1 ? filteredOffices[0].id : "ALL");
-    }
+    setSelectedOfficeId("");
+    setRawAssignments([]);
     setMonthlySummaries({});
-  }, [filteredOffices]);
-
-  // Ensure default values when data loads
-  useEffect(() => {
-    if (selectedLocationId === "ALL" && !selectedOfficeId && stations.length > 0) {
-      setSelectedOfficeId("ALL");
-    }
-  }, [stations, selectedLocationId, selectedOfficeId]);
+  }, [selectedLocationId]);
 
   const fetchReconciliations = async (
     locationId: string,
     officeId: string,
     date: Date
   ): Promise<void> => {
-    if (!locationId && !officeId) return;
+    if (!locationId || !officeId) return;
     setLoading(true);
     try {
       const startOfDay = new Date(date);
@@ -117,19 +109,11 @@ export const AdminReconciliation = (): JSX.Element => {
       let officesToFetch: string[] = [];
 
       if (locationId === "ALL") {
-        // All locations - use all offices
-        officesToFetch = stations.map((s) => s.id);
+        officesToFetch = [officeId];
       } else {
-        // Specific location selected
         const location = locations.find((l) => l.id === locationId);
         if (location) {
-          if (officeId === "ALL") {
-            // All offices in this location
-            officesToFetch = location.offices.map((o) => o.id);
-          } else {
-            // Specific office
-            officesToFetch = [officeId];
-          }
+          officesToFetch = [officeId];
         }
       }
 
@@ -175,6 +159,8 @@ export const AdminReconciliation = (): JSX.Element => {
   useEffect(() => {
     if (selectedLocationId && selectedOfficeId) {
       fetchReconciliations(selectedLocationId, selectedOfficeId, selectedDate);
+    } else {
+      setRawAssignments([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLocationId, selectedOfficeId, selectedDate]);
@@ -452,14 +438,7 @@ export const AdminReconciliation = (): JSX.Element => {
     });
   };
 
-  const selectedOfficeName =
-    selectedLocationId === "ALL" && selectedOfficeId === "ALL"
-      ? "All stations"
-      : selectedLocationId === "ALL"
-        ? stations.find((s) => s.id === selectedOfficeId)?.name || "Select station"
-        : selectedOfficeId === "ALL"
-          ? locations.find((l) => l.id === selectedLocationId)?.name || "Select location"
-          : stations.find((s) => s.id === selectedOfficeId)?.name || "Select station";
+  const selectedOfficeName = stations.find((s) => s.id === selectedOfficeId)?.name || "Select station";
 
   return (
     <div className="w-full">
@@ -481,7 +460,7 @@ export const AdminReconciliation = (): JSX.Element => {
                       onChange={(e) => setSelectedLocationId(e.target.value)}
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ea690c] text-sm bg-white"
                     >
-                      <option value="ALL">All Locations</option>
+                      <option value="">Select Location</option>
                       {locations.map((l) => (
                         <option key={l.id} value={l.id}>
                           {l.name}
@@ -500,9 +479,11 @@ export const AdminReconciliation = (): JSX.Element => {
                     <select
                       value={selectedOfficeId}
                       onChange={(e) => setSelectedOfficeId(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ea690c] text-sm bg-white"
+                      disabled={!selectedLocationId}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ea690c] text-sm bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <option value="ALL">All Stations</option>
+                      <option value="">Select Station</option>
+                      <option disabled>──────────</option>
                       {filteredOffices.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}

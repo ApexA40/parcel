@@ -77,6 +77,7 @@ import { RiderDetail } from "./screens/ReconciliationAnalytics/RiderDetail";
 import { PartnerPortal } from "./screens/PartnerPortal/PartnerPortal";
 import { ParcelScan } from "./screens/ParcelScan/ParcelScan";
 import { AddressManagement } from "./screens/AddressManagement/AddressManagement";
+import { AdminFinancialDashboard } from "./screens/Admin/AdminFinancialDashboard";
 
 const PARCEL_ROLES = ["FRONTDESK", "MANAGER"];
 const DELIVERY_ROLES = ["MANAGER", "CALLER"];
@@ -167,8 +168,8 @@ export const App = (): JSX.Element => {
                               {/* ════════════════════════════════
                                   ADMIN SHELL  /admin/*
                               ════════════════════════════════ */}
-                              <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
-                              <Route path="/admin/statistics" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminStatistics /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminStatistics /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/statistics" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminFinancialDashboard /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/stations" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><StationManagement /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/users" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><UserManagement /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/parcels" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><SystemParcelOverview /></AdminLayout></ProtectedRoute>} />
