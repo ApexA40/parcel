@@ -59,6 +59,7 @@ const routeTitles: Record<string, { title: string; description: string }> = {
     "/admin/system-logs": { title: "System Logs", description: "View system activity and audit logs" },
     "/admin/fuel-requests": { title: "Fuel Requests", description: "Manage all rider fuel requests" },
     "/admin/settings": { title: "Tenant Settings", description: "Configure branding and settings for this tenant" },
+    "/admin/billing": { title: "Billing & Subscription", description: "Manage your plan, payment method, and billing details" },
     "/admin/tenants": { title: "Tenant Management", description: "Manage all tenants across the platform" },
     "/admin/analytics": { title: "Cross-Tenant Analytics", description: "Analytics and insights across all tenants" },
     // Legacy sub-pages

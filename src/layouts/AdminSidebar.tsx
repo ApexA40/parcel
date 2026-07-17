@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, LayoutDashboard, TrendingUp, Building2, Users, Package, DollarSignIcon, ScrollTextIcon, Fuel, BarChart2, Settings, Globe, LogOut } from "lucide-react";
+import { X, LayoutDashboard, TrendingUp, Building2, Users, Package, DollarSignIcon, ScrollTextIcon, Fuel, BarChart2, Settings, Globe, LogOut, CreditCard } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 import { useBranding } from "../contexts/BrandingContext";
 
@@ -20,6 +20,7 @@ const navItems = [
     { label: "System Logs",         path: "/admin/system-logs",       icon: ScrollTextIcon,  roles: ["ADMIN", "SUPER_ADMIN"] },
     { label: "Fuel Requests",       path: "/admin/fuel-requests",     icon: Fuel,            roles: ["ADMIN", "SUPER_ADMIN"] },
     { label: "Tenant Settings",     path: "/admin/settings",          icon: Settings,        roles: ["ADMIN", "SUPER_ADMIN"] },
+    { label: "Billing",             path: "/admin/billing",           icon: CreditCard,      roles: ["ADMIN", "SUPER_ADMIN"] },
     // Super Admin only
     { label: "Tenant Management",   path: "/admin/tenants",           icon: Globe,           roles: ["SUPER_ADMIN"] },
     { label: "Cross-Tenant Analytics", path: "/admin/analytics",      icon: BarChart2,       roles: ["SUPER_ADMIN"] },
