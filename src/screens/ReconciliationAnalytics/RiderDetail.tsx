@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, PackageIcon, XCircle, TrendingUp, DollarSign, MapPinIcon, Phone } from "lucide-react";
+import { ArrowLeft, PackageIcon, XCircle, TrendingUp, DollarSign, MapPinIcon, Phone, SearchIcon, X } from "lucide-react";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { PieChart } from "@mui/x-charts/PieChart";
 import { Card, CardContent } from "../../components/ui/card";
@@ -22,6 +22,13 @@ export const RiderDetail = (): JSX.Element => {
   const navigate = useNavigate();
   const location = useLocation();
   const rider = location.state as RiderDetailData | undefined;
+  const [parcelSearch, setParcelSearch] = useState("");
+
+  // The leaderboard that links here sits near the bottom of a long page, and
+  // the browser keeps that scroll position on navigation — reset to the top.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   if (!rider) {
     return (
@@ -105,9 +112,26 @@ export const RiderDetail = (): JSX.Element => {
   }, [rider.parcels]);
 
   const firstDayOfWeek = new Date(rider.year, rider.month, 1).getDay();
-  const deliveredParcels = rider.parcels.filter((p) => p.delivered);
-  const failedParcels = rider.parcels.filter((p) => p.returned);
   const showStation = rider.parcels.some((p) => !!p.stationName);
+
+  const searchTerm = parcelSearch.trim().toLowerCase();
+  const matchesSearch = (p: typeof rider.parcels[number]) => {
+    if (!searchTerm) return true;
+    return [
+      p.receiverName,
+      p.receiverPhoneNumber,
+      p.receiverAddress,
+      p.parcelDescription,
+      p.parcelId,
+      p.stationName,
+      p.paymentMethod,
+    ].some((v) => v && v.toLowerCase().includes(searchTerm));
+  };
+
+  const totalDelivered = rider.parcels.filter((p) => p.delivered).length;
+  const totalFailed = rider.parcels.filter((p) => p.returned).length;
+  const deliveredParcels = rider.parcels.filter((p) => p.delivered && matchesSearch(p));
+  const failedParcels = rider.parcels.filter((p) => p.returned && matchesSearch(p));
 
   return (
     <div className="w-full">
@@ -316,13 +340,62 @@ export const RiderDetail = (): JSX.Element => {
           </Card>
         </div>
 
+        {/* Parcel search */}
+        {rider.parcels.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="relative flex-1 sm:max-w-md">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={parcelSearch}
+                onChange={(e) => setParcelSearch(e.target.value)}
+                placeholder="Search parcels — recipient, phone, address, description..."
+                className="w-full pl-9 pr-9 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ea690c] bg-white"
+              />
+              {parcelSearch && (
+                <button
+                  type="button"
+                  onClick={() => setParcelSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  title="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {searchTerm && (
+              <p className="text-xs text-gray-500">
+                {deliveredParcels.length + failedParcels.length} of {totalDelivered + totalFailed} parcels match
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* No search matches */}
+        {searchTerm && deliveredParcels.length === 0 && failedParcels.length === 0 && (
+          <Card className="border border-gray-200 bg-white shadow-sm">
+            <CardContent className="py-12 flex flex-col items-center gap-3">
+              <SearchIcon className="w-10 h-10 text-gray-300" />
+              <p className="text-neutral-600 font-medium">No parcels match "{parcelSearch.trim()}"</p>
+              <button
+                onClick={() => setParcelSearch("")}
+                className="text-sm text-[#ea690c] hover:underline"
+              >
+                Clear search
+              </button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Delivered Parcels Table */}
         {deliveredParcels.length > 0 && (
           <Card className="border border-gray-200 bg-white shadow-sm">
             <CardContent className="p-4 sm:p-6">
               <h2 className="text-base font-bold text-neutral-800 mb-1">
                 Delivered Parcels
-                <span className="ml-2 text-sm font-normal text-gray-400">({deliveredParcels.length})</span>
+                <span className="ml-2 text-sm font-normal text-gray-400">
+                  ({searchTerm ? `${deliveredParcels.length} of ${totalDelivered}` : deliveredParcels.length})
+                </span>
               </h2>
               <p className="text-xs text-gray-500 mb-4">All parcels successfully delivered this month</p>
               <div className="overflow-x-auto">
@@ -387,7 +460,9 @@ export const RiderDetail = (): JSX.Element => {
             <CardContent className="p-4 sm:p-6">
               <h2 className="text-base font-bold text-red-700 mb-1">
                 Failed / Returned Parcels
-                <span className="ml-2 text-sm font-normal text-red-400">({failedParcels.length})</span>
+                <span className="ml-2 text-sm font-normal text-red-400">
+                  ({searchTerm ? `${failedParcels.length} of ${totalFailed}` : failedParcels.length})
+                </span>
               </h2>
               <p className="text-xs text-gray-500 mb-4">Parcels that were returned this month</p>
               <div className="overflow-x-auto">
