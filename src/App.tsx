@@ -176,6 +176,7 @@ export const App = (): JSX.Element => {
                               <Route path="/admin/parcels" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><SystemParcelOverview /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/reconciliation" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminReconciliation /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/delivery-analytics" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminReconciliationAnalytics /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/rider-detail" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><RiderDetail /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/financial" element={<Navigate to="/admin/dashboard" replace />} />
                               <Route path="/admin/financial-reports" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><FinancialReports /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/system-logs" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><SystemLogs /></AdminLayout></ProtectedRoute>} />
