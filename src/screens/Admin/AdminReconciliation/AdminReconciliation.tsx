@@ -10,6 +10,7 @@ import {
   CalendarIcon,
   Building2,
   Globe,
+  DownloadIcon,
 } from "lucide-react";
 import { Card, CardContent } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
@@ -57,6 +58,24 @@ export const AdminReconciliation = (): JSX.Element => {
   const [rawAssignments, setRawAssignments] = useState<any[]>([]);
   const [expandedRiders, setExpandedRiders] = useState<Set<string>>(new Set());
   const [riderSearch, setRiderSearch] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [monthlySummaries, setMonthlySummaries] = useState<
+    Record<string, { totalAmount: number; totalParcels: number; hasReconciliations: boolean }>
+  >({});
+  const [loadingMonth, setLoadingMonth] = useState(false);
+
+  const isSingleStation =
+    selectedLocationId !== "ALL" && selectedOfficeId !== "ALL" && !!selectedOfficeId;
+
+  const getDateKey = (date: Date): string => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
 
   // Filter offices based on selected location
   const filteredOffices = useMemo(() => {
@@ -72,6 +91,7 @@ export const AdminReconciliation = (): JSX.Element => {
     if (filteredOffices.length > 0) {
       setSelectedOfficeId(filteredOffices.length === 1 ? filteredOffices[0].id : "ALL");
     }
+    setMonthlySummaries({});
   }, [filteredOffices]);
 
   // Ensure default values when data loads
@@ -158,6 +178,114 @@ export const AdminReconciliation = (): JSX.Element => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLocationId, selectedOfficeId, selectedDate]);
+
+  // Load monthly calendar data — only when a single specific station is selected
+  useEffect(() => {
+    if (!isSingleStation) {
+      setMonthlySummaries({});
+      return;
+    }
+
+    const loadMonthly = async () => {
+      setLoadingMonth(true);
+      try {
+        const year = selectedMonth.getFullYear();
+        const month = selectedMonth.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const summaries: Record<string, { totalAmount: number; totalParcels: number; hasReconciliations: boolean }> = {};
+        for (let d = 1; d <= daysInMonth; d++) {
+          const date = new Date(year, month, d);
+          date.setHours(0, 0, 0, 0);
+          summaries[getDateKey(date)] = { totalAmount: 0, totalParcels: 0, hasReconciliations: false };
+        }
+
+        const datesToFetch: Date[] = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+          const date = new Date(year, month, d);
+          date.setHours(0, 0, 0, 0);
+          if (date <= today) datesToFetch.push(date);
+        }
+
+        await Promise.all(
+          datesToFetch.map(async (date) => {
+            const response = await adminService.getOfficeReconciliationsByDate(
+              selectedOfficeId,
+              date.getTime()
+            );
+            if (!response.success || !response.data) return;
+            const data = response.data as any;
+            const content: any[] = Array.isArray(data) ? data : data.content || [];
+            let dayAmount = 0;
+            let dayParcels = 0;
+            content.forEach((assignment: any) => {
+              (assignment.parcels || []).forEach((parcel: any) => {
+                if (parcel.delivered && !parcel.returned) {
+                  dayAmount += Math.round(Number(parcel.parcelAmount ?? parcel.amount ?? 0) || 0);
+                  dayParcels++;
+                }
+              });
+            });
+            const key = getDateKey(date);
+            summaries[key] = { totalAmount: dayAmount, totalParcels: dayParcels, hasReconciliations: dayParcels > 0 };
+          })
+        );
+
+        setMonthlySummaries(summaries);
+      } catch (err) {
+        console.error("Failed to load monthly admin summaries:", err);
+      } finally {
+        setLoadingMonth(false);
+      }
+    };
+
+    loadMonthly();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth.getFullYear(), selectedMonth.getMonth(), selectedOfficeId, isSingleStation]);
+
+  const handleDownloadMonthlyPDF = () => {
+    const monthLabel = selectedMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    const year = selectedMonth.getFullYear();
+    const month = selectedMonth.getMonth();
+    const firstDayOfWeek = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const officeName = stations.find((s) => s.id === selectedOfficeId)?.name || selectedOfficeId;
+
+    let cells = Array(firstDayOfWeek).fill("<td></td>").join("");
+    let rows = "";
+    let cellCount = firstDayOfWeek;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      date.setHours(0, 0, 0, 0);
+      const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const summary = monthlySummaries[key];
+      const isFuture = date > today;
+      let bg = "#f9fafb", border = "#e5e7eb";
+      if (isFuture) { bg = "#fff"; border = "#e5e7eb"; }
+      else if (summary?.hasReconciliations) { bg = "#f0fdf4"; border = "#86efac"; }
+      else if (summary) { bg = "#fef2f2"; border = "#fca5a5"; }
+      cells += `<td style="padding:4px"><div style="background:${bg};border:1px solid ${border};border-radius:6px;padding:6px 4px;min-height:52px;text-align:center"><div style="font-weight:600;font-size:12px">${day}</div>${summary && summary.totalParcels > 0 ? `<div style="font-size:10px;color:#4b5563;margin-top:2px">${summary.totalParcels} parcels</div><div style="font-size:10px;font-weight:700;color:#16a34a">${formatCurrency(summary.totalAmount)}</div>` : "<div style=\"font-size:10px;color:#d1d5db;margin-top:2px\">&nbsp;</div>"}</div></td>`;
+      cellCount++;
+      if (cellCount % 7 === 0 || day === daysInMonth) {
+        const rem = 7 - (cellCount % 7 === 0 ? 7 : cellCount % 7);
+        if (day === daysInMonth && rem < 7) cells += "<td></td>".repeat(rem);
+        rows += `<tr>${cells}</tr>`;
+        cells = "";
+      }
+    }
+
+    const monthTotal = Object.values(monthlySummaries).reduce((s, d) => s + d.totalAmount, 0);
+    const monthParcels = Object.values(monthlySummaries).reduce((s, d) => s + d.totalParcels, 0);
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Monthly Overview – ${monthLabel}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:18px;margin-bottom:4px}p{font-size:12px;color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th{font-size:11px;font-weight:600;color:#6b7280;text-align:center;padding:4px 0}.totals{margin-top:14px;padding:10px 14px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;display:flex;gap:32px}.totals div{font-size:12px;color:#7c2d12}.totals strong{font-size:16px;color:#ea690c;display:block}.legend{display:flex;gap:16px;margin-top:12px;font-size:11px;color:#555}.legend span{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:middle}@media print{body{margin:12px}}</style></head><body><h1>Monthly Overview – ${monthLabel}</h1><p>Station: ${officeName} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString()}</p><table><thead><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><div><span>Total Parcels</span><strong>${monthParcels}</strong></div><div><span>Total Amount</span><strong>${formatCurrency(monthTotal)}</strong></div></div><div class="legend"><div><span style="background:#f0fdf4;border:1px solid #86efac"></span>Reconciliation approved</div><div><span style="background:#fef2f2;border:1px solid #fca5a5"></span>No parcels / no work</div></div><script>window.onload=()=>{window.print();}<\/script></body></html>`;
+    const win = window.open("", "_blank");
+    if (win) { win.document.write(html); win.document.close(); }
+  };
 
   // Group assignments by rider (same logic as ReconciliationHistory)
   const riderGroups = useMemo(() => {
@@ -337,8 +465,164 @@ export const AdminReconciliation = (): JSX.Element => {
     <div className="w-full">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <main className="flex-1 space-y-6">
-          {/* Header */}
 
+          {/* Monthly Calendar — only when a single station is selected */}
+          {isSingleStation && (
+            <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="w-5 h-5 text-[#ea690c]" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Monthly Overview</p>
+                        <button
+                          type="button"
+                          onClick={handleDownloadMonthlyPDF}
+                          disabled={loadingMonth}
+                          title="Download as PDF"
+                          className="inline-flex items-center gap-1 rounded-md border border-[#ea690c] px-2 py-0.5 text-[11px] font-medium text-[#ea690c] hover:bg-orange-50 disabled:opacity-40"
+                        >
+                          <DownloadIcon className="w-3 h-3" />
+                          PDF
+                        </button>
+                      </div>
+                      <p className="text-base sm:text-lg font-bold text-neutral-900 leading-tight">
+                        {selectedMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">Click a day to load that day's data.</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-stretch sm:items-end gap-2">
+                    <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
+                      {([
+                        ["Prev Year", () => setSelectedMonth(prev => new Date(prev.getFullYear() - 1, prev.getMonth(), 1))],
+                        ["Prev Month", () => setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))],
+                        ["Next Month", () => {
+                          const candidate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1);
+                          const cap = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+                          setSelectedMonth(candidate > cap ? cap : candidate);
+                        }],
+                        ["Next Year", () => {
+                          const candidate = new Date(selectedMonth.getFullYear() + 1, selectedMonth.getMonth(), 1);
+                          const cap = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+                          setSelectedMonth(candidate > cap ? cap : candidate);
+                        }],
+                      ] as [string, () => void][]).map(([label, handler]) => (
+                        <Button key={label} type="button" variant="outline" className="h-8 px-2 border-gray-300 text-xs" onClick={handler}>
+                          {label}
+                        </Button>
+                      ))}
+                    </div>
+                    {loadingMonth && (
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Loading monthly totals...
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Calendar grid */}
+                <div className="space-y-2 overflow-x-auto">
+                  <div className="min-w-[360px] grid grid-cols-7 text-[11px] font-semibold text-gray-500">
+                    {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
+                      <div key={d} className="text-center">{d}</div>
+                    ))}
+                  </div>
+                  {(() => {
+                    const year = selectedMonth.getFullYear();
+                    const month = selectedMonth.getMonth();
+                    const firstDayOfWeek = new Date(year, month, 1).getDay();
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    const weeks: JSX.Element[][] = [];
+                    let currentWeek: JSX.Element[] = [];
+                    for (let i = 0; i < firstDayOfWeek; i++) currentWeek.push(<div key={`e-${i}`} />);
+
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const date = new Date(year, month, day);
+                      date.setHours(0, 0, 0, 0);
+                      const key = getDateKey(date);
+                      const summary = monthlySummaries[key];
+                      const isSelected = selectedDate.getFullYear() === year && selectedDate.getMonth() === month && selectedDate.getDate() === day;
+                      const isFuture = date > today;
+
+                      type V = "neutral" | "future" | "green" | "red";
+                      let variant: V = "neutral";
+                      if (isFuture) variant = "future";
+                      else if (summary?.hasReconciliations) variant = "green";
+                      else if (summary) variant = "red";
+
+                      const cls: Record<V, { base: string; sel: string }> = {
+                        neutral: { base: "border-transparent bg-gray-50 text-neutral-600 hover:bg-gray-100", sel: "border-gray-400 bg-gray-100 text-neutral-900" },
+                        future:  { base: "border-dashed border-gray-200 bg-white text-gray-300", sel: "border-gray-400 bg-gray-50 text-gray-400" },
+                        green:   { base: "border-green-300 bg-green-50 text-neutral-800 hover:bg-green-100", sel: "border-green-500 bg-green-100 text-green-900" },
+                        red:     { base: "border-red-300 bg-red-50 text-neutral-700 hover:bg-red-100", sel: "border-red-500 bg-red-100 text-red-900" },
+                      };
+
+                      currentWeek.push(
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => { setSelectedDate(date); }}
+                          className={`flex flex-col items-center justify-between rounded-lg border px-1.5 py-1.5 text-xs transition-colors ${isSelected ? cls[variant].sel : cls[variant].base}`}
+                        >
+                          <span className="font-semibold">{day}</span>
+                          {summary && summary.totalParcels > 0 ? (
+                            <div className="flex flex-col items-center leading-tight mt-0.5">
+                              <span className="text-[10px] text-gray-600">{summary.totalParcels} parcels</span>
+                              <span className="text-[10px] font-semibold text-green-700">{formatCurrency(summary.totalAmount)}</span>
+                            </div>
+                          ) : (
+                            <span className="mt-0.5 text-[10px] text-gray-400">&nbsp;</span>
+                          )}
+                        </button>
+                      );
+
+                      if (currentWeek.length === 7 || day === daysInMonth) {
+                        weeks.push(currentWeek);
+                        currentWeek = [];
+                      }
+                    }
+
+                    return (
+                      <div className="min-w-[360px] grid grid-rows-6 gap-1">
+                        {weeks.map((week, i) => (
+                          <div key={i} className="grid grid-cols-7 gap-1">{week}</div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Legend */}
+                <div className="mt-4 grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded border border-green-400 bg-green-100 inline-block" />
+                    <span>Reconciliation approved</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded border border-red-400 bg-red-100 inline-block" />
+                    <span>No parcels / no work</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded border border-dashed border-gray-300 bg-white inline-block" />
+                    <span>Future date</span>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-xs text-gray-500">
+                  Showing:{" "}
+                  <span className="font-semibold text-neutral-800">
+                    {selectedDate.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Filters */}
           <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
