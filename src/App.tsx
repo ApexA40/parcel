@@ -53,6 +53,7 @@ import { Preferences } from "./screens/Preferences/Preferences";
 import { Help } from "./screens/Help/Help";
 import { BranchSettings } from "./screens/BranchSettings/BranchSettings";
 import { TenantSettings } from "./screens/Admin/TenantSettings/TenantSettings";
+import { Billing } from "./screens/Admin/Billing/Billing";
 import { TenantManagement } from "./screens/Admin/TenantManagement/TenantManagement";
 import { CrossTenantAnalytics } from "./screens/Admin/CrossTenantAnalytics/CrossTenantAnalytics";
 import { TrackParcel } from "./screens/TrackParcel/TrackParcel";
@@ -175,6 +176,7 @@ export const App = (): JSX.Element => {
                               <Route path="/admin/system-logs" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><SystemLogs /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/fuel-requests" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminFuelRequests /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><TenantSettings /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/billing" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><Billing /></AdminLayout></ProtectedRoute>} />
 
                               {/* Super Admin only */}
                               <Route path="/admin/tenants" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminLayout><TenantManagement /></SuperAdminLayout></ProtectedRoute>} />
