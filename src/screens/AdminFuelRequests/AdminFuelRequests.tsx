@@ -183,8 +183,8 @@ const AdminFuelRequests: React.FC = () => {
     loadRequests();
   }, []);
 
-  const filteredRequests = filter === 'ALL' 
-    ? requests 
+  const filteredRequests = filter === 'ALL'
+    ? requests
     : requests.filter(r => r.status === filter);
 
   const getStatusBadge = (status: string) => {
@@ -206,10 +206,7 @@ const AdminFuelRequests: React.FC = () => {
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <main className="flex-1 space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-xl font-bold text-neutral-800">Fuel Request Management</h1>
-              <p className="text-xs text-[#5d5d5d] mt-0.5">Review and approve rider fuel requests</p>
-            </div>
+
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-neutral-800">Filter:</label>
               <select

@@ -22,22 +22,22 @@ const PLANS: {
     id: PlanId; name: string; blurb: string; icon: React.ComponentType<{ className?: string }>;
     monthly: number | null; annual: number | null; branches: string; users: string; features: string[];
 }[] = [
-    {
-        id: "starter", name: "Starter", blurb: "For small courier operations", icon: Zap,
-        monthly: 250, annual: 2500, branches: "1 branch", users: "5 users",
-        features: ["Parcel & Delivery Hubs", "Rider mobile app", "Community support"],
-    },
-    {
-        id: "growth", name: "Growth", blurb: "For expanding logistics businesses", icon: TrendingUp,
-        monthly: 750, annual: 7500, branches: "5 branches", users: "Unlimited users",
-        features: ["Everything in Starter", "Reconciliation & analytics", "Partner portal", "Priority support"],
-    },
-    {
-        id: "enterprise", name: "Enterprise", blurb: "For large-scale operations", icon: Sparkles,
-        monthly: null, annual: null, branches: "Unlimited branches", users: "Unlimited users",
-        features: ["Everything in Growth", "Custom branding", "Dedicated support", "Custom onboarding"],
-    },
-];
+        {
+            id: "starter", name: "Starter", blurb: "For small courier operations", icon: Zap,
+            monthly: 250, annual: 2500, branches: "1 branch", users: "5 users",
+            features: ["Parcel & Delivery Hubs", "Rider mobile app", "Community support"],
+        },
+        {
+            id: "growth", name: "Growth", blurb: "For expanding logistics businesses", icon: TrendingUp,
+            monthly: 750, annual: 7500, branches: "5 branches", users: "Unlimited users",
+            features: ["Everything in Starter", "Reconciliation & analytics", "Partner portal", "Priority support"],
+        },
+        {
+            id: "enterprise", name: "Enterprise", blurb: "For large-scale operations", icon: Sparkles,
+            monthly: null, annual: null, branches: "Unlimited branches", users: "Unlimited users",
+            features: ["Everything in Growth", "Custom branding", "Dedicated support", "Custom onboarding"],
+        },
+    ];
 
 const INVOICES = [
     { id: "INV-2026-006", date: "Jul 1, 2026", amount: "GH₵ 750.00", status: "Paid" },
@@ -117,10 +117,7 @@ export const Billing = (): JSX.Element => {
             <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
 
                 {/* ── Header ── */}
-                <div className="mb-7">
-                    <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Billing &amp; Subscription</h1>
-                    <p className="mt-1 text-sm text-[#7d7d7d]">Manage your plan, payment method, and billing details.</p>
-                </div>
+
 
                 {/* ── Current plan summary ── */}
                 <div className="overflow-hidden rounded-2xl border border-[#e3e3e3] bg-white shadow-sm">

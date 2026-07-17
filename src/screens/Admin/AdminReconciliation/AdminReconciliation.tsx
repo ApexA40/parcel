@@ -95,7 +95,7 @@ export const AdminReconciliation = (): JSX.Element => {
 
       // Determine which offices to fetch based on location and office selection
       let officesToFetch: string[] = [];
-      
+
       if (locationId === "ALL") {
         // All locations - use all offices
         officesToFetch = stations.map((s) => s.id);
@@ -338,16 +338,7 @@ export const AdminReconciliation = (): JSX.Element => {
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <main className="flex-1 space-y-6">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800 mb-1">
-                Admin Reconciliation
-              </h1>
-              <p className="text-sm text-gray-600">
-                View and compare reconciliations across stations by date.
-              </p>
-            </div>
-          </div>
+
 
           {/* Filters */}
           <Card className="rounded-lg border border-[#d1d1d1] bg-white shadow-sm">
@@ -622,11 +613,10 @@ export const AdminReconciliation = (): JSX.Element => {
                           <React.Fragment key={group.riderId}>
                             <tr
                               key={group.riderId}
-                              className={`hover:bg-gray-50 transition-colors ${
-                                groupIndex !== riderGroups.length - 1
-                                  ? "border-b border-gray-200"
-                                  : ""
-                              }`}
+                              className={`hover:bg-gray-50 transition-colors ${groupIndex !== riderGroups.length - 1
+                                ? "border-b border-gray-200"
+                                : ""
+                                }`}
                             >
                               <td className="px-4 py-4 border-r border-gray-100">
                                 <div className="flex items-center gap-2">
@@ -720,7 +710,7 @@ export const AdminReconciliation = (): JSX.Element => {
                                               key={parcel.parcelId}
                                               className={
                                                 parcelIndex !==
-                                                group.deliveredParcels.length - 1
+                                                  group.deliveredParcels.length - 1
                                                   ? "border-b border-gray-200"
                                                   : ""
                                               }
@@ -783,15 +773,14 @@ export const AdminReconciliation = (): JSX.Element => {
                                               </td>
                                               <td className="px-4 py-3 whitespace-nowrap">
                                                 <Badge
-                                                  className={`${
-                                                    parcel.paymentMethod ===
+                                                  className={`${parcel.paymentMethod ===
                                                     "cash"
-                                                      ? "bg-green-100 text-green-800"
-                                                      : parcel.paymentMethod ===
-                                                        "momo"
+                                                    ? "bg-green-100 text-green-800"
+                                                    : parcel.paymentMethod ===
+                                                      "momo"
                                                       ? "bg-purple-100 text-purple-800"
                                                       : "bg-gray-100 text-gray-800"
-                                                  } border text-xs`}
+                                                    } border text-xs`}
                                                 >
                                                   {parcel.paymentMethod || "N/A"}
                                                 </Badge>

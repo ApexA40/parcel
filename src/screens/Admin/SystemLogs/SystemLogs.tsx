@@ -34,15 +34,15 @@ interface Page {
 
 // Map action strings to icon + colour
 const ACTION_META: Record<string, { icon: React.FC<any>; bg: string; text: string; label: string }> = {
-  ADD_PARCEL:        { icon: PackageIcon,  bg: "bg-green-100",  text: "text-green-700",  label: "Add Parcel" },
-  UPDATE_PARCEL:     { icon: EditIcon,     bg: "bg-blue-100",   text: "text-blue-700",   label: "Update Parcel" },
-  DELETE_PARCEL:     { icon: TrashIcon,    bg: "bg-red-100",    text: "text-red-700",    label: "Delete Parcel" },
-  SEARCH_PARCELS:    { icon: SearchIcon,   bg: "bg-purple-100", text: "text-purple-700", label: "Search Parcels" },
-  VIEW_LOCATIONS:    { icon: EyeIcon,      bg: "bg-gray-100",   text: "text-gray-600",   label: "View Locations" },
-  LOGIN:             { icon: LogInIcon,    bg: "bg-[#ffefe5]",  text: "text-[#ea690c]",  label: "Login" },
-  LOGOUT:            { icon: LogOutIcon,   bg: "bg-orange-100", text: "text-orange-600", label: "Logout" },
-  CREATE_USER:       { icon: UserPlusIcon, bg: "bg-teal-100",   text: "text-teal-700",   label: "Create User" },
-  RECONCILE:         { icon: ShieldIcon,   bg: "bg-yellow-100", text: "text-yellow-700", label: "Reconcile" },
+  ADD_PARCEL: { icon: PackageIcon, bg: "bg-green-100", text: "text-green-700", label: "Add Parcel" },
+  UPDATE_PARCEL: { icon: EditIcon, bg: "bg-blue-100", text: "text-blue-700", label: "Update Parcel" },
+  DELETE_PARCEL: { icon: TrashIcon, bg: "bg-red-100", text: "text-red-700", label: "Delete Parcel" },
+  SEARCH_PARCELS: { icon: SearchIcon, bg: "bg-purple-100", text: "text-purple-700", label: "Search Parcels" },
+  VIEW_LOCATIONS: { icon: EyeIcon, bg: "bg-gray-100", text: "text-gray-600", label: "View Locations" },
+  LOGIN: { icon: LogInIcon, bg: "bg-[#ffefe5]", text: "text-[#ea690c]", label: "Login" },
+  LOGOUT: { icon: LogOutIcon, bg: "bg-orange-100", text: "text-orange-600", label: "Logout" },
+  CREATE_USER: { icon: UserPlusIcon, bg: "bg-teal-100", text: "text-teal-700", label: "Create User" },
+  RECONCILE: { icon: ShieldIcon, bg: "bg-yellow-100", text: "text-yellow-700", label: "Reconcile" },
 };
 
 const getActionMeta = (action: string) =>
@@ -111,7 +111,7 @@ export const SystemLogs = (): JSX.Element => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-neutral-800">System Logs</h1>
+            {/* <h1 className="text-xl font-bold text-neutral-800">System Logs</h1> */}
             <p className="text-xs text-[#5d5d5d] mt-0.5">
               All user actions across the system — {page?.totalElements?.toLocaleString() ?? "…"} total entries
             </p>
@@ -282,11 +282,10 @@ export const SystemLogs = (): JSX.Element => {
                       key={p}
                       onClick={() => goTo(p)}
                       disabled={loading}
-                      className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${
-                        p === currentPage
+                      className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${p === currentPage
                           ? "bg-[#ea690c] text-white"
                           : "border border-[#d1d1d1] text-gray-600 hover:bg-gray-50"
-                      }`}
+                        }`}
                     >
                       {p + 1}
                     </button>

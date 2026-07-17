@@ -6,7 +6,8 @@ import { useBranding } from "../../../contexts/BrandingContext";
 import { useToast } from "../../../components/ui/toast";
 import { cn } from "../../../lib/utils";
 import {
-    Building2, ImageIcon, Palette, Save, UploadCloud, X, Globe,
+    Building2, ImageIcon, Palette, Save, UploadCloud, RotateCcw,
+    Globe, AlertCircle,
 } from "lucide-react";
 
 const inputCls =
@@ -15,27 +16,12 @@ const inputCls =
 const labelCls = "text-[13px] font-medium text-neutral-700 mb-1.5 block";
 const hintCls = "text-xs text-[#9a9a9a] mt-1.5";
 
-interface SectionCardProps {
-    icon: React.ComponentType<{ className?: string }>;
-    title: string;
-    description: string;
-    children: React.ReactNode;
-}
+type TabId = "identity" | "branding";
 
-const SectionCard = ({ icon: Icon, title, description, children }: SectionCardProps) => (
-    <div className="overflow-hidden rounded-2xl border border-[#e3e3e3] bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-[#ececec] px-5 py-4 sm:px-6">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-orange-50">
-                <Icon className="h-[18px] w-[18px] text-[#ea690c]" />
-            </div>
-            <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-neutral-800">{title}</h2>
-                <p className="mt-0.5 text-xs text-[#8a8a8a]">{description}</p>
-            </div>
-        </div>
-        <div className="p-5 sm:p-6">{children}</div>
-    </div>
-);
+const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: "identity", label: "Company Identity", icon: Building2 },
+    { id: "branding", label: "Brand Colors", icon: Palette },
+];
 
 interface ColorFieldProps {
     label: string;
@@ -71,6 +57,7 @@ export const TenantSettings = (): JSX.Element => {
     const { showToast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dragActive, setDragActive] = useState(false);
+    const [activeTab, setActiveTab] = useState<TabId>("identity");
 
     const [form, setForm] = useState({
         companyName: branding.companyName,
@@ -135,33 +122,81 @@ export const TenantSettings = (): JSX.Element => {
         showToast("Tenant settings saved successfully.", "success");
     };
 
+    const handleReset = () => {
+        setForm({
+            companyName: branding.companyName,
+            logoUrl: branding.logoUrl || "",
+            faviconUrl: branding.faviconUrl || "",
+            primaryColor: branding.primaryColor,
+            secondaryColor: branding.secondaryColor,
+        });
+        setLogoPreview(branding.logoUrl || "");
+        showToast("Changes discarded.", "success");
+    };
+
     return (
         <div className="w-full">
-            <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            <div className="mx-auto w-full px-4 py-6 sm:px-6 lg:w-[80%] lg:max-w-none lg:px-0 lg:py-8">
 
-                {/* ── Header ── */}
-                <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                {/* Actions + unsaved indicator */}
+                <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Tenant Settings</h1>
-                        <p className="mt-1 text-sm text-[#7d7d7d]">
-                            Company-wide branding your branches inherit unless they override it.
-                        </p>
+                        {isDirty && (
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                                <AlertCircle className="h-3 w-3" />
+                                Unsaved changes
+                            </div>
+                        )}
                     </div>
-                    <Button
-                        onClick={handleSave}
-                        disabled={!isDirty}
-                        className="relative shrink-0 gap-2 rounded-lg bg-[#ea690c] px-5 text-white shadow-sm hover:bg-[#ea690c]/90"
-                    >
-                        <Save className="h-4 w-4" /> Save Changes
-                        {isDirty && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#1e40af]" />}
-                    </Button>
+                    <div className="flex flex-shrink-0 items-center gap-2.5">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleReset}
+                            disabled={!isDirty}
+                            className="gap-1.5 rounded-lg border-[#dcdcdc] text-neutral-600 hover:bg-gray-100 disabled:opacity-40"
+                        >
+                            <RotateCcw className="h-3.5 w-3.5" /> Discard
+                        </Button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={!isDirty}
+                            className="gap-2 rounded-lg bg-[#ea690c] px-5 text-white shadow-sm hover:bg-[#ea690c]/90 disabled:opacity-40"
+                        >
+                            <Save className="h-4 w-4" /> Save Settings
+                        </Button>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
-                    {/* Left column */}
-                    <div className="space-y-5 lg:col-span-3">
-                        <SectionCard icon={Building2} title="Company Identity" description="Name and logo shown across the platform">
-                            <div className="space-y-6">
+                {/* Tabs */}
+                <div className="mb-6 flex w-full border-b border-[#e3e3e3]">
+                    {TABS.map(({ id, label, icon: Icon }) => (
+                        <button
+                            key={id}
+                            type="button"
+                            onClick={() => setActiveTab(id)}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 -mb-px",
+                                activeTab === id
+                                    ? "border-[#ea690c] text-[#ea690c]"
+                                    : "border-transparent text-[#7d7d7d] hover:text-neutral-800 hover:border-[#dcdcdc]"
+                            )}
+                        >
+                            <Icon className={cn("h-4 w-4", activeTab === id ? "text-[#ea690c]" : "text-[#a8a8a8]")} />
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Panel */}
+                <div className="rounded-2xl border border-[#e3e3e3] bg-white p-5 shadow-sm sm:p-7">
+
+                    {/* ═══ Company Identity ═══ */}
+                    {activeTab === "identity" && (
+                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-5 lg:gap-10">
+                            <div className="space-y-8 lg:col-span-3">
+
+                                {/* Company Name */}
                                 <div>
                                     <Label className={labelCls}>Company Name</Label>
                                     <Input
@@ -170,53 +205,78 @@ export const TenantSettings = (): JSX.Element => {
                                         placeholder="e.g. M&M Logistics"
                                         className={cn(inputCls, "max-w-sm")}
                                     />
+                                    <p className={hintCls}>Shown in the sidebar and on printed materials.</p>
                                 </div>
 
+                                {/* Logo */}
                                 <div>
                                     <Label className={labelCls}>Company Logo</Label>
-                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                                        <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e3e3e3] bg-[#fafafa]">
-                                            {logoPreview
-                                                ? <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain p-1.5" />
-                                                : <ImageIcon className="h-7 w-7 text-[#cfcfcf]" />}
-                                        </div>
-                                        <div className="w-full max-w-sm">
-                                            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-                                            <button
-                                                type="button"
-                                                onClick={() => fileInputRef.current?.click()}
-                                                onDragOver={e => { e.preventDefault(); setDragActive(true); }}
-                                                onDragLeave={() => setDragActive(false)}
-                                                onDrop={handleDrop}
-                                                className={cn(
-                                                    "flex h-20 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed transition-colors",
-                                                    dragActive ? "border-[#ea690c] bg-orange-50/60" : "border-[#dcdcdc] hover:border-[#ea690c]/50 hover:bg-orange-50/30"
-                                                )}
-                                            >
-                                                <UploadCloud className={cn("h-5 w-5", dragActive ? "text-[#ea690c]" : "text-[#b0b0b0]")} />
-                                                <span className="text-xs font-medium text-neutral-600">Click to upload or drag &amp; drop</span>
-                                            </button>
-                                            <div className="mt-2 flex items-center gap-3">
-                                                <Input
-                                                    value={logoPreview.startsWith("data:") ? "" : form.logoUrl}
-                                                    onChange={e => { setField("logoUrl", e.target.value); setLogoPreview(e.target.value); }}
-                                                    placeholder="Or paste an image URL..."
-                                                    className={cn(inputCls, "h-9 text-sm")}
-                                                />
-                                                {logoPreview && (
-                                                    <button type="button" onClick={handleRemoveLogo} className="flex flex-shrink-0 items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700">
-                                                        <X className="h-3.5 w-3.5" /> Remove
-                                                    </button>
-                                                )}
+                                    <p className={hintCls + " mb-3"}>Used across the platform and on printed labels.</p>
+                                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+
+                                    {logoPreview ? (
+                                        <div className="flex items-center gap-4 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
+                                            <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e3e3e3] bg-white shadow-sm">
+                                                <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain p-1.5" />
                                             </div>
-                                            <p className={hintCls}>PNG, JPG or SVG · Max 2MB</p>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-neutral-800 truncate">
+                                                    {logoPreview.startsWith("data:") ? "Uploaded image" : logoPreview}
+                                                </p>
+                                                <p className="text-xs text-[#9a9a9a] mt-0.5">Logo is set and ready to use</p>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs font-medium text-[#ea690c] hover:underline">
+                                                        Replace
+                                                    </button>
+                                                    <span className="text-[#dcdcdc]">·</span>
+                                                    <button type="button" onClick={handleRemoveLogo} className="text-xs font-medium text-red-500 hover:underline">
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            onDragOver={e => { e.preventDefault(); setDragActive(true); }}
+                                            onDragLeave={() => setDragActive(false)}
+                                            onDrop={handleDrop}
+                                            className={cn(
+                                                "flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed py-10 transition-colors",
+                                                dragActive
+                                                    ? "border-[#ea690c] bg-orange-50/40"
+                                                    : "border-[#dcdcdc] bg-[#fafafa] hover:border-[#ea690c]/50 hover:bg-orange-50/20"
+                                            )}
+                                        >
+                                            <div className={cn("flex h-12 w-12 items-center justify-center rounded-xl border", dragActive ? "border-[#ea690c]/30 bg-orange-50" : "border-[#e3e3e3] bg-white")}>
+                                                <UploadCloud className={cn("h-5 w-5", dragActive ? "text-[#ea690c]" : "text-[#b0b0b0]")} />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-sm font-medium text-neutral-700">
+                                                    Click to upload <span className="font-normal text-[#9a9a9a]">or drag &amp; drop</span>
+                                                </p>
+                                                <p className="text-xs text-[#a8a8a8] mt-0.5">PNG, JPG or SVG · Max 2MB</p>
+                                            </div>
+                                        </button>
+                                    )}
+
+                                    <div className="mt-3">
+                                        <Input
+                                            value={logoPreview.startsWith("data:") ? "" : form.logoUrl}
+                                            onChange={e => { setField("logoUrl", e.target.value); setLogoPreview(e.target.value); }}
+                                            placeholder="Or paste an image URL…"
+                                            className={cn(inputCls, "h-9 text-sm")}
+                                        />
                                     </div>
                                 </div>
 
+                                {/* Favicon */}
                                 <div>
                                     <Label className={labelCls}>
-                                        <span className="inline-flex items-center gap-1.5"><Globe className="h-3.5 w-3.5 text-[#a0a0a0]" /> Favicon URL</span>
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <Globe className="h-3.5 w-3.5 text-[#a0a0a0]" /> Favicon URL
+                                        </span>
                                     </Label>
                                     <Input
                                         value={form.faviconUrl}
@@ -227,47 +287,108 @@ export const TenantSettings = (): JSX.Element => {
                                     <p className={hintCls}>Shown in the browser tab.</p>
                                 </div>
                             </div>
-                        </SectionCard>
 
-                        <SectionCard icon={Palette} title="Brand Colors" description="Applied across buttons, accents and highlights">
-                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                <ColorField label="Primary Color" hint="Buttons, accents and highlights." value={form.primaryColor} onChange={v => setField("primaryColor", v)} />
-                                <ColorField label="Secondary Color" hint="Secondary UI elements." value={form.secondaryColor} onChange={v => setField("secondaryColor", v)} />
-                            </div>
-                        </SectionCard>
-                    </div>
-
-                    {/* Right column — live preview */}
-                    <div className="lg:col-span-2">
-                        <div className="lg:sticky lg:top-24">
-                            <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Live Preview</p>
-                            <div className="overflow-hidden rounded-2xl border border-[#e3e3e3] bg-white shadow-sm">
-                                <div className="flex items-center gap-3 px-4 py-3.5" style={{ backgroundColor: form.primaryColor }}>
-                                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/95">
-                                        {logoPreview
-                                            ? <img src={logoPreview} alt="Logo" className="h-full w-full object-contain p-0.5" />
-                                            : <ImageIcon className="h-4 w-4 text-gray-400" />}
+                            {/* Right: live preview */}
+                            <div className="lg:col-span-2">
+                                <div className="lg:sticky lg:top-24">
+                                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Sidebar Preview</p>
+                                    <div className="overflow-hidden rounded-xl border border-[#e3e3e3] shadow-sm">
+                                        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10" style={{ backgroundColor: form.primaryColor }}>
+                                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/95 shadow">
+                                                {logoPreview
+                                                    ? <img src={logoPreview} alt="Logo" className="h-full w-full object-contain p-0.5" />
+                                                    : <ImageIcon className="h-4 w-4 text-gray-400" />}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-bold text-white leading-tight">
+                                                    {form.companyName || "Company Name"}
+                                                </p>
+                                                <p className="text-[10px] text-white/60 uppercase tracking-wider">Parcel Delivery</p>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white px-3 py-3 space-y-1">
+                                            {["Parcel Search", "Parcel Intake", "Active Deliveries"].map((item, i) => (
+                                                <div
+                                                    key={item}
+                                                    className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2", i !== 0 && "bg-transparent")}
+                                                    style={i === 0 ? { backgroundColor: form.primaryColor } : {}}
+                                                >
+                                                    <div className={cn("h-2 w-2 rounded-full flex-shrink-0", i === 0 ? "bg-white/60" : "bg-[#dcdcdc]")} />
+                                                    <span className={cn("text-xs font-medium", i === 0 ? "text-white" : "text-[#7d7d7d]")}>{item}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="border-t border-[#f0f0f0] bg-white px-3 py-2.5">
+                                            <div className="flex items-center gap-2 rounded-lg bg-[#fafafa] px-3 py-2">
+                                                <div className="h-2 w-2 rounded-full bg-red-300" />
+                                                <span className="text-xs font-medium text-[#9a9a9a]">Logout</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <span className="truncate text-sm font-semibold text-white">{form.companyName || "Company Name"}</span>
+                                    <p className="mt-3 text-xs leading-relaxed text-[#9a9a9a]">
+                                        Branches inherit these settings unless a branch manager overrides them.
+                                    </p>
                                 </div>
-                                <div className="space-y-3 p-4">
-                                    <div className="flex flex-wrap items-center gap-2.5">
-                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: form.primaryColor }}>Primary</span>
-                                        <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: form.secondaryColor }}>Secondary</span>
-                                        <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ backgroundColor: `${form.secondaryColor}1a`, color: form.secondaryColor }}>Badge</span>
-                                    </div>
-                                    <div className="rounded-lg border border-neutral-100 p-3">
-                                        <div className="mb-2 h-2 w-20 rounded bg-neutral-200" />
-                                        <div className="h-2 w-32 rounded" style={{ backgroundColor: `${form.primaryColor}33` }} />
-                                    </div>
-                                </div>
                             </div>
-                            <p className="mt-3 text-xs leading-relaxed text-[#9a9a9a]">
-                                Branches inherit these settings unless a branch manager overrides them in Branch Settings.
-                            </p>
                         </div>
-                    </div>
+                    )}
+
+                    {/* ═══ Brand Colors ═══ */}
+                    {activeTab === "branding" && (
+                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-5 lg:gap-10">
+                            <div className="space-y-6 lg:col-span-3">
+                                <ColorField
+                                    label="Primary Color"
+                                    hint="Used for buttons, active nav items, and key accents."
+                                    value={form.primaryColor}
+                                    onChange={v => setField("primaryColor", v)}
+                                />
+                                <ColorField
+                                    label="Secondary Color"
+                                    hint="Used for secondary UI elements and badges."
+                                    value={form.secondaryColor}
+                                    onChange={v => setField("secondaryColor", v)}
+                                />
+                            </div>
+
+                            {/* Right: color preview */}
+                            <div className="lg:col-span-2">
+                                <div className="lg:sticky lg:top-24">
+                                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[#a0a0a0]">Color Preview</p>
+                                    <div className="overflow-hidden rounded-xl border border-[#e3e3e3] bg-white shadow-sm">
+                                        <div className="px-4 py-3.5" style={{ backgroundColor: form.primaryColor }}>
+                                            <p className="text-sm font-semibold text-white">{form.companyName || "Company Name"}</p>
+                                            <p className="text-[10px] text-white/60 mt-0.5">Primary color applied</p>
+                                        </div>
+                                        <div className="space-y-3 p-4">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: form.primaryColor }}>
+                                                    Primary Button
+                                                </span>
+                                                <span className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: form.secondaryColor }}>
+                                                    Secondary Button
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ backgroundColor: `${form.primaryColor}1a`, color: form.primaryColor }}>
+                                                    Primary Badge
+                                                </span>
+                                                <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ backgroundColor: `${form.secondaryColor}1a`, color: form.secondaryColor }}>
+                                                    Secondary Badge
+                                                </span>
+                                            </div>
+                                            <div className="rounded-lg border border-neutral-100 p-3">
+                                                <div className="mb-2 h-2 w-20 rounded" style={{ backgroundColor: `${form.primaryColor}33` }} />
+                                                <div className="h-2 w-32 rounded bg-neutral-100" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
+
             </div>
         </div>
     );
