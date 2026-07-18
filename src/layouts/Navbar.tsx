@@ -49,7 +49,7 @@ const routeTitles: Record<string, { title: string; description: string }> = {
     "/delivery/help": { title: "Help & Support", description: "Get help and support for using the system" },
     // Admin Shell
     "/admin/dashboard": { title: "Admin Dashboard", description: "System-wide overview and analytics" },
-    "/admin/statistics": { title: "System Statistics", description: "Detailed system performance statistics" },
+    "/admin/statistics": { title: "Delivery Statistics", description: "Revenue, delivery, and rider performance built from live reconciliation records" },
     "/admin/stations": { title: "Station Management", description: "Create and manage all delivery stations" },
     "/admin/users": { title: "User Management", description: "Manage all system users across stations" },
     "/admin/parcels": { title: "System Parcel Overview", description: "Global visibility of all parcels across all stations" },
