@@ -43,7 +43,7 @@ import { PreDeliveryQueue } from "./screens/CallCenter/PreDeliveryQueue/PreDeliv
 import { PostDeliveryFollowUp } from "./screens/CallCenter/PostDeliveryFollowUp/PostDeliveryFollowUp";
 import { ParcelSearch } from "./screens/ParcelSearch/ParcelSearch";
 import { ParcelEdit } from "./screens/ParcelEdit";
-import { AdminDashboard } from "./screens/Admin/AdminDashboard/AdminDashboard";
+// import { AdminDashboard } from "./screens/Admin/AdminDashboard/AdminDashboard";
 import { StationManagement } from "./screens/Admin/StationManagement/StationManagement";
 import { UserManagement } from "./screens/Admin/UserManagement/UserManagement";
 import { SystemParcelOverview } from "./screens/Admin/SystemParcelOverview/SystemParcelOverview";
