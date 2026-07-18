@@ -159,6 +159,7 @@ export const App = (): JSX.Element => {
                               <Route path="/delivery/call-center" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><PreDeliveryQueue /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/call-center/follow-up" element={<ProtectedRoute allowedRoles={["CALLER"]}><DeliveryLayout><PostDeliveryFollowUp /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/call-center/home-delivery" element={<ProtectedRoute allowedRoles={["CALLER"]}><DeliveryLayout><HomeDeliveryWatchlist /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/intake" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><ParcelRegistration /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/search" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><ParcelSearch /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/pickup" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><PickupRequest /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/addresses" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><AddressManagement /></DeliveryLayout></ProtectedRoute>} />
