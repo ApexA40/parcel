@@ -23,6 +23,7 @@ import { formatCurrency } from "../../../utils/dataHelpers";
 import { useLocation } from "../../../contexts/LocationContext";
 import adminService from "../../../services/adminService";
 import { useToast } from "../../../components/ui/toast";
+import { runPool } from "../../../utils/asyncPool";
 
 interface DaySummary {
   day: number;
@@ -81,22 +82,6 @@ function extractZone(address: string): string {
   const parts = address.split(",");
   const zone = parts[0].trim();
   return zone.length > 25 ? zone.substring(0, 25) + "…" : zone;
-}
-
-/** Run async tasks with a bounded concurrency pool (stations × days can be many requests) */
-async function runPool<T>(tasks: (() => Promise<T>)[], limit = 12): Promise<T[]> {
-  const results: T[] = new Array(tasks.length);
-  let next = 0;
-  const workers = Array(Math.min(limit, tasks.length))
-    .fill(0)
-    .map(async () => {
-      while (next < tasks.length) {
-        const idx = next++;
-        results[idx] = await tasks[idx]();
-      }
-    });
-  await Promise.all(workers);
-  return results;
 }
 
 export const AdminReconciliationAnalytics = (): JSX.Element => {

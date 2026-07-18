@@ -22,7 +22,6 @@ const navGroups: {
         heading: null,
         items: [
             { label: "Dashboard",              path: "/admin/dashboard",         icon: LayoutDashboard, roles: BOTH },
-            { label: "Statistics",             path: "/admin/statistics",        icon: TrendingUp,      roles: BOTH },
         ],
     },
     {
@@ -39,6 +38,7 @@ const navGroups: {
             { label: "Delivery Income",        path: "/admin/delivery-income",   icon: HandCoins,       roles: BOTH },
             { label: "Reconciliation",         path: "/admin/reconciliation",    icon: DollarSignIcon,  roles: BOTH },
             { label: "Delivery Analytics",     path: "/admin/delivery-analytics",icon: Activity,        roles: BOTH },
+            { label: "Delivery Statistics",    path: "/admin/statistics",        icon: TrendingUp,      roles: BOTH },
             { label: "Financial Reports",      path: "/admin/financial-reports", icon: BarChart2,       roles: BOTH },
             { label: "Fuel Requests",          path: "/admin/fuel-requests",     icon: Fuel,            roles: BOTH },
         ],
