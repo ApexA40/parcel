@@ -9,7 +9,7 @@ import { formatPhoneNumber } from "../../../utils/dataHelpers";
 import { useLocation } from "../../../contexts/LocationContext";
 import { useUser } from "../../../contexts/UserContext";
 import { useToast } from "../../../components/ui/toast";
-import userService, { AdminCreatableRole, fromBackendRole, roleRequiresOffice } from "../../../services/userService";
+import userService, { AdminCreatableRole, DepartmentRole, fromBackendRole, roleRequiresOffice } from "../../../services/userService";
 
 const roleColors: Record<string, string> = {
     ADMIN: "bg-red-100 text-red-800",
@@ -45,6 +45,7 @@ export const UserManagement = (): JSX.Element => {
         password: "",
         phoneNumber: "",
         role: "FRONTDESK",
+        departmentRole: "" as DepartmentRole | "",
         officeId: "",
     });
 
@@ -204,6 +205,11 @@ export const UserManagement = (): JSX.Element => {
             return;
         }
 
+        if (!formData.departmentRole) {
+            showToast("Department is required", "error");
+            return;
+        }
+
         setIsCreating(true);
         try {
             // Prepare request payload - password is optional
@@ -221,6 +227,7 @@ export const UserManagement = (): JSX.Element => {
             const response = await userService.createUser({
                 ...requestPayload,
                 role: formData.role as AdminCreatableRole,
+                departmentRole: formData.departmentRole as DepartmentRole,
                 ...(formData.password?.trim() ? { password: formData.password } : {}),
             });
 
@@ -232,6 +239,7 @@ export const UserManagement = (): JSX.Element => {
                     password: "",
                     phoneNumber: "",
                     role: "FRONTDESK",
+                    departmentRole: "",
                     officeId: "",
                 });
                 setShowAddForm(false);
@@ -326,6 +334,7 @@ export const UserManagement = (): JSX.Element => {
                                                     password: "",
                                                     phoneNumber: "",
                                                     role: "FRONTDESK",
+                                                    departmentRole: "",
                                                     officeId: "",
                                                 });
                                             }}
@@ -414,6 +423,21 @@ export const UserManagement = (): JSX.Element => {
                                             </select>
                                         </div>
 
+                                        <div>
+                                            <Label className="block text-sm font-semibold text-neutral-800 mb-2">
+                                                Department <span className="text-[#e22420]">*</span>
+                                            </Label>
+                                            <select
+                                                value={formData.departmentRole}
+                                                onChange={(e) => setFormData({ ...formData, departmentRole: e.target.value as DepartmentRole })}
+                                                className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
+                                            >
+                                                <option value="" disabled>Select department</option>
+                                                <option value="PARCELHUB">Parcel Hub</option>
+                                                <option value="DELIVERYHUB">Delivery Hub</option>
+                                            </select>
+                                        </div>
+
                                         {roleRequiresOffice(formData.role) && (
                                         <div>
                                             <Label className="block text-sm font-semibold text-neutral-800 mb-2">
@@ -447,6 +471,7 @@ export const UserManagement = (): JSX.Element => {
                                                 !formData.name.trim() ||
                                                 !formData.email.trim() ||
                                                 !formData.phoneNumber.trim() ||
+                                                !formData.departmentRole ||
                                                 (roleRequiresOffice(formData.role) && !formData.officeId) ||
                                                 isCreating
                                             }
@@ -470,6 +495,7 @@ export const UserManagement = (): JSX.Element => {
                                                     password: "",
                                                     phoneNumber: "",
                                                     role: "FRONTDESK",
+                                                    departmentRole: "",
                                                     officeId: "",
                                                 });
                                             }}

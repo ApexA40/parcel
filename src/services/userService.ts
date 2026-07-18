@@ -10,6 +10,13 @@ export type AdminCreatableRole = "ADMIN" | "RIDER" | "FRONTDESK" | "MANAGER" | "
 /** Backend API role values */
 export type BackendRole = "ADMIN" | "MANAGER" | "FRONTDESK" | "RIDER" | "CALLCENTER" | "VENDOR";
 
+/**
+ * Backend department values. MANAGER is assigned automatically by the
+ * system when a company registers (the tenant's first ADMIN) — never
+ * offered as a choice here, only PARCELHUB / DELIVERYHUB are.
+ */
+export type DepartmentRole = "PARCELHUB" | "DELIVERYHUB";
+
 /** Convert app/UI role to the value expected by the backend API */
 export const toBackendRole = (role: string): BackendRole => {
     const r = role.toUpperCase().trim();
@@ -42,17 +49,19 @@ interface CreateUserRequest {
     password?: string; // Optional according to API spec
     phoneNumber: string;
     role: AdminCreatableRole;
+    departmentRole: DepartmentRole;
     officeId?: string;
 }
 
-/** Payload shape sent to POST /register */
+/** Payload shape sent to POST /register — matches UserRegistrationRequest */
 interface BackendCreateUserRequest {
     name: string;
     email: string;
     password?: string;
     phoneNumber: string;
     role: BackendRole;
-    officeId?: string;
+    departmentRole: DepartmentRole;
+    officeIds?: string[];
 }
 
 interface UserResponse {
@@ -178,9 +187,10 @@ class UserService {
                 email: userData.email,
                 phoneNumber: userData.phoneNumber,
                 role: toBackendRole(userData.role),
+                departmentRole: userData.departmentRole,
             };
             if (userData.password) payload.password = userData.password;
-            if (userData.officeId) payload.officeId = userData.officeId;
+            if (userData.officeId) payload.officeIds = [userData.officeId];
 
             const response = await this.apiClientAdmin.post<UserResponse>(
                 '/register',
@@ -206,13 +216,15 @@ class UserService {
      */
     async getUsers(pageable: PageableRequest = { page: 0, size: 50 }): Promise<{ success: boolean; message: string; data?: PageUser }> {
         try {
-            // Check if user has ADMIN role
+            // Check if user has ADMIN (tenant) or SUPERADMIN (platform) role.
+            // Backend enum has no underscore ("SUPERADMIN"), unlike the app's
+            // internal normalized "SUPER_ADMIN" — check the raw value here since
+            // authService stores the role exactly as the login response sent it.
             const currentUser = authService.getUser();
-            console.log('Current user:', currentUser);
-            console.log('Current user role:', currentUser?.role);
-            
-            if (!currentUser || currentUser.role !== 'ADMIN') {
-                console.error('User is not ADMIN. Role:', currentUser?.role);
+            const role = currentUser?.role?.toUpperCase?.().replace('_', '') || '';
+
+            if (!currentUser || !['ADMIN', 'SUPERADMIN'].includes(role)) {
+                console.error('User is not ADMIN/SUPERADMIN. Role:', currentUser?.role);
                 return {
                     success: false,
                     message: 'You must be an admin to view users',
