@@ -40,6 +40,7 @@ const routeTitles: Record<string, { title: string; description: string }> = {
     // "/delivery/call-center":              { title: "Pre-Delivery Queue",        description: "Contact customers and record delivery preferences" },
     "/delivery/call-center/follow-up": { title: "Post-Delivery Follow-Up", description: "Follow up on delivered parcels" },
     "/delivery/call-center/home-delivery": { title: "Home Delivery Watchlist", description: "Monitor home delivery requests" },
+    "/delivery/intake": { title: "Parcel Intake", description: "Manage parcel intake, assignments, and payments" },
     "/delivery/search": { title: "Parcel Search", description: "Find parcels by recipient, phone, ID, or date range" },
     "/delivery/pickup": { title: "Pickup Request", description: "Request pickup of parcels from one location for delivery to another" },
     "/delivery/addresses": { title: "Saved Addresses", description: "Delivery address presets with cost for this office" },
