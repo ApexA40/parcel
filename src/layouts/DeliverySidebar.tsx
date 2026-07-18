@@ -11,7 +11,6 @@ interface SidebarProps {
 
 const navItems = [
     { label: "Parcel Search", path: "/delivery/search", icon: SearchIcon, roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Parcel Intake", path: "/parcel/intake", icon: ClipboardListIcon, roles: ["FRONTDESK", "MANAGER"] },
     { label: "Pickup Request", path: "/delivery/pickup", icon: Package, roles: ["FRONTDESK", "MANAGER"] },
     { label: "Package Assignments", path: "/delivery/assignments", icon: ClipboardListIcon, roles: ["MANAGER"] },
     { label: "Active Deliveries", path: "/delivery/active", icon: TruckIcon, roles: ["MANAGER"] },
