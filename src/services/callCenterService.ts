@@ -23,6 +23,7 @@ class CallCenterService {
       baseURL: API_ENDPOINTS.CALL_CENTER,
       headers: {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
       },
     });
 

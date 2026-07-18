@@ -47,6 +47,7 @@ class CompanyService {
             baseURL: API_BASE_URL_COMPANY,
             headers: {
                 'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true',
             },
         });
     }

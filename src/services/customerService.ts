@@ -67,7 +67,7 @@ export async function searchParcelsByPhone(phoneNumber: string): Promise<SearchB
 
         const client = axios.create({
             baseURL: API_BASE_USER,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
             timeout: 15000,
         });
         const response = await client.get<CustomerParcel[] | { content?: CustomerParcel[]; data?: CustomerParcel[] }>('/parcel-search', {
@@ -105,7 +105,7 @@ export async function fetchOfficeNameMap(): Promise<Record<string, string>> {
     try {
         const client = axios.create({
             baseURL: API_BASE_OFFICES,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
             timeout: 10000,
         });
         const response = await client.get<{ offices?: { id: string; name: string }[] }[] | { id: string; name: string }[]>(
