@@ -3,7 +3,7 @@
  * Centralized API base URL configuration
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://backend.mandmservicescorp.org/shortly';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://dd3d-74-244-119-216.ngrok-free.app';
 
 export const API_ENDPOINTS = {
     USER: `${API_BASE_URL}/api-user`,
@@ -15,6 +15,7 @@ export const API_ENDPOINTS = {
     CALL_CENTER: `${API_BASE_URL}/api-call-center`,
     VENDOR: `${API_BASE_URL}/api-vendor`,
     TRACKING: `${API_BASE_URL}/api-tracking`,
+    COMPANY: `${API_BASE_URL}/api-company`,
 };
 
 export default API_BASE_URL;

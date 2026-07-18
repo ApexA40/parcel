@@ -21,6 +21,7 @@ import { ScrollController } from "./components/ScrollController";
 import { Login } from "./screens/Login";
 import { Landing } from "./screens/Landing/Landing";
 import { Signup } from "./screens/Signup/Signup";
+import { VerifyEmail } from "./screens/VerifyEmail";
 import { ForgotPassword } from "./screens/ForgotPassword";
 import { PasswordRequestSent } from "./screens/PasswordRequestSent";
 import { ResetPassword } from "./screens/ResetPassword";
@@ -117,6 +118,7 @@ export const App = (): JSX.Element => {
                               {/* ── Root / Marketing ── */}
                               <Route path="/" element={<Landing />} />
                               <Route path="/signup" element={<Signup />} />
+                              <Route path="/verify-email" element={<VerifyEmail />} />
 
                               {/* ════════════════════════════════
                                   PARCEL HUB  /parcel/*
