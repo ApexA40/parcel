@@ -37,6 +37,7 @@ class ShelfService {
             baseURL: API_BASE_URL_ADMIN,
             headers: {
                 'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true',
             },
         });
 
@@ -45,6 +46,7 @@ class ShelfService {
             baseURL: API_BASE_URL_USER,
             headers: {
                 'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true',
             },
         });
 

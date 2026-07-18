@@ -93,6 +93,7 @@ class ParcelService {
             baseURL: API_BASE_URL_ADMIN,
             headers: {
                 'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true',
             },
         });
 
@@ -101,6 +102,7 @@ class ParcelService {
             baseURL: API_BASE_URL_FRONTDESK,
             headers: {
                 'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true',
             },
         });
 
