@@ -10,9 +10,19 @@ import { useStation } from "../../contexts/StationContext";
 import { useShelf } from "../../contexts/ShelfContext";
 import { formatPhoneNumber, phoneMatchesSearch, validatePhoneNumber, normalizePhoneNumber } from "../../utils/dataHelpers";
 import frontdeskService, { ParcelResponse } from "../../services/frontdeskService";
+import { searchParcelsByPhone } from "../../services/customerService";
 import { useToast } from "../../components/ui/toast";
 import authService from "../../services/authService";
 import { useFrontdeskParcel } from "../../contexts/FrontdeskParcelContext";
+
+/** True when the query looks like a phone number rather than a name/ID search. */
+const looksLikePhoneQuery = (value: string): boolean => {
+    const cleaned = value.trim().replace(/[\s-]/g, "");
+    if (cleaned.length < 3) return false;
+    const digitCount = (cleaned.match(/\d/g) || []).length;
+    // Mostly digits (allow a leading +) and not just a short numeric fragment of a name/ID
+    return digitCount >= 3 && digitCount / cleaned.length >= 0.7;
+};
 
 export const ParcelSearch = (): JSX.Element => {
     const { currentStation, currentUser, userRole } = useStation();
@@ -38,6 +48,9 @@ export const ParcelSearch = (): JSX.Element => {
         driverName: "",
     });
     const [generalSearch, setGeneralSearch] = useState("");
+    const [debouncedGeneralSearch, setDebouncedGeneralSearch] = useState("");
+    const [phoneSearchResults, setPhoneSearchResults] = useState<ParcelResponse[] | null>(null);
+    const [phoneSearching, setPhoneSearching] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [selectedParcel, setSelectedParcel] = useState<ParcelResponse | null>(null);
     const [editingShelf, setEditingShelf] = useState(false);
@@ -123,12 +136,80 @@ export const ParcelSearch = (): JSX.Element => {
         }
     }, [currentStation, userRole, loadShelves]);
 
+    // Debounce the general search box before deciding whether to hit the server
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedGeneralSearch(generalSearch), 350);
+        return () => clearTimeout(timer);
+    }, [generalSearch]);
+
+    // Server-side phone search: the backend only exposes a phone-number lookup
+    // (GET /api-user/parcel-search), so a query that looks like a phone number
+    // is searched across the *entire* system instead of just the loaded page.
+    // Name/ID/description queries fall back to filtering the loaded page below,
+    // since no matching backend endpoint exists for those yet.
+    useEffect(() => {
+        const query = debouncedGeneralSearch.trim();
+        if (!looksLikePhoneQuery(query)) {
+            setPhoneSearchResults(null);
+            setPhoneSearching(false);
+            return;
+        }
+
+        let cancelled = false;
+        setPhoneSearching(true);
+
+        searchParcelsByPhone(query).then((result) => {
+            if (cancelled) return;
+            if (result.success) {
+                const cacheById = new Map(parcels.map((p) => [p.parcelId, p]));
+                const merged = (result.data || []).map((cp): ParcelResponse => {
+                    const cached = cacheById.get(cp.parcelId);
+                    if (cached) return cached;
+                    return {
+                        parcelId: cp.parcelId,
+                        receiverName: cp.receiverName || undefined,
+                        recieverPhoneNumber: cp.recieverPhoneNumber || undefined,
+                        receiverAddress: cp.receiverAddress || undefined,
+                        senderName: cp.senderName || undefined,
+                        senderPhoneNumber: cp.senderPhoneNumber || undefined,
+                        parcelDescription: cp.parcelDescription || undefined,
+                        shelfName: cp.shelfName || undefined,
+                        officeId: cp.officeId || undefined,
+                        delivered: cp.delivered,
+                        pod: cp.pod,
+                        parcelAssigned: cp.parcelAssigned,
+                        homeDelivery: cp.homeDelivery,
+                        deliveryCost: cp.deliveryCost,
+                        pickUpCost: cp.pickUpCost,
+                        inboundCost: cp.inboundCost,
+                        paymentMethod: cp.paymentMethod || undefined,
+                        inboudPayed: cp.inboudPayed,
+                        typeofParcel: cp.typeofParcel,
+                        createdAt: cp.createdAt,
+                        updatedAt: cp.updatedAt,
+                    };
+                });
+                setPhoneSearchResults(merged);
+            } else {
+                setPhoneSearchResults([]);
+                if (result.message) showToast(result.message, "error");
+            }
+            setPhoneSearching(false);
+        });
+
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedGeneralSearch]);
+
     // Filter parcels based on search parameters (client-side filtering)
     const filteredParcels = useMemo(() => {
-        let filtered = [...parcels];
+        const isPhoneSearchActive = phoneSearchResults !== null;
+        let filtered = isPhoneSearchActive ? [...phoneSearchResults] : [...parcels];
 
-        // General search (searches across multiple fields with OR logic)
-        if (generalSearch.trim()) {
+        // General search (searches across multiple fields with OR logic) —
+        // only applies to the loaded page; server-side phone search already
+        // narrowed the result set above.
+        if (!isPhoneSearchActive && generalSearch.trim()) {
             const searchTerm = generalSearch.trim().toLowerCase();
             filtered = filtered.filter((p) => {
                 // Check parcel ID
@@ -224,10 +305,12 @@ export const ParcelSearch = (): JSX.Element => {
         }
 
         return filtered;
-    }, [parcels, searchParams, generalSearch]);
+    }, [parcels, searchParams, generalSearch, phoneSearchResults]);
 
     const handleClearFilters = () => {
         setGeneralSearch("");
+        setDebouncedGeneralSearch("");
+        setPhoneSearchResults(null);
         setSearchParams({
             recipientName: "",
             phoneNumber: "",
@@ -396,8 +479,11 @@ export const ParcelSearch = (): JSX.Element => {
                                         onChange={(e) => {
                                             setGeneralSearch(e.target.value);
                                         }}
-                                        className="pl-10 border border-[#d1d1d1]"
+                                        className="pl-10 pr-8 border border-[#d1d1d1]"
                                     />
+                                    {phoneSearching && (
+                                        <Loader className="absolute right-3 top-3 w-4 h-4 text-[#ea690c] animate-spin" />
+                                    )}
                                 </div>
                                 <Button
                                     onClick={() => setShowFilters(!showFilters)}
@@ -565,7 +651,14 @@ export const ParcelSearch = (): JSX.Element => {
                     <div className="flex flex-col flex-1 min-h-0 gap-3">
                             <div className="flex items-center justify-between text-xs text-[#5d5d5d] mb-2">
                                 <span className="flex items-center gap-2">
-                                    Showing {filteredParcels.length} of {pagination.totalElements} parcel(s)
+                                    {phoneSearchResults !== null ? (
+                                        <span className="inline-flex items-center gap-1.5">
+                                            {filteredParcels.length} result{filteredParcels.length === 1 ? "" : "s"} for "{generalSearch.trim()}" across all parcels
+                                            {phoneSearching && <Loader className="w-4 h-4 animate-spin text-[#ea690c]" />}
+                                        </span>
+                                    ) : (
+                                        <>Showing {filteredParcels.length} of {pagination.totalElements} parcel(s)</>
+                                    )}
                                     {backgroundLoading && (
                                         <span className="inline-flex items-center gap-1.5 text-[#ea690c]">
                                             <Loader className="w-4 h-4 animate-spin" />
