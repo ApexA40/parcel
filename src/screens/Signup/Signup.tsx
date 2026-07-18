@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-    ArrowLeft, ArrowRight, Building2, CheckCircle2, Eye, EyeOff,
+    AlertCircle, ArrowLeft, ArrowRight, Building2, CheckCircle2, Eye, EyeOff,
     Loader, Lock, Mail, MapPin, Package, Phone, User,
 } from "lucide-react";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { cn } from "../../lib/utils";
+import companyService from "../../services/companyService";
 
 const ORANGE = "#ea690c";
 const BLUE = "#1e40af";
@@ -42,6 +43,16 @@ const PLANS = [
     { id: "enterprise", name: "Enterprise", detail: "Unlimited · custom branding" },
 ];
 
+/** Normalize a Ghana phone number to the +233XXXXXXXXX form the backend expects. */
+const normalizePhoneForBackend = (input: string): string => {
+    const trimmed = input.trim().replace(/\s|-/g, "");
+    if (!trimmed) return trimmed;
+    let digits = trimmed.startsWith("0") ? trimmed.slice(1) : trimmed;
+    if (digits.startsWith("+")) digits = digits.slice(1);
+    if (digits.startsWith("233")) return `+${digits}`;
+    return `+233${digits}`;
+};
+
 export const Signup = (): JSX.Element => {
     const navigate = useNavigate();
     const [showPassword, setShowPassword] = useState(false);
@@ -49,6 +60,9 @@ export const Signup = (): JSX.Element => {
     const [done, setDone] = useState(false);
     const [plan, setPlan] = useState("growth");
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [submitError, setSubmitError] = useState("");
+    const [resending, setResending] = useState(false);
+    const [resendMessage, setResendMessage] = useState("");
 
     const [form, setForm] = useState({
         companyName: "",
@@ -71,22 +85,43 @@ export const Signup = (): JSX.Element => {
         if (!form.fullName.trim()) next.fullName = "Your name is required.";
         if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = "Enter a valid email address.";
         if (!/^(\+?\d{9,15})$/.test(form.phone.replace(/[\s-]/g, ""))) next.phone = "Enter a valid phone number.";
-        if (form.password.length < 8) next.password = "Password must be at least 8 characters.";
+        if (!/^(?=.*[A-Za-z])(?=.*\d).{7,}$/.test(form.password)) {
+            next.password = "Password must be at least 7 characters and include a letter and a number.";
+        }
         if (form.confirmPassword !== form.password) next.confirmPassword = "Passwords do not match.";
         if (!form.agree) next.agree = "You must accept the terms to continue.";
         setErrors(next);
         return Object.keys(next).length === 0;
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setSubmitError("");
         if (!validate()) return;
         setSubmitting(true);
-        // Backend tenant-registration endpoint is not available yet — simulate the request
-        setTimeout(() => {
-            setSubmitting(false);
+
+        const result = await companyService.registerCompany({
+            companyName: form.companyName.trim(),
+            registerUserName: form.fullName.trim(),
+            workEmail: form.email.trim().toLowerCase(),
+            phoneNumber: normalizePhoneForBackend(form.phone),
+            password: form.password,
+        });
+
+        setSubmitting(false);
+        if (result.success) {
             setDone(true);
-        }, 1200);
+        } else {
+            setSubmitError(result.message);
+        }
+    };
+
+    const handleResend = async () => {
+        setResending(true);
+        setResendMessage("");
+        const result = await companyService.resendVerification(form.email.trim().toLowerCase());
+        setResending(false);
+        setResendMessage(result.message);
     };
 
     return (
@@ -191,12 +226,12 @@ export const Signup = (): JSX.Element => {
                                 <CheckCircle2 className="h-8 w-8 text-green-500" />
                             </div>
                             <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-neutral-900">
-                                Welcome aboard, {form.companyName || "your company"}!
+                                Almost there, {form.companyName || "your company"}!
                             </h2>
                             <p className="mt-3 text-sm leading-relaxed text-neutral-500">
-                                Your company account has been created. We've sent a confirmation to{" "}
-                                <span className="font-semibold text-neutral-700">{form.email}</span> with your
-                                next steps — set up branches, invite your team, and register your first parcel.
+                                We've sent a verification link to{" "}
+                                <span className="font-semibold text-neutral-700">{form.email}</span>. Click it to
+                                activate your company and create your admin account — then you can sign in.
                             </p>
                             <button
                                 onClick={() => navigate("/login")}
@@ -204,6 +239,19 @@ export const Signup = (): JSX.Element => {
                             >
                                 Continue to login <ArrowRight className="h-4 w-4" />
                             </button>
+                            <div className="mt-5">
+                                <button
+                                    type="button"
+                                    onClick={handleResend}
+                                    disabled={resending}
+                                    className="text-sm font-medium text-neutral-500 hover:text-[#ea690c] disabled:opacity-60"
+                                >
+                                    {resending ? "Resending..." : "Didn't get the email? Resend verification"}
+                                </button>
+                                {resendMessage && (
+                                    <p className="mt-2 text-xs text-neutral-500">{resendMessage}</p>
+                                )}
+                            </div>
                         </div>
                     ) : (
                         /* ── Form ── */
@@ -214,6 +262,13 @@ export const Signup = (): JSX.Element => {
                             <p className="mt-2 text-sm text-neutral-500">
                                 Start your free trial — no credit card required.
                             </p>
+
+                            {submitError && (
+                                <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700">
+                                    <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                                    <span>{submitError}</span>
+                                </div>
+                            )}
 
                             {/* Plan selector */}
                             <div className="mt-7">
@@ -285,7 +340,7 @@ export const Signup = (): JSX.Element => {
                                         icon={Lock}
                                         label="Password"
                                         type={showPassword ? "text" : "password"}
-                                        placeholder="Min. 8 characters"
+                                        placeholder="7+ chars, letter & number"
                                         value={form.password}
                                         onChange={e => setField("password", e.target.value)}
                                         error={errors.password}

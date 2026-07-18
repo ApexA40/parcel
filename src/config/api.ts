@@ -15,6 +15,7 @@ export const API_ENDPOINTS = {
     CALL_CENTER: `${API_BASE_URL}/api-call-center`,
     VENDOR: `${API_BASE_URL}/api-vendor`,
     TRACKING: `${API_BASE_URL}/api-tracking`,
+    COMPANY: `${API_BASE_URL}/api-company`,
 };
 
 export default API_BASE_URL;
