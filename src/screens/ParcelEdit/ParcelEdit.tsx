@@ -25,7 +25,7 @@ export const ParcelEdit = (): JSX.Element => {
         pagination,
         loadParcelsIfNeeded,
         refreshParcels,
-        navigatePage,
+        prefetchNextPageIfPossible,
     } = useFrontdeskParcel();
 
     const [searchTerm, setSearchTerm] = useState("");
@@ -65,6 +65,14 @@ export const ParcelEdit = (): JSX.Element => {
         loadParcelsIfNeeded({}, pagination.page, pagination.size, !hasCache);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Once current page has loaded, prefetch the next page in the background so "Next" feels instant
+    useEffect(() => {
+        if (loading || backgroundLoading) return;
+        if (parcels.length === 0) return;
+        if (pagination.totalPages <= 0 || pagination.page + 1 >= pagination.totalPages) return;
+        prefetchNextPageIfPossible();
+    }, [loading, backgroundLoading, parcels.length, pagination.page, pagination.totalPages, prefetchNextPageIfPossible]);
 
     // Load shelves using office ID from user data
     useEffect(() => {
@@ -119,10 +127,6 @@ export const ParcelEdit = (): JSX.Element => {
             images: parcel.images || [],
         });
         setShowEditModal(true);
-    };
-
-    const handlePage = async (newPage: number) => {
-        await navigatePage(newPage);
     };
 
     const handleSave = async () => {
@@ -233,7 +237,7 @@ export const ParcelEdit = (): JSX.Element => {
                             {searchTerm && !loading && (
                                 <div className="mt-3 pt-3 border-t border-[#d1d1d1]">
                                     <p className="text-sm text-[#5d5d5d]">
-                                        Found <span className="font-semibold text-neutral-800">{filteredParcels.length}</span> parcel{filteredParcels.length !== 1 ? 's' : ''} matching "{searchTerm}"
+                                        Found <span className="font-semibold text-neutral-800">{filteredParcels.length}</span> parcel{filteredParcels.length !== 1 ? 's' : ''} matching "{searchTerm}" on this page — use Next/Previous to search other pages
                                     </p>
                                 </div>
                             )}
@@ -348,24 +352,51 @@ export const ParcelEdit = (): JSX.Element => {
                     </Card>
 
                     {/* Pagination */}
-                    {!searchTerm && pagination.totalPages > 1 && (
-                        <div className="flex items-center justify-between px-1">
-                            <p className="text-xs text-neutral-400">
-                                Page {pagination.page + 1} of {pagination.totalPages}
-                                <span className="ml-2 text-neutral-300">·</span>
-                                <span className="ml-2">{pagination.totalElements} total</span>
-                                {backgroundLoading && <span className="ml-2 text-neutral-300 italic">updating…</span>}
-                            </p>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1">
+                        <p className="text-xs text-neutral-400">
+                            Page {pagination.page + 1} of {Math.max(pagination.totalPages, 1)}
+                            <span className="ml-2 text-neutral-300">·</span>
+                            <span className="ml-2">{pagination.totalElements} total</span>
+                            {searchTerm && (
+                                <>
+                                    <span className="ml-2 text-neutral-300">·</span>
+                                    <span className="ml-2">search only applies to the loaded page</span>
+                                </>
+                            )}
+                            {backgroundLoading && <span className="ml-2 text-neutral-300 italic">updating…</span>}
+                        </p>
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-neutral-400">Rows per page:</span>
+                                <select
+                                    value={pagination.size}
+                                    onChange={(e) => {
+                                        const newSize = parseInt(e.target.value);
+                                        loadParcelsIfNeeded({}, 0, newSize, true);
+                                    }}
+                                    className="text-xs border border-[#d1d1d1] rounded px-2 py-1"
+                                >
+                                    <option value={200}>200</option>
+                                    <option value={500}>500</option>
+                                    <option value={1000}>1000</option>
+                                </select>
+                            </div>
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => handlePage(pagination.page - 1)}
+                                    onClick={() => {
+                                        const newPage = pagination.page - 1;
+                                        loadParcelsIfNeeded({}, newPage, pagination.size, false);
+                                    }}
                                     disabled={pagination.page === 0 || backgroundLoading}
                                     className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                                 >
                                     Previous
                                 </button>
                                 <button
-                                    onClick={() => handlePage(pagination.page + 1)}
+                                    onClick={() => {
+                                        const newPage = pagination.page + 1;
+                                        loadParcelsIfNeeded({}, newPage, pagination.size, false);
+                                    }}
                                     disabled={pagination.page + 1 >= pagination.totalPages || backgroundLoading}
                                     className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                                 >
@@ -373,7 +404,7 @@ export const ParcelEdit = (): JSX.Element => {
                                 </button>
                             </div>
                         </div>
-                    )}
+                    </div>
                 </main>
             </div>
 
