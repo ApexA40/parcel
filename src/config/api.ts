@@ -3,11 +3,7 @@
  * Centralized API base URL configuration
  */
 
-// <<<<<<< feature/weight-save
-// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://backend.mandmservicescorp.org/shortly';
-// =======
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://backend-new.mandmservicescorp.org';
-// >>>>>>> main
 
 export const API_ENDPOINTS = {
     USER: `${API_BASE_URL}/api-user`,
