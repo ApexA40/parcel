@@ -7,6 +7,7 @@ import {
   ImageIcon,
   XIcon,
   WeightIcon,
+  CameraIcon,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "../../../../components/ui/button";
@@ -538,11 +539,18 @@ export const InfoSection = ({
               </Label>
               <span className="text-sm text-[#9a9a9a]">(optional)</span>
             </div>
-            <label className="flex items-center gap-2 cursor-pointer w-fit px-4 py-2 rounded border border-dashed border-[#d1d1d1] hover:border-[#ea690c] text-sm text-[#5d5d5d] hover:text-[#ea690c] transition-colors">
-              <UploadIcon className="w-4 h-4" />
-              Add Images
-              <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
-            </label>
+            <div className="flex gap-2 flex-wrap">
+              <label className="flex items-center gap-2 cursor-pointer w-fit px-4 py-2 rounded border border-dashed border-[#d1d1d1] hover:border-[#ea690c] text-sm text-[#5d5d5d] hover:text-[#ea690c] transition-colors">
+                <UploadIcon className="w-4 h-4" />
+                Add Images
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer w-fit px-4 py-2 rounded border border-dashed border-[#d1d1d1] hover:border-[#ea690c] text-sm text-[#5d5d5d] hover:text-[#ea690c] transition-colors">
+                <CameraIcon className="w-4 h-4" />
+                Take Photo
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageUpload} />
+              </label>
+            </div>
             {images.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-1">
                 {images.map((b64, i) => (
