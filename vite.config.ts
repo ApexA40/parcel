@@ -67,7 +67,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://backend.mandmservicescorp.org',
+        target: 'https://backend-new.mandmservicescorp.org',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '/api'),
         secure: false,
