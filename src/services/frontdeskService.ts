@@ -11,6 +11,7 @@ interface ParcelRequest {
     receiverName?: string;
     receiverAddress?: string;
     recieverPhoneNumber?: string;
+    alternativePhoneNumber?: string;
     parcelDescription?: string;
 
     // Station / driver intake info
@@ -70,6 +71,9 @@ interface ParcelUpdateRequest {
     vehicleNumber?: string;
     senderPhoneNumber?: string;
     senderName?: string;
+    receiverName?: string;
+    recieverPhoneNumber?: string;
+    alternativePhoneNumber?: string;
     receiverAddress?: string;
     parcelDescription?: string;
     inboundCost?: number;
