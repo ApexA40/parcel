@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { SearchIcon, FilterIcon, Download, X, Edit, Loader, Eye, Home, MoreHorizontal, ChevronDown, PrinterIcon, ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { SearchIcon, FilterIcon, Download, X, Edit, Loader, Eye, Home, MoreHorizontal, ChevronDown, PrinterIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Barcode from "react-barcode";
 import { Card, CardContent } from "../../components/ui/card";
@@ -10,19 +10,9 @@ import { useStation } from "../../contexts/StationContext";
 import { useShelf } from "../../contexts/ShelfContext";
 import { formatPhoneNumber, phoneMatchesSearch, validatePhoneNumber, normalizePhoneNumber } from "../../utils/dataHelpers";
 import frontdeskService, { ParcelResponse } from "../../services/frontdeskService";
-import { searchParcelsByPhone } from "../../services/customerService";
 import { useToast } from "../../components/ui/toast";
 import authService from "../../services/authService";
 import { useFrontdeskParcel } from "../../contexts/FrontdeskParcelContext";
-
-/** True when the query looks like a phone number rather than a name/ID search. */
-const looksLikePhoneQuery = (value: string): boolean => {
-    const cleaned = value.trim().replace(/[\s-]/g, "");
-    if (cleaned.length < 3) return false;
-    const digitCount = (cleaned.match(/\d/g) || []).length;
-    // Mostly digits (allow a leading +) and not just a short numeric fragment of a name/ID
-    return digitCount >= 3 && digitCount / cleaned.length >= 0.7;
-};
 
 export const ParcelSearch = (): JSX.Element => {
     const { currentStation, currentUser, userRole } = useStation();
@@ -49,8 +39,6 @@ export const ParcelSearch = (): JSX.Element => {
     });
     const [generalSearch, setGeneralSearch] = useState("");
     const [debouncedGeneralSearch, setDebouncedGeneralSearch] = useState("");
-    const [phoneSearchResults, setPhoneSearchResults] = useState<ParcelResponse[] | null>(null);
-    const [phoneSearching, setPhoneSearching] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [selectedParcel, setSelectedParcel] = useState<ParcelResponse | null>(null);
     const [editingShelf, setEditingShelf] = useState(false);
@@ -66,7 +54,6 @@ export const ParcelSearch = (): JSX.Element => {
     const [deliveryCostInput, setDeliveryCostInput] = useState("");
     const [savingDelivery, setSavingDelivery] = useState(false);
     const [showActionMenu, setShowActionMenu] = useState(false);
-    const [showCosts, setShowCosts] = useState(false);
     const [activeDelivery, setActiveDelivery] = useState<any>(null);
     const [activeDeliveryLoading, setActiveDeliveryLoading] = useState(false);
     const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -108,10 +95,11 @@ export const ParcelSearch = (): JSX.Element => {
         return new Date(y, m - 1, d);
     };
 
-    // Load parcels on mount - only show loading UI if no cache exists
+    // Load parcels on mount - skip if context already has data cached
     useEffect(() => {
-        const hasCache = parcels.length > 0;
-        loadParcelsIfNeeded({}, pagination.page, pagination.size, !hasCache);
+        if (parcels.length === 0) {
+            loadParcelsIfNeeded({}, 0, 50, true);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -138,139 +126,43 @@ export const ParcelSearch = (): JSX.Element => {
 
     // Debounce the general search box before deciding whether to hit the server
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedGeneralSearch(generalSearch), 350);
+        const timer = setTimeout(() => setDebouncedGeneralSearch(generalSearch), 700);
         return () => clearTimeout(timer);
     }, [generalSearch]);
 
-    // Server-side phone search: the backend only exposes a phone-number lookup
-    // (GET /api-user/parcel-search), so a query that looks like a phone number
-    // is searched across the *entire* system instead of just the loaded page.
-    // Name/ID/description queries fall back to filtering the loaded page below,
-    // since no matching backend endpoint exists for those yet.
+    // Server-side search: send the debounced query to the backend via the `search` param
+    // which does a contains match on receiver name, parcel ID, phone, etc.
+    // Falls back to showing all parcels when the search is cleared.
+    // Requires at least 2 characters to avoid hammering the backend on every keystroke.
     useEffect(() => {
-        const query = debouncedGeneralSearch.trim();
-        if (!looksLikePhoneQuery(query)) {
-            setPhoneSearchResults(null);
-            setPhoneSearching(false);
-            return;
-        }
-
-        let cancelled = false;
-        setPhoneSearching(true);
-
-        searchParcelsByPhone(query).then((result) => {
-            if (cancelled) return;
-            if (result.success) {
-                const cacheById = new Map(parcels.map((p) => [p.parcelId, p]));
-                const merged = (result.data || []).map((cp): ParcelResponse => {
-                    const cached = cacheById.get(cp.parcelId);
-                    if (cached) return cached;
-                    return {
-                        parcelId: cp.parcelId,
-                        receiverName: cp.receiverName || undefined,
-                        recieverPhoneNumber: cp.recieverPhoneNumber || undefined,
-                        receiverAddress: cp.receiverAddress || undefined,
-                        senderName: cp.senderName || undefined,
-                        senderPhoneNumber: cp.senderPhoneNumber || undefined,
-                        parcelDescription: cp.parcelDescription || undefined,
-                        shelfName: cp.shelfName || undefined,
-                        officeId: cp.officeId || undefined,
-                        delivered: cp.delivered,
-                        pod: cp.pod,
-                        parcelAssigned: cp.parcelAssigned,
-                        homeDelivery: cp.homeDelivery,
-                        deliveryCost: cp.deliveryCost,
-                        pickUpCost: cp.pickUpCost,
-                        inboundCost: cp.inboundCost,
-                        paymentMethod: cp.paymentMethod || undefined,
-                        inboudPayed: cp.inboudPayed,
-                        typeofParcel: cp.typeofParcel,
-                        createdAt: cp.createdAt,
-                        updatedAt: cp.updatedAt,
-                    };
-                });
-                setPhoneSearchResults(merged);
-            } else {
-                setPhoneSearchResults([]);
-                if (result.message) showToast(result.message, "error");
+        const raw = debouncedGeneralSearch.trim();
+        // Normalize phone numbers before sending to server:
+        // "0531656697" or "531656697" → "+233531656697"
+        const looksLikePhone = /^[0-9+\s]+$/.test(raw) && raw.replace(/\D/g, "").length >= 7;
+        let query = raw;
+        if (looksLikePhone) {
+            const digits = raw.replace(/\D/g, "");
+            if (digits.startsWith("0")) {
+                query = "+233" + digits.substring(1);
+            } else if (digits.startsWith("233")) {
+                query = "+" + digits;
+            } else if (!raw.startsWith("+")) {
+                query = "+233" + digits;
             }
-            setPhoneSearching(false);
-        });
-
-        return () => { cancelled = true; };
+        }
+        if (query.length >= 2) {
+            loadParcelsIfNeeded({ search: query }, 0, 100, true);
+        } else if (query.length === 0) {
+            loadParcelsIfNeeded({}, 0, 50, true);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedGeneralSearch]);
 
-    // Filter parcels based on search parameters (client-side filtering)
+    // Client-side filtering only for the advanced filter panel fields.
+    // The general search box is handled server-side via the `search` param.
     const filteredParcels = useMemo(() => {
-        const isPhoneSearchActive = phoneSearchResults !== null;
-        let filtered = isPhoneSearchActive ? [...phoneSearchResults] : [...parcels];
+        let filtered = [...parcels];
 
-        // General search (searches across multiple fields with OR logic) —
-        // only applies to the loaded page; server-side phone search already
-        // narrowed the result set above.
-        if (!isPhoneSearchActive && generalSearch.trim()) {
-            const searchTerm = generalSearch.trim().toLowerCase();
-            filtered = filtered.filter((p) => {
-                // Check parcel ID
-                if (p.parcelId?.toLowerCase().includes(searchTerm)) return true;
-
-                // Check recipient name
-                if (p.receiverName?.toLowerCase().includes(searchTerm)) return true;
-
-                // Check sender name
-                if (p.senderName?.toLowerCase().includes(searchTerm)) return true;
-
-                // Check phone numbers (handles various formats)
-                if (phoneMatchesSearch(p.recieverPhoneNumber, searchTerm)) return true;
-                if (phoneMatchesSearch(p.senderPhoneNumber, searchTerm)) return true;
-                if (phoneMatchesSearch(p.driverPhoneNumber, searchTerm)) return true;
-
-                // Check driver name
-                if (p.driverName?.toLowerCase().includes(searchTerm)) return true;
-
-                // Check parcel description
-                if (p.parcelDescription?.toLowerCase().includes(searchTerm)) return true;
-
-                return false;
-            });
-        }
-
-        // Specific filters (work together with AND logic)
-        // Filter by parcel ID (only if not using general search)
-        if (!generalSearch.trim() && searchParams.parcelId) {
-            const searchTerm = searchParams.parcelId.toLowerCase();
-            filtered = filtered.filter((p) =>
-                p.parcelId?.toLowerCase().includes(searchTerm)
-            );
-        }
-
-        // Filter by recipient name (only if not using general search)
-        if (!generalSearch.trim() && searchParams.recipientName) {
-            const searchTerm = searchParams.recipientName.toLowerCase();
-            filtered = filtered.filter((p) =>
-                p.receiverName?.toLowerCase().includes(searchTerm)
-            );
-        }
-
-        // Filter by phone number - handles various formats (only if not using general search)
-        if (!generalSearch.trim() && searchParams.phoneNumber) {
-            const searchTerm = searchParams.phoneNumber.trim();
-            filtered = filtered.filter((p) =>
-                phoneMatchesSearch(p.recieverPhoneNumber, searchTerm) ||
-                phoneMatchesSearch(p.senderPhoneNumber, searchTerm) ||
-                phoneMatchesSearch(p.driverPhoneNumber, searchTerm)
-            );
-        }
-
-        // Filter by shelf location
-        if (searchParams.shelfLocation) {
-            filtered = filtered.filter((p) =>
-                (p.shelfName || p.shelfNumber) === searchParams.shelfLocation
-            );
-        }
-
-        // Filter by status
         if (searchParams.status) {
             filtered = filtered.filter((p) => {
                 if (searchParams.status === "delivered") return p.delivered;
@@ -281,36 +173,50 @@ export const ParcelSearch = (): JSX.Element => {
             });
         }
 
-        // NEW: Filter by createdAt using startDate and endDate (YYYY-MM-DD inputs)
+        if (searchParams.shelfLocation) {
+            filtered = filtered.filter((p) =>
+                (p.shelfName || p.shelfNumber) === searchParams.shelfLocation
+            );
+        }
+
+        if (searchParams.phoneNumber) {
+            const term = searchParams.phoneNumber.trim();
+            filtered = filtered.filter((p) =>
+                phoneMatchesSearch(p.recieverPhoneNumber, term) ||
+                phoneMatchesSearch(p.senderPhoneNumber, term) ||
+                phoneMatchesSearch(p.driverPhoneNumber, term)
+            );
+        }
+
+        if (searchParams.recipientName) {
+            const term = searchParams.recipientName.toLowerCase();
+            filtered = filtered.filter((p) =>
+                p.receiverName?.toLowerCase().includes(term)
+            );
+        }
+
         if (searchParams.startDate) {
             const start = parseDateInput(searchParams.startDate);
             if (start) {
-                const startMs = new Date(start).setHours(0, 0, 0, 0);
-                filtered = filtered.filter((p) => {
-                    const created = typeof p.createdAt === "number" ? p.createdAt : Number(p.createdAt || 0);
-                    return created && created >= startMs;
-                });
+                const startMs = start.setHours(0, 0, 0, 0);
+                filtered = filtered.filter((p) => p.createdAt && Number(p.createdAt) >= startMs);
             }
         }
 
         if (searchParams.endDate) {
             const end = parseDateInput(searchParams.endDate);
             if (end) {
-                const endMs = new Date(end).setHours(23, 59, 59, 999);
-                filtered = filtered.filter((p) => {
-                    const created = typeof p.createdAt === "number" ? p.createdAt : Number(p.createdAt || 0);
-                    return created && created <= endMs;
-                });
+                const endMs = end.setHours(23, 59, 59, 999);
+                filtered = filtered.filter((p) => p.createdAt && Number(p.createdAt) <= endMs);
             }
         }
 
         return filtered;
-    }, [parcels, searchParams, generalSearch, phoneSearchResults]);
+    }, [parcels, searchParams]);
 
     const handleClearFilters = () => {
         setGeneralSearch("");
         setDebouncedGeneralSearch("");
-        setPhoneSearchResults(null);
         setSearchParams({
             recipientName: "",
             phoneNumber: "",
@@ -338,7 +244,7 @@ export const ParcelSearch = (): JSX.Element => {
             if (response.success) {
                 showToast("Shelf location updated successfully", "success");
                 // Refresh parcels
-                await refreshParcels({}, pagination.page, pagination.size);
+                await refreshParcels();
                 setEditingShelf(false);
                 setSelectedParcel(null);
             } else {
@@ -369,7 +275,7 @@ export const ParcelSearch = (): JSX.Element => {
                 setRequestDelivery(false);
                 setDeliveryAddress("");
                 setDeliveryCostInput("");
-                await refreshParcels({}, pagination.page, pagination.size);
+                await refreshParcels();
                 setSelectedParcel(null);
             } else {
                 showToast(response.message || "Failed to request delivery", "error");
@@ -393,7 +299,7 @@ export const ParcelSearch = (): JSX.Element => {
                 showToast("Parcel marked as picked up", "success");
                 setShowPickupModal(false);
                 setPickupParcel(null);
-                await refreshParcels({}, pagination.page, pagination.size);
+                await refreshParcels();
             } else {
                 showToast(response.message || "Failed to update parcel status", "error");
             }
@@ -481,7 +387,7 @@ export const ParcelSearch = (): JSX.Element => {
                                         }}
                                         className="pl-10 pr-8 border border-[#d1d1d1]"
                                     />
-                                    {phoneSearching && (
+                                    {loading && generalSearch.trim() && (
                                         <Loader className="absolute right-3 top-3 w-4 h-4 text-[#ea690c] animate-spin" />
                                     )}
                                 </div>
@@ -651,10 +557,10 @@ export const ParcelSearch = (): JSX.Element => {
                     <div className="flex flex-col flex-1 min-h-0 gap-3">
                             <div className="flex items-center justify-between text-xs text-[#5d5d5d] mb-2">
                                 <span className="flex items-center gap-2">
-                                    {phoneSearchResults !== null ? (
+                                    {generalSearch.trim() ? (
                                         <span className="inline-flex items-center gap-1.5">
-                                            {filteredParcels.length} result{filteredParcels.length === 1 ? "" : "s"} for "{generalSearch.trim()}" across all parcels
-                                            {phoneSearching && <Loader className="w-4 h-4 animate-spin text-[#ea690c]" />}
+                                            {filteredParcels.length} result{filteredParcels.length === 1 ? "" : "s"} for "{generalSearch.trim()}"
+                                            {loading && <Loader className="w-4 h-4 animate-spin text-[#ea690c]" />}
                                         </span>
                                     ) : (
                                         <>Showing {filteredParcels.length} of {pagination.totalElements} parcel(s)</>
@@ -676,9 +582,9 @@ export const ParcelSearch = (): JSX.Element => {
                                         }}
                                         className="text-xs border border-[#d1d1d1] rounded px-2 py-1"
                                     >
+                                        <option value={50}>50</option>
+                                        <option value={100}>100</option>
                                         <option value={200}>200</option>
-                                        <option value={500}>500</option>
-                                        <option value={1000}>1000</option>
                                     </select>
                                 </div>
                             </div>
@@ -841,7 +747,6 @@ export const ParcelSearch = (): JSX.Element => {
                                                                             setSelectedParcel(parcel);
                                                                             setNewShelfLocation(parcel.shelfId || parcel.shelfNumber || "");
                                                                             setEditingShelf(false);
-                                                                            setShowCosts(false);
                                                                             setActiveDelivery(null);
                                                                             if (parcel.parcelAssigned) {
                                                                                 setActiveDeliveryLoading(true);
@@ -1163,361 +1068,11 @@ export const ParcelSearch = (): JSX.Element => {
                     onPrint={() => setShowPrintPreview(true)}
                     onEditShelf={() => { setEditingShelf(true); setShowActionMenu(false); }}
                     onRequestDelivery={() => { setRequestDelivery(true); setDeliveryAddress(selectedParcel.receiverAddress || ""); setDeliveryCostInput(selectedParcel.deliveryCost ? String(selectedParcel.deliveryCost) : ""); setShowActionMenu(false); }}
-                    onCancelDelivery={async () => { setShowActionMenu(false); const res = await frontdeskService.updateParcel(selectedParcel.parcelId, { homeDelivery: false, deliveryCost: 0, receiverAddress: "" }); if (res.success) { showToast("Home delivery cancelled", "success"); await refreshParcels({}, pagination.page, pagination.size); setSelectedParcel(null); } else showToast(res.message || "Failed", "error"); }}
+                    onCancelDelivery={async () => { setShowActionMenu(false); const res = await frontdeskService.updateParcel(selectedParcel.parcelId, { homeDelivery: false, deliveryCost: 0, receiverAddress: "" }); if (res.success) { showToast("Home delivery cancelled", "success"); await refreshParcels(); setSelectedParcel(null); } else showToast(res.message || "Failed", "error"); }}
                     showActionMenu={showActionMenu}
                     onToggleActionMenu={() => setShowActionMenu(p => !p)}
                     actionMenuRef={actionMenuRef}
                 />
-            )}
-            {/* DELETED inline modal — replaced by ParcelDetailModal component below */}
-            {false && selectedParcel && !editingShelf && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <Card className="w-full max-w-2xl border border-[#d1d1d1] bg-white shadow-lg max-h-[90vh] overflow-y-auto">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-lg font-bold text-neutral-800">Parcel Details</h3>
-                                <button
-                                    onClick={() => setSelectedParcel(null)}
-                                    className="text-[#9a9a9a] hover:text-neutral-800"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <div className="space-y-6">
-                                {/* Basic Information */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Basic Information</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Parcel ID</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.parcelId}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Status</p>
-                                            <Badge className={
-                                                selectedParcel.delivered
-                                                    ? "bg-green-100 text-green-800"
-                                                    : selectedParcel.parcelAssigned
-                                                        ? "bg-blue-100 text-blue-800"
-                                                        : selectedParcel.pod
-                                                            ? "bg-purple-100 text-purple-800"
-                                                            : "bg-gray-100 text-gray-800"
-                                            }>
-                                                {selectedParcel.delivered
-                                                    ? "Delivered"
-                                                    : selectedParcel.parcelAssigned
-                                                        ? "Assigned"
-                                                        : selectedParcel.pod
-                                                            ? "POD"
-                                                            : "Registered"}
-                                            </Badge>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Shelf Location</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.shelfName || selectedParcel.shelfNumber || "Not set"}</p>
-                                        </div>
-                                        {selectedParcel.fragile !== undefined && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Fragile</p>
-                                                <Badge className={selectedParcel.fragile ? "bg-orange-100 text-orange-800" : "bg-gray-100 text-gray-800"}>
-                                                    {selectedParcel.fragile ? "Yes" : "No"}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Recipient Information */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Recipient Information</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Recipient Name</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.receiverName || "N/A"}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Phone Number</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">
-                                                {selectedParcel.recieverPhoneNumber ? formatPhoneNumber(selectedParcel.recieverPhoneNumber) : "N/A"}
-                                            </p>
-                                        </div>
-                                        {selectedParcel.receiverAddress && (
-                                            <div className="col-span-2">
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Delivery Address</p>
-                                                <p className="text-sm text-neutral-700">{selectedParcel.receiverAddress}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Sender Information */}
-                                {(selectedParcel.senderName || selectedParcel.senderPhoneNumber) && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Sender Information</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            {selectedParcel.senderName && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Sender Name</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.senderName}</p>
-                                                </div>
-                                            )}
-                                            {selectedParcel.senderPhoneNumber && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Sender Phone</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">
-                                                        {formatPhoneNumber(selectedParcel.senderPhoneNumber)}
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Driver Information */}
-                                {selectedParcel.driverName && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Driver Information</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Driver Name</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.driverName}</p>
-                                            </div>
-                                            {selectedParcel.driverPhoneNumber && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Driver Phone</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">
-                                                        {formatPhoneNumber(selectedParcel.driverPhoneNumber)}
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {selectedParcel.vehicleNumber && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Vehicle Number</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.vehicleNumber}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* NEW: Rider Information */}
-                                {selectedParcel.riderInfo && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Rider Information</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Rider Name</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.riderInfo.riderName}</p>
-                                            </div>
-                                            {selectedParcel.riderInfo.riderPhoneNumber && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Rider Phone</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">{formatPhoneNumber(selectedParcel.riderInfo.riderPhoneNumber)}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Inbound & Storage — always visible */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Costs</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {selectedParcel.inboundCost !== undefined && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Inbound Cost</p>
-                                                <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.inboundCost.toFixed(2)}</p>
-                                            </div>
-                                        )}
-                                        {selectedParcel.storageCost !== undefined && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Storage Cost</p>
-                                                <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.storageCost.toFixed(2)}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Delivery & Pickup — collapsible */}
-                                <div className="border border-[#d1d1d1] rounded-lg overflow-hidden">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCosts(prev => !prev)}
-                                        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-                                    >
-                                        <h4 className="text-sm font-semibold text-neutral-800">Delivery & Pickup Fees</h4>
-                                        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showCosts ? "rotate-180" : ""}`} />
-                                    </button>
-                                    {showCosts && (
-                                        <div className="grid grid-cols-2 gap-4 p-4">
-                                            {selectedParcel.deliveryCost !== undefined && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Delivery Fee</p>
-                                                    <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.deliveryCost.toFixed(2)}</p>
-                                                </div>
-                                            )}
-                                            {selectedParcel.pickUpCost !== undefined && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Pickup Cost</p>
-                                                    <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.pickUpCost.toFixed(2)}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Item Description */}
-                                {selectedParcel.parcelDescription && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Item Description</h4>
-                                        <p className="text-sm text-neutral-700">{selectedParcel.parcelDescription}</p>
-                                    </div>
-                                )}
-
-                                {/* Additional Information */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Additional Information</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {selectedParcel.hasCalled !== undefined && selectedParcel.hasCalled !== null && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Has Called</p>
-                                                <Badge className={selectedParcel.hasCalled ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                                                    {selectedParcel.hasCalled ? "Yes" : "No"}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                        {selectedParcel.inboudPayed !== undefined && selectedParcel.inboudPayed !== null && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Inbound Paid</p>
-                                                <Badge className={selectedParcel.inboudPayed ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                                                    {selectedParcel.inboudPayed ? "Yes" : "No"}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                        {selectedParcel.homeDelivery !== undefined && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Home Delivery</p>
-                                                <Badge className={selectedParcel.homeDelivery ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}>
-                                                    {selectedParcel.homeDelivery ? "Yes" : "No"}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                        {selectedParcel.registeredDate && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Registered Date</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">
-                                                    {new Date(selectedParcel.registeredDate).toLocaleString()}
-                                                </p>
-                                            </div>
-                                        )}
-                                        {typeof selectedParcel.officeId === 'string' ? (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Office ID</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.officeId}</p>
-                                            </div>
-                                        ) : selectedParcel.officeId ? (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Office</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.officeId.name}</p>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                </div>
-
-                                {/* Pickup Status and Action */}
-                                <div className="flex items-center justify-between gap-4">
-                                    <div className="flex items-center gap-3">
-                                        {selectedParcel.pickedUp ? (
-                                            <Badge className="bg-green-100 text-green-800">Picked Up</Badge>
-                                        ) : (
-                                            <Badge className="bg-yellow-100 text-yellow-800">Not Picked Up</Badge>
-                                        )}
-                                        <span className="text-sm text-[#5d5d5d]">
-                                            Has Called: {selectedParcel.hasCalled ? "Yes" : "No"}
-                                        </span>
-                                    </div>
-
-                                    {!selectedParcel.pickedUp && (
-                                        <div>
-                                            <Button
-                                                onClick={() => {
-                                                    setPickupIsOwner(true);
-                                                    setPickupName("");
-                                                    setPickupPhone("");
-                                                    setPickupParcel(selectedParcel);
-                                                    setSelectedParcel(null);
-                                                    setShowPickupModal(true);
-                                                }}
-                                                className="bg-[#ea690c] text-white hover:bg-[#ea690c]/90"
-                                            >
-                                                Mark Picked Up
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="pt-4 border-t border-[#d1d1d1] flex gap-3">
-                                    <Button
-                                        onClick={() => setShowPrintPreview(true)}
-                                        variant="outline"
-                                        className="border border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
-                                    >
-                                        <PrinterIcon className="w-4 h-4 mr-2" />
-                                        Print Label
-                                    </Button>
-                                    <div className="relative flex-1" ref={actionMenuRef}>
-                                        <Button
-                                            onClick={() => setShowActionMenu(prev => !prev)}
-                                            variant="outline"
-                                            className="w-full border border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
-                                        >
-                                            <MoreHorizontal className="w-4 h-4 mr-2" />
-                                            Actions
-                                            <ChevronDown className="w-4 h-4 ml-2" />
-                                        </Button>
-                                        {showActionMenu && (
-                                            <div className="absolute bottom-full mb-1 left-0 w-full bg-white border border-[#d1d1d1] rounded-lg shadow-lg z-10 overflow-hidden">
-                                                <button
-                                                    onClick={() => { setEditingShelf(true); setShowActionMenu(false); }}
-                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-800 hover:bg-gray-50 text-left"
-                                                >
-                                                    <Edit className="w-4 h-4 text-[#ea690c]" />
-                                                    Update Shelf Location
-                                                </button>
-                                                {!selectedParcel.delivered && !selectedParcel.parcelAssigned && !selectedParcel.homeDelivery && (
-                                                    <button
-                                                        onClick={() => { setRequestDelivery(true); setDeliveryAddress(selectedParcel.receiverAddress || ""); setDeliveryCostInput(selectedParcel.deliveryCost ? String(selectedParcel.deliveryCost) : ""); setShowActionMenu(false); }}
-                                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-800 hover:bg-gray-50 text-left"
-                                                    >
-                                                        <Home className="w-4 h-4 text-blue-500" />
-                                                        Request Home Delivery
-                                                    </button>
-                                                )}
-                                                {selectedParcel.homeDelivery && !selectedParcel.delivered && !selectedParcel.parcelAssigned && (
-                                                    <button
-                                                        onClick={async () => { setShowActionMenu(false); const res = await frontdeskService.updateParcel(selectedParcel.parcelId, { homeDelivery: false, deliveryCost: 0, receiverAddress: "" }); if (res.success) { showToast("Home delivery cancelled", "success"); await refreshParcels({}, pagination.page, pagination.size); setSelectedParcel(null); } else showToast(res.message || "Failed", "error"); }}
-                                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 text-left"
-                                                    >
-                                                        <X className="w-4 h-4" />
-                                                        Cancel Home Delivery
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <Button
-                                        onClick={() => setSelectedParcel(null)}
-                                        variant="outline"
-                                        className="border border-[#d1d1d1]"
-                                    >
-                                        Close
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
             )}
 
             {/* Print Label Preview Modal */}
