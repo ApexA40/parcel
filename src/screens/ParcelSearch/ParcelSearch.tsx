@@ -95,7 +95,7 @@ export const ParcelSearch = (): JSX.Element => {
     // Load parcels on mount - skip if context already has data cached
     useEffect(() => {
         if (parcels.length === 0) {
-            loadParcelsIfNeeded({}, 0, 50, true);
+            loadParcelsIfNeeded({}, 0, 200, true);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -148,9 +148,9 @@ export const ParcelSearch = (): JSX.Element => {
             }
         }
         if (query.length >= 2) {
-            loadParcelsIfNeeded({ search: query }, 0, 100, true);
+            loadParcelsIfNeeded({ search: query }, 0, 200, true);
         } else if (query.length === 0) {
-            loadParcelsIfNeeded({}, 0, 50, true);
+            loadParcelsIfNeeded({}, 0, 200, true);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedGeneralSearch]);
@@ -556,11 +556,12 @@ export const ParcelSearch = (): JSX.Element => {
                                             const newSize = parseInt(e.target.value);
                                             loadParcelsIfNeeded({}, 0, newSize, true);
                                         }}
+                                        defaultValue={200}
                                         className="text-xs border border-[#d1d1d1] rounded px-2 py-1"
                                     >
-                                        <option value={50}>50</option>
-                                        <option value={100}>100</option>
                                         <option value={200}>200</option>
+                                        <option value={500}>500</option>
+                                        <option value={1000}>1000</option>
                                     </select>
                                 </div>
                             </div>
