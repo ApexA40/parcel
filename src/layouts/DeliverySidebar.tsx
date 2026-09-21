@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, ClipboardListIcon, TruckIcon, DollarSignIcon, PhoneIcon, HomeIcon, CheckCircleIcon, BarChart2, LogOut, ZapIcon, SearchIcon, Package, MapPin } from "lucide-react";
+import { X, ClipboardListIcon, TruckIcon, DollarSignIcon, PhoneIcon, HomeIcon, CheckCircleIcon, BarChart2, LogOut, ZapIcon, SearchIcon, Package, MapPin, Edit } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 import { useBranding } from "../contexts/BrandingContext";
 
@@ -21,6 +21,7 @@ const navItems = [
     { label: "Reconciliation", path: "/delivery/reconciliation", icon: DollarSignIcon, roles: ["MANAGER"] },
     { label: "Analytics", path: "/delivery/analytics", icon: BarChart2, roles: ["MANAGER"] },
     { label: "Smart Search", path: "/delivery/smart-search", icon: ZapIcon, roles: ["MANAGER", "CALLER"] },
+    { label: "Edit Parcels", path: "/delivery/edit", icon: Edit, roles: ["MANAGER"] },
     { label: "Addresses", path: "/delivery/addresses", icon: MapPin, roles: ["FRONTDESK", "MANAGER"] },
 ];
 

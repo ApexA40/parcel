@@ -165,6 +165,7 @@ export const App = (): JSX.Element => {
                               <Route path="/delivery/addresses" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><AddressManagement /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/addresses" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><AddressManagement /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/smart-search" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><SmartSearch /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/edit" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ParcelEdit /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/settings" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><BranchSettings /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/preferences" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><Preferences /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/help" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><Help /></DeliveryLayout></ProtectedRoute>} />

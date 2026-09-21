@@ -8,7 +8,7 @@ import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { useStation } from "../../contexts/StationContext";
 import { useShelf } from "../../contexts/ShelfContext";
-import { formatPhoneNumber, phoneMatchesSearch, validatePhoneNumber, normalizePhoneNumber } from "../../utils/dataHelpers";
+import { formatPhoneNumber, validatePhoneNumber, normalizePhoneNumber } from "../../utils/dataHelpers";
 import frontdeskService, { ParcelResponse } from "../../services/frontdeskService";
 import { useToast } from "../../components/ui/toast";
 import authService from "../../services/authService";
@@ -29,13 +29,10 @@ export const ParcelSearch = (): JSX.Element => {
     } = useFrontdeskParcel();
     const [searchParams, setSearchParams] = useState({
         recipientName: "",
-        phoneNumber: "",
-        parcelId: "",
         status: "",
         startDate: "",
         endDate: "",
         shelfLocation: "",
-        driverName: "",
     });
     const [generalSearch, setGeneralSearch] = useState("");
     const [debouncedGeneralSearch, setDebouncedGeneralSearch] = useState("");
@@ -158,33 +155,25 @@ export const ParcelSearch = (): JSX.Element => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedGeneralSearch]);
 
-    // Client-side filtering only for the advanced filter panel fields.
-    // The general search box is handled server-side via the `search` param.
+    // Client-side filtering applied on top of whatever parcels the server returned.
     const filteredParcels = useMemo(() => {
         let filtered = [...parcels];
 
         if (searchParams.status) {
             filtered = filtered.filter((p) => {
                 if (searchParams.status === "delivered") return p.delivered;
-                if (searchParams.status === "assigned") return p.parcelAssigned;
+                if (searchParams.status === "pickedUp") return p.pickedUp && !p.delivered;
                 if (searchParams.status === "pod") return p.pod;
-                if (searchParams.status === "registered") return !p.delivered && !p.parcelAssigned && !p.pod;
+                if (searchParams.status === "assigned") return p.parcelAssigned && !p.pod && !p.pickedUp && !p.delivered;
+                if (searchParams.status === "called") return p.hasCalled && !p.parcelAssigned && !p.pod && !p.pickedUp && !p.delivered;
+                if (searchParams.status === "registered") return !p.delivered && !p.pickedUp && !p.pod && !p.parcelAssigned && !p.hasCalled;
                 return true;
             });
         }
 
         if (searchParams.shelfLocation) {
             filtered = filtered.filter((p) =>
-                (p.shelfName || p.shelfNumber) === searchParams.shelfLocation
-            );
-        }
-
-        if (searchParams.phoneNumber) {
-            const term = searchParams.phoneNumber.trim();
-            filtered = filtered.filter((p) =>
-                phoneMatchesSearch(p.recieverPhoneNumber, term) ||
-                phoneMatchesSearch(p.senderPhoneNumber, term) ||
-                phoneMatchesSearch(p.driverPhoneNumber, term)
+                p.shelfName === searchParams.shelfLocation || p.shelfNumber === searchParams.shelfLocation
             );
         }
 
@@ -199,7 +188,10 @@ export const ParcelSearch = (): JSX.Element => {
             const start = parseDateInput(searchParams.startDate);
             if (start) {
                 const startMs = start.setHours(0, 0, 0, 0);
-                filtered = filtered.filter((p) => p.createdAt && Number(p.createdAt) >= startMs);
+                filtered = filtered.filter((p) => {
+                    const ts = p.createdAt ?? p.registeredDate;
+                    return ts && Number(ts) >= startMs;
+                });
             }
         }
 
@@ -207,7 +199,10 @@ export const ParcelSearch = (): JSX.Element => {
             const end = parseDateInput(searchParams.endDate);
             if (end) {
                 const endMs = end.setHours(23, 59, 59, 999);
-                filtered = filtered.filter((p) => p.createdAt && Number(p.createdAt) <= endMs);
+                filtered = filtered.filter((p) => {
+                    const ts = p.createdAt ?? p.registeredDate;
+                    return ts && Number(ts) <= endMs;
+                });
             }
         }
 
@@ -219,13 +214,10 @@ export const ParcelSearch = (): JSX.Element => {
         setDebouncedGeneralSearch("");
         setSearchParams({
             recipientName: "",
-            phoneNumber: "",
-            parcelId: "",
             status: "",
             startDate: "",
             endDate: "",
             shelfLocation: "",
-            driverName: "",
         });
     };
 
@@ -414,24 +406,6 @@ export const ParcelSearch = (): JSX.Element => {
                             {showFilters && (
                                 <div className="mt-4 pt-4 border-t border-[#d1d1d1]">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {/* Phone Number Filter */}
-                                        <div>
-                                            <label className="block text-sm font-semibold text-neutral-800 mb-2">
-                                                Phone Number
-                                            </label>
-                                            <Input
-                                                placeholder="+233..."
-                                                value={searchParams.phoneNumber}
-                                                onChange={(e) =>
-                                                    setSearchParams((prev) => ({
-                                                        ...prev,
-                                                        phoneNumber: e.target.value,
-                                                    }))
-                                                }
-                                                className="border border-[#d1d1d1]"
-                                            />
-                                        </div>
-
                                         {/* Status Filter */}
                                         <div>
                                             <label className="block text-sm font-semibold text-neutral-800 mb-2">
@@ -449,9 +423,11 @@ export const ParcelSearch = (): JSX.Element => {
                                             >
                                                 <option value="">All Status</option>
                                                 <option value="registered">Registered</option>
+                                                <option value="called">Called</option>
                                                 <option value="assigned">Assigned</option>
-                                                <option value="delivered">Delivered</option>
                                                 <option value="pod">POD</option>
+                                                <option value="pickedUp">Picked Up</option>
+                                                <option value="delivered">Delivered</option>
                                             </select>
                                         </div>
 
@@ -1069,6 +1045,7 @@ export const ParcelSearch = (): JSX.Element => {
                     onEditShelf={() => { setEditingShelf(true); setShowActionMenu(false); }}
                     onRequestDelivery={() => { setRequestDelivery(true); setDeliveryAddress(selectedParcel.receiverAddress || ""); setDeliveryCostInput(selectedParcel.deliveryCost ? String(selectedParcel.deliveryCost) : ""); setShowActionMenu(false); }}
                     onCancelDelivery={async () => { setShowActionMenu(false); const res = await frontdeskService.updateParcel(selectedParcel.parcelId, { homeDelivery: false, deliveryCost: 0, receiverAddress: "" }); if (res.success) { showToast("Home delivery cancelled", "success"); await refreshParcels(); setSelectedParcel(null); } else showToast(res.message || "Failed", "error"); }}
+                    onSaved={async () => { await refreshParcels(); }}
                     showActionMenu={showActionMenu}
                     onToggleActionMenu={() => setShowActionMenu(p => !p)}
                     actionMenuRef={actionMenuRef}
@@ -1273,6 +1250,7 @@ interface ParcelDetailModalProps {
     onEditShelf: () => void;
     onRequestDelivery: () => void;
     onCancelDelivery: () => void;
+    onSaved: () => void;
     showActionMenu: boolean;
     onToggleActionMenu: () => void;
     actionMenuRef: React.RefObject<HTMLDivElement>;
@@ -1280,11 +1258,49 @@ interface ParcelDetailModalProps {
 
 const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
     parcel, activeDelivery, activeDeliveryLoading, onClose, onMarkPickup, onPrint, onEditShelf,
-    onRequestDelivery, onCancelDelivery,
+    onRequestDelivery, onCancelDelivery, onSaved,
     showActionMenu, onToggleActionMenu, actionMenuRef,
 }) => {
+    const { showToast } = useToast();
+    const { userRole } = useStation();
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+    const [editMode, setEditMode] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [editForm, setEditForm] = useState({
+        receiverName:        parcel.receiverName || "",
+        recieverPhoneNumber: parcel.recieverPhoneNumber || "",
+        receiverAddress:     parcel.receiverAddress || "",
+        parcelDescription:   parcel.parcelDescription || "",
+        senderName:          parcel.senderName || "",
+        senderPhoneNumber:   parcel.senderPhoneNumber || "",
+    });
     const images: string[] = parcel.imageUrls ?? parcel.images ?? [];
+    const canEdit = userRole === "MANAGER" || userRole === "FRONTDESK";
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const res = await frontdeskService.updateParcel(parcel.parcelId, {
+                receiverName:        editForm.receiverName || undefined,
+                recieverPhoneNumber: editForm.recieverPhoneNumber || undefined,
+                receiverAddress:     editForm.receiverAddress || undefined,
+                parcelDescription:   editForm.parcelDescription || undefined,
+                senderName:          editForm.senderName || undefined,
+                senderPhoneNumber:   editForm.senderPhoneNumber || undefined,
+            });
+            if (res.success) {
+                showToast("Parcel updated successfully", "success");
+                setEditMode(false);
+                onSaved();
+            } else {
+                showToast(res.message || "Failed to update parcel", "error");
+            }
+        } catch {
+            showToast("Failed to update parcel", "error");
+        } finally {
+            setSaving(false);
+        }
+    };
 
     // Lock body scroll while open
     useEffect(() => {
@@ -1387,21 +1403,66 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
                         {/* Recipient */}
                         <div className="px-5 py-4">
                             <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Recipient</p>
-                            <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-                                <Field label="Name" value={parcel.receiverName} />
-                                <Field label="Phone" value={parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : undefined} />
-                                {parcel.receiverAddress && <Field label="Address" value={parcel.receiverAddress} span />}
-                            </div>
+                            {editMode ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Name</p>
+                                        <input value={editForm.receiverName} onChange={e => setEditForm(p => ({ ...p, receiverName: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Phone</p>
+                                        <input value={editForm.recieverPhoneNumber} onChange={e => setEditForm(p => ({ ...p, recieverPhoneNumber: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                    <div className="col-span-2 space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Delivery Address</p>
+                                        <input value={editForm.receiverAddress} onChange={e => setEditForm(p => ({ ...p, receiverAddress: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                    <Field label="Name" value={parcel.receiverName} />
+                                    <Field label="Phone" value={parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : undefined} />
+                                    {parcel.receiverAddress && <Field label="Address" value={parcel.receiverAddress} span />}
+                                </div>
+                            )}
                         </div>
 
                         {/* Sender */}
-                        {(parcel.senderName || parcel.senderPhoneNumber) && (
-                            <div className="px-5 py-4">
-                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Sender</p>
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-                                    <Field label="Name" value={parcel.senderName} />
-                                    <Field label="Phone" value={parcel.senderPhoneNumber ? formatPhoneNumber(parcel.senderPhoneNumber) : undefined} />
+                        <div className="px-5 py-4">
+                            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Sender</p>
+                            {editMode ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Name</p>
+                                        <input value={editForm.senderName} onChange={e => setEditForm(p => ({ ...p, senderName: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Phone</p>
+                                        <input value={editForm.senderPhoneNumber} onChange={e => setEditForm(p => ({ ...p, senderPhoneNumber: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
                                 </div>
+                            ) : (
+                                (parcel.senderName || parcel.senderPhoneNumber) ? (
+                                    <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                        <Field label="Name" value={parcel.senderName} />
+                                        <Field label="Phone" value={parcel.senderPhoneNumber ? formatPhoneNumber(parcel.senderPhoneNumber) : undefined} />
+                                    </div>
+                                ) : <p className="text-xs text-neutral-400">No sender info</p>
+                            )}
+                        </div>
+
+                        {/* Description — editable */}
+                        {editMode && (
+                            <div className="px-5 py-4">
+                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Parcel Description</p>
+                                <textarea value={editForm.parcelDescription} onChange={e => setEditForm(p => ({ ...p, parcelDescription: e.target.value }))}
+                                    rows={2}
+                                    className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c] resize-none" />
                             </div>
                         )}
 
@@ -1476,38 +1537,64 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
                     </div>
 
                     {/* Footer */}
-                    <div className="px-5 py-3 border-t border-neutral-200 shrink-0 flex items-center gap-2">
-                        {!parcel.pickedUp && (
-                            <button onClick={onMarkPickup} className="h-8 px-3 text-xs font-medium bg-[#ea690c] text-white hover:bg-[#d45d0a] transition-colors">
-                                Mark Picked Up
-                            </button>
-                        )}
-                        <button onClick={onPrint} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
-                            <PrinterIcon className="w-3.5 h-3.5" /> Print Label
-                        </button>
-                        <div className="relative" ref={actionMenuRef}>
-                            <button onClick={onToggleActionMenu} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
-                                <MoreHorizontal className="w-3.5 h-3.5" /> Actions <ChevronDown className="w-3 h-3 ml-0.5" />
-                            </button>
-                            {showActionMenu && (
-                                <div className="absolute bottom-full mb-1 left-0 min-w-[190px] bg-white border border-neutral-200 shadow-lg z-10 overflow-hidden">
-                                    <button onClick={onEditShelf} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
-                                        <Edit className="w-3.5 h-3.5 text-neutral-400" /> Update Shelf
+                    <div className="px-5 py-3 border-t border-neutral-200 shrink-0 flex items-center gap-2 flex-wrap">
+                        {editMode ? (
+                            <>
+                                <button
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                    className="h-8 px-4 text-xs font-semibold bg-[#ea690c] text-white hover:bg-[#d45d0a] transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    {saving ? <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> Saving...</> : "Save Changes"}
+                                </button>
+                                <button
+                                    onClick={() => { setEditMode(false); setEditForm({ receiverName: parcel.receiverName || "", recieverPhoneNumber: parcel.recieverPhoneNumber || "", receiverAddress: parcel.receiverAddress || "", parcelDescription: parcel.parcelDescription || "", senderName: parcel.senderName || "", senderPhoneNumber: parcel.senderPhoneNumber || "" }); }}
+                                    className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-neutral-50 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <span className="text-[10px] text-neutral-400 ml-1">Editing receiver, sender &amp; description</span>
+                            </>
+                        ) : (
+                            <>
+                                {!parcel.pickedUp && (
+                                    <button onClick={onMarkPickup} className="h-8 px-3 text-xs font-medium bg-[#ea690c] text-white hover:bg-[#d45d0a] transition-colors">
+                                        Mark Picked Up
                                     </button>
-                                    {!parcel.delivered && !parcel.parcelAssigned && !parcel.homeDelivery && (
-                                        <button onClick={onRequestDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
-                                            <Home className="w-3.5 h-3.5 text-neutral-400" /> Request Home Delivery
-                                        </button>
-                                    )}
-                                    {parcel.homeDelivery && !parcel.delivered && !parcel.parcelAssigned && (
-                                        <button onClick={onCancelDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
-                                            <X className="w-3.5 h-3.5 text-neutral-400" /> Cancel Home Delivery
-                                        </button>
+                                )}
+                                {canEdit && (
+                                    <button onClick={() => setEditMode(true)} className="h-8 px-3 text-xs font-medium border border-[#ea690c] text-[#ea690c] hover:bg-orange-50 transition-colors flex items-center gap-1.5">
+                                        <Edit className="w-3.5 h-3.5" /> Edit
+                                    </button>
+                                )}
+                                <button onClick={onPrint} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
+                                    <PrinterIcon className="w-3.5 h-3.5" /> Print Label
+                                </button>
+                                <div className="relative" ref={actionMenuRef}>
+                                    <button onClick={onToggleActionMenu} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
+                                        <MoreHorizontal className="w-3.5 h-3.5" /> Actions <ChevronDown className="w-3 h-3 ml-0.5" />
+                                    </button>
+                                    {showActionMenu && (
+                                        <div className="absolute bottom-full mb-1 left-0 min-w-[190px] bg-white border border-neutral-200 shadow-lg z-10 overflow-hidden">
+                                            <button onClick={onEditShelf} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                                <Edit className="w-3.5 h-3.5 text-neutral-400" /> Update Shelf
+                                            </button>
+                                            {!parcel.delivered && !parcel.parcelAssigned && !parcel.homeDelivery && (
+                                                <button onClick={onRequestDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                                    <Home className="w-3.5 h-3.5 text-neutral-400" /> Request Home Delivery
+                                                </button>
+                                            )}
+                                            {parcel.homeDelivery && !parcel.delivered && !parcel.parcelAssigned && (
+                                                <button onClick={onCancelDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                                    <X className="w-3.5 h-3.5 text-neutral-400" /> Cancel Home Delivery
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                        <button onClick={onClose} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-500 hover:bg-neutral-50 transition-colors ml-auto">Close</button>
+                                <button onClick={onClose} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-500 hover:bg-neutral-50 transition-colors ml-auto">Close</button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
