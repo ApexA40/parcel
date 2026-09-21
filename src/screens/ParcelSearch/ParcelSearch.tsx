@@ -1264,6 +1264,7 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
 }) => {
     const { showToast } = useToast();
     const { userRole } = useStation();
+    const { shelves } = useShelf();
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
     const [editMode, setEditMode] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -1274,6 +1275,11 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
         parcelDescription:   parcel.parcelDescription || "",
         senderName:          parcel.senderName || "",
         senderPhoneNumber:   parcel.senderPhoneNumber || "",
+        shelfNumber:         parcel.shelfId || parcel.shelfNumber || "",
+        inboundCost:         parcel.inboundCost?.toString() || "",
+        pickUpCost:          parcel.pickUpCost?.toString() || "",
+        fragile:             parcel.fragile || false,
+        pod:                 parcel.pod || false,
     });
     const images: string[] = parcel.imageUrls ?? parcel.images ?? [];
     const canEdit = userRole === "MANAGER" || userRole === "FRONTDESK";
@@ -1281,6 +1287,7 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
     const handleSave = async () => {
         setSaving(true);
         try {
+            const selectedShelf = shelves.find(s => s.name === editForm.shelfNumber);
             const res = await frontdeskService.updateParcel(parcel.parcelId, {
                 receiverName:        editForm.receiverName || undefined,
                 recieverPhoneNumber: editForm.recieverPhoneNumber || undefined,
@@ -1288,6 +1295,11 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
                 parcelDescription:   editForm.parcelDescription || undefined,
                 senderName:          editForm.senderName || undefined,
                 senderPhoneNumber:   editForm.senderPhoneNumber || undefined,
+                shelfNumber:         selectedShelf?.id || editForm.shelfNumber || undefined,
+                inboundCost:         editForm.inboundCost ? parseFloat(editForm.inboundCost) : undefined,
+                pickUpCost:          editForm.pickUpCost ? parseFloat(editForm.pickUpCost) : undefined,
+                fragile:             editForm.fragile,
+                pod:                 editForm.pod,
             });
             if (res.success) {
                 showToast("Parcel updated successfully", "success");
@@ -1459,11 +1471,45 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
 
                         {/* Description — editable */}
                         {editMode && (
-                            <div className="px-5 py-4">
-                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Parcel Description</p>
-                                <textarea value={editForm.parcelDescription} onChange={e => setEditForm(p => ({ ...p, parcelDescription: e.target.value }))}
-                                    rows={2}
-                                    className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c] resize-none" />
+                            <div className="px-5 py-4 space-y-4">
+                                <div>
+                                    <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-2">Parcel Description</p>
+                                    <textarea value={editForm.parcelDescription} onChange={e => setEditForm(p => ({ ...p, parcelDescription: e.target.value }))}
+                                        rows={2}
+                                        className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c] resize-none" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Inbound Cost (GHC)</p>
+                                        <input type="number" step="0.01" value={editForm.inboundCost} onChange={e => setEditForm(p => ({ ...p, inboundCost: e.target.value }))}
+                                            placeholder="0.00" className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Pick Up Cost (GHC)</p>
+                                        <input type="number" step="0.01" value={editForm.pickUpCost} onChange={e => setEditForm(p => ({ ...p, pickUpCost: e.target.value }))}
+                                            placeholder="0.00" className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Shelf Location</p>
+                                    <select value={editForm.shelfNumber} onChange={e => setEditForm(p => ({ ...p, shelfNumber: e.target.value }))}
+                                        className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]">
+                                        <option value="">No shelf</option>
+                                        {shelves.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={editForm.fragile} onChange={e => setEditForm(p => ({ ...p, fragile: e.target.checked }))}
+                                            className="w-4 h-4 accent-[#ea690c]" />
+                                        <span className="text-sm text-neutral-700">Fragile</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={editForm.pod} onChange={e => setEditForm(p => ({ ...p, pod: e.target.checked }))}
+                                            className="w-4 h-4 accent-[#ea690c]" />
+                                        <span className="text-sm text-neutral-700">POD</span>
+                                    </label>
+                                </div>
                             </div>
                         )}
 
@@ -1549,12 +1595,11 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
                                     {saving ? <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> Saving...</> : "Save Changes"}
                                 </button>
                                 <button
-                                    onClick={() => { setEditMode(false); setEditForm({ receiverName: parcel.receiverName || "", recieverPhoneNumber: parcel.recieverPhoneNumber || "", receiverAddress: parcel.receiverAddress || "", parcelDescription: parcel.parcelDescription || "", senderName: parcel.senderName || "", senderPhoneNumber: parcel.senderPhoneNumber || "" }); }}
+                                    onClick={() => { setEditMode(false); setEditForm({ receiverName: parcel.receiverName || "", recieverPhoneNumber: parcel.recieverPhoneNumber || "", receiverAddress: parcel.receiverAddress || "", parcelDescription: parcel.parcelDescription || "", senderName: parcel.senderName || "", senderPhoneNumber: parcel.senderPhoneNumber || "", shelfNumber: parcel.shelfId || parcel.shelfNumber || "", inboundCost: parcel.inboundCost?.toString() || "", pickUpCost: parcel.pickUpCost?.toString() || "", fragile: parcel.fragile || false, pod: parcel.pod || false }); }}
                                     className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-neutral-50 transition-colors"
                                 >
                                     Cancel
                                 </button>
-                                <span className="text-[10px] text-neutral-400 ml-1">Editing receiver, sender &amp; description</span>
                             </>
                         ) : (
                             <>
