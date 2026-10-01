@@ -51,9 +51,8 @@ import { SystemParcelOverview } from "./screens/Admin/SystemParcelOverview/Syste
 import { FinancialReports } from "./screens/Admin/FinancialReports/FinancialReports";
 import { AdminReconciliation } from "./screens/Admin/AdminReconciliation/AdminReconciliation";
 import { AdminReconciliationAnalytics } from "./screens/Admin/AdminReconciliationAnalytics/AdminReconciliationAnalytics";
-import { Preferences } from "./screens/Preferences/Preferences";
+import { Settings } from "./screens/Settings/Settings";
 import { Help } from "./screens/Help/Help";
-import { BranchSettings } from "./screens/BranchSettings/BranchSettings";
 import { TenantSettings } from "./screens/Admin/TenantSettings/TenantSettings";
 import { Billing } from "./screens/Admin/Billing/Billing";
 import { DeliveryIncome } from "./screens/Admin/DeliveryIncome/DeliveryIncome";
@@ -135,8 +134,8 @@ export const App = (): JSX.Element => {
                               <Route path="/parcel/driver-tracker" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><DriverInboundReconciliation /></ParcelLayout></ProtectedRoute>} />
                               <Route path="/parcel/driver-tracker/:phoneKey" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><DriverTrackerDetail /></ParcelLayout></ProtectedRoute>} />
                               <Route path="/parcel/assignments" element={<ProtectedRoute allowedRoles={["MANAGER"]}><ParcelLayout><ParcelSelection /></ParcelLayout></ProtectedRoute>} />
-                              <Route path="/parcel/settings" element={<ProtectedRoute allowedRoles={["MANAGER"]}><ParcelLayout><BranchSettings /></ParcelLayout></ProtectedRoute>} />
-                              <Route path="/parcel/preferences" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><Preferences /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/settings" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><Settings /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/preferences" element={<Navigate to="/parcel/settings" replace />} />
                               <Route path="/parcel/help" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><Help /></ParcelLayout></ProtectedRoute>} />
 
                               {/* Parcel flow sub-pages (layout-less, keep MainLayout for now) */}
@@ -166,8 +165,8 @@ export const App = (): JSX.Element => {
                               <Route path="/delivery/addresses" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><AddressManagement /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/smart-search" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><SmartSearch /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/edit" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ParcelEdit /></DeliveryLayout></ProtectedRoute>} />
-                              <Route path="/delivery/settings" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><BranchSettings /></DeliveryLayout></ProtectedRoute>} />
-                              <Route path="/delivery/preferences" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><Preferences /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/settings" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><Settings /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/preferences" element={<Navigate to="/delivery/settings" replace />} />
                               <Route path="/delivery/help" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><Help /></DeliveryLayout></ProtectedRoute>} />
 
                               {/* ════════════════════════════════

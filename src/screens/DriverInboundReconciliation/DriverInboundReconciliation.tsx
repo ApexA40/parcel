@@ -98,11 +98,6 @@ export const DriverInboundReconciliation = () => {
     return (
         <div className={`w-full ${showConfirmModal ? "overflow-hidden" : ""}`}>
             <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-                <div>
-                    <h1 className="text-xl font-bold text-neutral-800">Driver Tracker</h1>
-                    <p className="text-sm text-[#5d5d5d] mt-1">Unpaid inbound cash owed to drivers</p>
-                </div>
-
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <Card className="border border-[#d1d1d1]"><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Drivers</p><p className="text-2xl font-bold text-neutral-800">{totals.drivers}</p></CardContent></Card>
                     <Card className="border border-[#d1d1d1]"><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Parcels</p><p className="text-2xl font-bold text-blue-600">{totals.ready} / {totals.parcels}</p></CardContent></Card>

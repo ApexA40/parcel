@@ -24,8 +24,8 @@ const routeTitles: Record<string, { title: string; description: string }> = {
     "/parcel/pickup": { title: "Pickup Request", description: "Request pickup of parcels from one location for delivery to another" },
     "/parcel/driver-tracker": { title: "Driver Tracker", description: "Track inbound driver reconciliation" },
     "/parcel/assignments": { title: "Package Assignments", description: "Select parcels to assign to riders" },
-    "/parcel/settings": { title: "Branch Settings", description: "Configure branding and settings for this branch" },
-    "/parcel/preferences": { title: "Preferences", description: "Manage your account preferences and settings" },
+    "/parcel/settings": { title: "Settings", description: "Manage branch configuration and account preferences" },
+    "/parcel/preferences": { title: "Settings", description: "Manage branch configuration and account preferences" },
     "/parcel/help": { title: "Help & Support", description: "Get help and support for using the system" },
     // Delivery Hub
     "/delivery/assignments": { title: "Package Assignments", description: "Select parcels to assign to riders" },
@@ -45,8 +45,8 @@ const routeTitles: Record<string, { title: string; description: string }> = {
     "/delivery/pickup": { title: "Pickup Request", description: "Request pickup of parcels from one location for delivery to another" },
     "/delivery/addresses": { title: "Saved Addresses", description: "Delivery address presets with cost for this office" },
     "/delivery/smart-search": { title: "Smart Search", description: "Search parcels by customer phone number" },
-    "/delivery/settings": { title: "Branch Settings", description: "Configure branding and settings for this branch" },
-    "/delivery/preferences": { title: "Preferences", description: "Manage your account preferences and settings" },
+    "/delivery/settings": { title: "Settings", description: "Manage branch configuration and account preferences" },
+    "/delivery/preferences": { title: "Settings", description: "Manage branch configuration and account preferences" },
     "/delivery/help": { title: "Help & Support", description: "Get help and support for using the system" },
     // Admin Shell
     "/admin/dashboard": { title: "Admin Dashboard", description: "System-wide overview and analytics" },
