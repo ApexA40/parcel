@@ -13,6 +13,7 @@ import frontdeskService, { ParcelResponse } from "../../services/frontdeskServic
 import { useToast } from "../../components/ui/toast";
 import authService from "../../services/authService";
 import { useFrontdeskParcel } from "../../contexts/FrontdeskParcelContext";
+import { PrintLabelModal } from "../../components/PrintLabelModal";
 
 export const ParcelSearch = (): JSX.Element => {
     const { currentStation, currentUser, userRole } = useStation();
@@ -1055,186 +1056,16 @@ export const ParcelSearch = (): JSX.Element => {
 
             {/* Print Label Preview Modal */}
             {showPrintPreview && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-                    <style>{`
-                        @media print {
-                            body * { visibility: hidden; }
-                            #parcel-search-print, #parcel-search-print * { visibility: visible; }
-                            #parcel-search-print {
-                                position: absolute;
-                                left: 0;
-                                top: 0;
-                                width: 100%;
-                            }
-                            .page-break { page-break-after: always; }
-                            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                            @page { size: A4 portrait; margin: 6mm; }
-                        }
-                    `}</style>
-                    <div className="bg-white rounded-xl shadow-xl border border-[#d1d1d1] w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-white border-b border-[#d1d1d1] p-4 flex items-center justify-between">
-                            <h3 className="text-lg font-bold text-neutral-800">
-                                Print {checkedParcels.size > 0 ? `${checkedParcels.size} Parcel Label${checkedParcels.size > 1 ? 's' : ''}` : 'Parcel Label'}
-                            </h3>
-                            <div className="flex gap-2">
-                                <Button onClick={handlePrint} className="flex items-center gap-2 bg-[#ea690c] text-white hover:bg-[#ea690c]/90">
-                                    <PrinterIcon className="h-4 w-4" />
-                                    Print
-                                </Button>
-                                <Button onClick={() => setShowPrintPreview(false)} variant="outline" className="border border-[#d1d1d1]">
-                                    Close
-                                </Button>
-                            </div>
-                        </div>
-                        <div className="p-6 space-y-6" ref={printRef} id="parcel-search-print">
-                            {checkedParcels.size > 0 ? (
-                                filteredParcels
-                                    .filter(p => checkedParcels.has(p.parcelId))
-                                    .map((parcel, idx, arr) => (
-                                        <div key={parcel.parcelId}>
-                                            <SearchParcelLabel parcel={parcel} />
-                                            {idx < arr.length - 1 && (
-                                                <div className="page-break border-t border-dashed border-gray-300 my-2" />
-                                            )}
-                                        </div>
-                                    ))
-                            ) : selectedParcel ? (
-                                <SearchParcelLabel parcel={selectedParcel} />
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const SearchParcelLabel: React.FC<{ parcel: import("../../services/frontdeskService").ParcelResponse }> = ({ parcel }) => {
-    const totalAmount = (parcel.inboundCost || 0) + (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0);
-
-    const qrValue = `${window.location.origin}/p/${parcel.parcelId}`;
-
-    return (
-        <div className="bg-white border-2 border-black p-2">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-1.5">
-                <div className="w-10" />
-                <div className="flex items-center gap-2">
-                    <img src="/logo-1.png" alt="M&M Logo" className="h-8 w-8 object-contain" crossOrigin="anonymous" />
-                    <div>
-                        <h1 className="text-sm font-bold text-black leading-tight">Mealex &amp; Mailex (M&amp;M)</h1>
-                        <p className="text-xs text-black">Parcel Delivery System</p>
-                    </div>
-                </div>
-                <div className="flex flex-col items-center">
-                    <QRCodeSVG value={qrValue} size={72} level="H" includeMargin={false} />
-                    <p className="text-[9px] text-black mt-0.5">Scan to Track</p>
-                </div>
-            </div>
-
-            {/* Tracking Number */}
-            <div className="text-center mb-1.5 bg-black text-white py-1 px-3">
-                <p className="text-[9px] font-semibold">TRACKING NUMBER</p>
-                <p className="text-sm font-bold tracking-wider">{parcel.barCode || parcel.parcelId}</p>
-            </div>
-
-            {/* Sender & Receiver */}
-            <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                <div className="border-2 border-black p-1">
-                    <p className="text-xs text-black"><span className="font-bold">SENDER:</span> {parcel.senderName || "—"}</p>
-                    <p className="text-xs text-black"><span className="font-bold">CONTACT:</span> {parcel.senderPhoneNumber || "—"}</p>
-                </div>
-                <div className="border-2 border-black p-1">
-                    <p className="text-xs text-black"><span className="font-bold">RECEIVER:</span> {parcel.receiverName || "—"}</p>
-                    <p className="text-xs text-black"><span className="font-bold">CONTACT:</span> {parcel.recieverPhoneNumber || "—"}</p>
-                </div>
-            </div>
-
-            {/* Delivery Address */}
-            {parcel.receiverAddress && (
-                <div className="border-2 border-black p-1 mb-1.5">
-                    <p className="text-xs text-black"><span className="font-bold">DELIVERY ADDRESS:</span> {parcel.receiverAddress}</p>
-                </div>
-            )}
-
-            {/* Item Description */}
-            {parcel.parcelDescription && (
-                <div className="border-2 border-black p-1 mb-1.5">
-                    <p className="text-xs text-black"><span className="font-bold">ITEM DESCRIPTION:</span> {parcel.parcelDescription}</p>
-                </div>
-            )}
-
-            {/* Driver / Vehicle */}
-            {(parcel.driverName || parcel.vehicleNumber) && (
-                <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                    {parcel.vehicleNumber && (
-                        <div className="border-2 border-black p-1">
-                            <p className="text-xs text-black"><span className="font-bold">VEHICLE:</span> {parcel.vehicleNumber}</p>
-                        </div>
-                    )}
-                    {parcel.driverName && (
-                        <div className="border-2 border-black p-1">
-                            <p className="text-xs text-black"><span className="font-bold">DRIVER:</span> {parcel.driverName}</p>
-                            {parcel.driverPhoneNumber && <p className="text-xs text-black">{parcel.driverPhoneNumber}</p>}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Payment Details */}
-            <div className="border-2 border-black p-1 mb-1.5">
-                <p className="text-xs font-bold text-black mb-0.5">PAYMENT DETAILS</p>
-                <div className="text-xs">
-                    {(parcel.inboundCost || 0) > 0 && (
-                        <div className="flex justify-between">
-                            <span className="text-black">Transportation Cost:</span>
-                            <span className="font-semibold text-black">GHC {(parcel.inboundCost || 0).toFixed(2)}</span>
-                        </div>
-                    )}
-                    {(parcel.deliveryCost || 0) > 0 && (
-                        <div className="flex justify-between">
-                            <span className="text-black">Delivery Cost:</span>
-                            <span className="font-semibold text-black">GHC {(parcel.deliveryCost || 0).toFixed(2)}</span>
-                        </div>
-                    )}
-                    {(parcel.pickUpCost || 0) > 0 && (
-                        <div className="flex justify-between">
-                            <span className="text-black">Pickup Cost:</span>
-                            <span className="font-semibold text-black">GHC {(parcel.pickUpCost || 0).toFixed(2)}</span>
-                        </div>
-                    )}
-                    <div className="flex justify-between border-t-2 border-black pt-0.5 mt-0.5">
-                        <span className="font-bold text-black">TOTAL AMOUNT:</span>
-                        <span className="font-bold text-black">GHC {totalAmount.toFixed(2)}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* POD Badge */}
-            {parcel.pod && (
-                <div className="text-center mb-1.5">
-                    <span className="inline-block bg-black text-white px-3 py-0.5 text-xs font-bold">POD PARCEL</span>
-                </div>
-            )}
-
-            {/* Barcode */}
-            <div className="flex justify-center mb-1">
-                <Barcode
-                    value={parcel.barCode || parcel.parcelId}
-                    width={1.4}
-                    height={36}
-                    fontSize={9}
-                    margin={0}
-                    displayValue={true}
-                    background="white"
-                    lineColor="black"
+                <PrintLabelModal
+                    parcels={
+                        checkedParcels.size > 0
+                            ? filteredParcels.filter(p => checkedParcels.has(p.parcelId))
+                            : selectedParcel ? [selectedParcel] : []
+                    }
+                    title={checkedParcels.size > 0 ? `Print ${checkedParcels.size} Label${checkedParcels.size > 1 ? 's' : ''}` : 'Print Parcel Label'}
+                    onClose={() => setShowPrintPreview(false)}
                 />
-            </div>
-
-            {/* Footer */}
-            <div className="pt-1 border-t border-black text-center">
-                <p className="text-[9px] text-black">Date: {new Date().toLocaleDateString()} | Time: {new Date().toLocaleTimeString()} | M&amp;M Parcel Services</p>
-            </div>
+            )}
         </div>
     );
 };

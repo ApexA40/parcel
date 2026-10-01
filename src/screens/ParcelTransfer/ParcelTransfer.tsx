@@ -72,7 +72,7 @@ interface Station {
   createdAt: number;
 }
 
-export const ParcelTransfer = (): JSX.Element => {
+export const ParcelTransfer = ({ onSuccess }: { onSuccess?: () => void } = {}): JSX.Element => {
   const { showToast } = useToast();
   const { currentUser } = useStation();
   const { stations: cachedStations, loading: loadingStations, refreshLocations, error: stationsError } = useLocation();
@@ -383,6 +383,9 @@ export const ParcelTransfer = (): JSX.Element => {
 
       // Show print preview
       setShowPrintPreview(true);
+
+      // Notify parent if in modal
+      onSuccess?.();
     }
   };
 
@@ -615,35 +618,41 @@ export const ParcelTransfer = (): JSX.Element => {
 
   return (
     <div className="w-full">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <div className={`mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 ${onSuccess ? 'py-4' : 'lg:py-8'}`}>
         {/* Header */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-xl font-bold text-neutral-800">
-                Initiate Parcel Transfer
-              </h1>
-              <p className="text-xs text-[#5d5d5d]">
-                Register a parcel for transfer to another station
-              </p>
-            </div>
+            {!onSuccess && (
+              <div className="flex flex-col gap-1">
+                <h1 className="text-xl font-bold text-neutral-800">
+                  Initiate Parcel Transfer
+                </h1>
+                <p className="text-xs text-[#5d5d5d]">
+                  Register a parcel for transfer to another station
+                </p>
+              </div>
+            )}
             <div className="flex items-center gap-2">
-              <Button
-                onClick={() => navigate("/incoming-parcels")}
-                variant="outline"
-                className="flex items-center gap-2 border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
-              >
-                <PackageIcon className="h-4 w-4" />
-                <span>View Incoming</span>
-              </Button>
-              <Button
-                onClick={() => navigate("/outgoing-parcels")}
-                variant="outline"
-                className="flex items-center gap-2 border-[#d1d1d1] text-neutral-700 hover:bg-gray-50"
-              >
-                <PackageIcon className="h-4 w-4" />
-                <span>View Outgoing</span>
-              </Button>
+              {!onSuccess && (
+                <>
+                  <Button
+                    onClick={() => navigate("/incoming-parcels")}
+                    variant="outline"
+                    className="flex items-center gap-2 border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
+                  >
+                    <PackageIcon className="h-4 w-4" />
+                    <span>View Incoming</span>
+                  </Button>
+                  <Button
+                    onClick={() => navigate("/outgoing-parcels")}
+                    variant="outline"
+                    className="flex items-center gap-2 border-[#d1d1d1] text-neutral-700 hover:bg-gray-50"
+                  >
+                    <PackageIcon className="h-4 w-4" />
+                    <span>View Outgoing</span>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 

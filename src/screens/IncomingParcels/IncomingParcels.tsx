@@ -249,14 +249,6 @@ export const IncomingParcels = (): JSX.Element => {
                 View all parcels being transferred to this station
               </p>
             </div>
-            <Button
-              onClick={() => navigate("/parcel-transfer")}
-              variant="outline"
-              className="flex items-center gap-2 border-[#d1d1d1] text-neutral-700 hover:bg-gray-50"
-            >
-              <ArrowLeftIcon className="h-4 w-4" />
-              <span>Back to Transfer</span>
-            </Button>
           </div>
         </div>
 

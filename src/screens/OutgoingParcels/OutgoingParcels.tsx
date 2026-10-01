@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { SearchIcon, PackageIcon, TruckIcon, UserIcon, PhoneIcon, PrinterIcon, Edit2Icon, TrashIcon, XCircleIcon, X, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { SearchIcon, PackageIcon, TruckIcon, UserIcon, PhoneIcon, PrinterIcon, Edit2Icon, TrashIcon, XCircleIcon, X, ChevronDownIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
 import axios from "axios";
 import authService from "../../services/authService";
 import { useToast } from "../../components/ui/toast";
 import { API_ENDPOINTS } from "../../config/api";
 import { normalizePhoneNumber, validatePhoneNumber } from "../../utils/dataHelpers";
+import { ParcelTransfer } from "../ParcelTransfer/ParcelTransfer";
+import { PrintLabelModal } from "../../components/PrintLabelModal";
 
 interface Parcel {
   parcelId: string;
@@ -54,6 +56,7 @@ export const OutgoingParcels = (): JSX.Element => {
   const [viewParcel, setViewParcel] = useState<Parcel | null>(null);
   const [selectedDrivers, setSelectedDrivers] = useState<Set<string>>(new Set());
   const [manifestGroup, setManifestGroup] = useState<{ key: string; driverName: string; driverPhoneNumber: string; vehicleNumber: string; parcels: Parcel[] } | null>(null);
+  const [showNewTransferModal, setShowNewTransferModal] = useState(false);
 
   const toggleDriverSelect = (key: string) => setSelectedDrivers(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
   const toggleSelectAll = (groups: typeof driverGroups) => {
@@ -246,24 +249,7 @@ export const OutgoingParcels = (): JSX.Element => {
   };
 
   const handlePrintParcel = (parcel: Parcel) => {
-    // Set dynamic document title for PDF filename
-    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const receiverNameSlug = parcel.receiverName.replace(/\s+/g, '_');
-    const trackingId = parcel.parcelId.slice(-6);
-    const filename = `ParcelLabel_${receiverNameSlug}_${trackingId}_${timestamp}`;
-    
-    // Temporarily change document title for PDF save
-    const originalTitle = document.title;
-    document.title = filename;
-    
     setPrintParcel(parcel);
-    setTimeout(() => {
-      window.print();
-      // Restore original title after print dialog
-      setTimeout(() => {
-        document.title = originalTitle;
-      }, 1000);
-    }, 100);
   };
 
 
@@ -365,9 +351,18 @@ export const OutgoingParcels = (): JSX.Element => {
                 <p className="text-xs text-[#5d5d5d]">Parcels sent from this station</p>
               </div>
             </div>
-            <div className="relative w-full sm:w-72">
-              <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <Input placeholder="Search receiver, driver, tracking ID..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="pl-9 border-[#d1d1d1] h-9 text-sm" />
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setShowNewTransferModal(true)}
+                className="flex items-center gap-2 bg-[#ea690c] text-white hover:bg-[#ea690c]/90 h-9"
+              >
+                <PlusIcon className="w-4 h-4" />
+                New Transfer
+              </Button>
+              <div className="relative w-full sm:w-72">
+                <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input placeholder="Search receiver, driver, tracking ID..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="pl-9 border-[#d1d1d1] h-9 text-sm" />
+              </div>
             </div>
           </div>
 
@@ -970,53 +965,11 @@ export const OutgoingParcels = (): JSX.Element => {
 
         {/* Print Preview Modal */}
         {printParcel && (
-          <>
-            <style>{`
-              @media print {
-                body * {
-                  visibility: hidden;
-                }
-                #parcel-label-print, #parcel-label-print * {
-                  visibility: visible;
-                }
-                #parcel-label-print {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                  page-break-after: avoid;
-                  page-break-before: avoid;
-                  page-break-inside: avoid;
-                }
-                @page {
-                  size: A4 landscape;
-                  margin: 8mm;
-                }
-                html, body {
-                  height: 100%;
-                  overflow: hidden;
-                }
-              }
-            `}</style>
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl border border-[#d1d1d1] w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div className="sticky top-0 bg-white border-b border-[#d1d1d1] p-4 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-neutral-800">Print Parcel Label</h3>
-                  <Button
-                    onClick={() => setPrintParcel(null)}
-                    variant="outline"
-                    className="border border-[#d1d1d1] text-neutral-700 hover:bg-gray-50"
-                  >
-                    Close
-                  </Button>
-                </div>
-                
-                <div className="p-6" id="parcel-label-print">
-                  <ParcelLabel parcel={printParcel} />
-                </div>
-              </div>
-            </div>
-          </>
+          <PrintLabelModal
+            parcels={[printParcel]}
+            title="Print Parcel Label"
+            onClose={() => setPrintParcel(null)}
+          />
         )}
 
         {/* Manifest Print Modal */}
@@ -1047,6 +1000,29 @@ export const OutgoingParcels = (): JSX.Element => {
               </div>
             </div>
           </>
+        )}
+
+        {/* New Transfer Modal */}
+        {showNewTransferModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl border border-[#d1d1d1] w-full max-w-4xl mx-4 flex flex-col" style={{ maxHeight: '90vh' }}>
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[#d1d1d1] flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <PlusIcon className="w-5 h-5 text-[#ea690c]" />
+                  <h3 className="text-lg font-bold text-neutral-800">New Parcel Transfer</h3>
+                </div>
+                <button
+                  onClick={() => setShowNewTransferModal(false)}
+                  className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 text-[#9a9a9a] hover:text-neutral-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1">
+                <ParcelTransfer onSuccess={() => { setShowNewTransferModal(false); fetchOutgoingParcels(); }} />
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -1166,124 +1142,6 @@ const DriverManifest: React.FC<DriverManifestProps> = ({ group }) => {
       {/* Footer — same as ParcelLabel */}
       <div className="pt-2 border-t border-black text-center">
         <p className="text-sm text-black">For inquiries, contact M&amp;M Parcel Services</p>
-      </div>
-    </div>
-  );
-};
-
-// Parcel Label Component for printing
-interface ParcelLabelProps {
-  parcel: Parcel;
-}
-
-const ParcelLabel: React.FC<ParcelLabelProps> = ({ parcel }) => {
-  return (
-    <div className="bg-white border-2 border-black p-4 print:border print:p-4">
-      {/* Header */}
-      <div className="text-center border-b-2 border-black pb-2 mb-3">
-        <div className="flex items-center justify-center gap-3 mb-1">
-          <img
-            src="/logo-1.png"
-            alt="M&M Logo"
-            className="h-16 w-16 object-contain"
-          />
-          <div>
-            <h1 className="text-3xl font-bold text-black">
-              Mealex & Mailex (M&M)
-            </h1>
-            <p className="text-base text-black">Parcel Delivery System</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Tracking Number */}
-      <div className="text-center mb-3 bg-black text-white py-3 px-4">
-        <p className="text-sm font-semibold mb-0.5">TRACKING NUMBER</p>
-        <p className="text-4xl font-bold tracking-wider">{parcel.parcelId}</p>
-      </div>
-
-      {/* Sender & Receiver */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="border-2 border-black p-2">
-          <p className="text-base text-black mb-1">
-            <span className="font-bold">SENDER:</span> {parcel.senderName}
-          </p>
-          <p className="text-base text-black">
-            <span className="font-bold">CONTACT:</span> {parcel.senderPhoneNumber}
-          </p>
-        </div>
-        <div className="border-2 border-black p-2">
-          <p className="text-base text-black mb-1">
-            <span className="font-bold">RECEIVER:</span> {parcel.receiverName}
-          </p>
-          <p className="text-base text-black">
-            <span className="font-bold">CONTACT:</span> {parcel.recieverPhoneNumber}
-          </p>
-        </div>
-      </div>
-
-      {/* Delivery Address */}
-      {parcel.deliveryAddress && (
-        <div className="border-2 border-black p-2 mb-3">
-          <p className="text-sm font-bold text-black">
-            DELIVERY ADDRESS: <span className="font-normal text-xl">{parcel.deliveryAddress}</span>
-          </p>
-        </div>
-      )}
-
-      {/* Item Description */}
-      {parcel.parcelDescription && (
-        <div className="border-2 border-black p-2 mb-3">
-          <p className="text-sm font-bold text-black">
-            ITEM DESCRIPTION: <span className="font-normal text-base">{parcel.parcelDescription}</span>
-          </p>
-        </div>
-      )}
-
-      {/* Payment Details */}
-      <div className="border-2 border-black p-2 mb-3">
-        <p className="text-sm font-bold text-black mb-1">PAYMENT DETAILS</p>
-        <div className="space-y-1 text-base">
-          <div className="flex justify-between">
-            <span className="text-black">Transportation Cost:</span>
-            <span className="font-semibold text-black">
-              GHC {(parcel.inboundCost || 0).toFixed(2)}
-            </span>
-          </div>
-          {parcel.POD && (
-            <div className="flex justify-between">
-              <span className="text-black">Item Cost (POD):</span>
-              <span className="font-semibold text-black">
-                GHC {(parcel.ItemCost || 0).toFixed(2)}
-              </span>
-            </div>
-          )}
-          <div className="flex justify-between border-t-2 border-black pt-1 mt-1">
-            <span className="font-bold text-black">TOTAL AMOUNT:</span>
-            <span className="font-bold text-xl text-black">
-              GHC {((parcel.inboundCost || 0) + (parcel.POD ? (parcel.ItemCost || 0) : 0)).toFixed(2)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Parcel Type Badge - Only show for POD parcels */}
-      {parcel.POD && (
-        <div className="text-center mb-2">
-          <span className="inline-block bg-black text-white px-4 py-2 text-base font-bold">
-            POD PARCEL
-          </span>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="mt-2 pt-2 border-t border-black text-center">
-        <p className="text-sm text-black">
-          Date: {new Date(parcel.createdAt).toLocaleDateString()} | Time: {new Date(parcel.createdAt).toLocaleTimeString()}
-        </p>
-        <p className="text-sm text-black mt-0.5">
-          For inquiries, contact M&M Parcel Services
-        </p>
       </div>
     </div>
   );
