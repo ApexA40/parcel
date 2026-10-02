@@ -428,9 +428,6 @@ export const OutgoingParcels = (): JSX.Element => {
                                   <p className="text-sm font-semibold text-neutral-800">{group.driverName || 'Unknown Driver'}</p>
                                   <p className="text-xs text-[#5d5d5d]">{group.driverPhoneNumber || ''}</p>
                                 </div>
-                                {isExpanded
-                                  ? <ChevronDownIcon className="w-4 h-4 text-[#ea690c] ml-1" />
-                                  : <ChevronRightIcon className="w-4 h-4 text-gray-400 ml-1" />}
                               </div>
                             </td>
                             <td className="px-4 py-3" onClick={() => toggleDriver(group.key)}>
@@ -455,6 +452,11 @@ export const OutgoingParcels = (): JSX.Element => {
                               >
                                 <PrinterIcon className="w-3.5 h-3.5" /> Manifest
                               </button>
+                            </td>
+                            <td className="px-4 py-3 text-center" onClick={() => toggleDriver(group.key)}>
+                              {isExpanded
+                                ? <ChevronDownIcon className="w-4 h-4 text-[#ea690c] mx-auto" />
+                                : <ChevronRightIcon className="w-4 h-4 text-gray-400 mx-auto" />}
                             </td>
                           </tr>
 
@@ -979,7 +981,18 @@ export const OutgoingParcels = (): JSX.Element => {
               @media print {
                 body * { visibility: hidden; }
                 #manifest-print, #manifest-print * { visibility: visible; }
-                #manifest-print { position: absolute; left: 0; top: 0; width: 100%; }
+                #manifest-print {
+                  position: absolute;
+                  left: 0;
+                  top: 0;
+                  width: 100%;
+                  font-family: Arial, Helvetica, sans-serif;
+                }
+                #manifest-print * {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                  color-adjust: exact !important;
+                }
                 @page { size: A4 portrait; margin: 10mm; }
               }
             `}</style>
@@ -1036,112 +1049,140 @@ interface DriverManifestProps {
 const DriverManifest: React.FC<DriverManifestProps> = ({ group }) => {
   const total = group.parcels.reduce((s, p) => s + (p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0), 0);
   const podCount = group.parcels.filter(p => p.POD).length;
+
+  const s = {
+    wrap: { backgroundColor: '#ffffff', border: '2px solid #000000', padding: '16px', fontFamily: 'Arial, Helvetica, sans-serif', color: '#000000' } as React.CSSProperties,
+    headerWrap: { textAlign: 'center' as const, borderBottom: '2px solid #000000', paddingBottom: '8px', marginBottom: '12px' },
+    headerInner: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' },
+    logo: { height: '64px', width: '64px', objectFit: 'contain' as const },
+    h1: { fontSize: '24px', fontWeight: 'bold', color: '#000000', margin: 0 },
+    tagline: { fontSize: '14px', color: '#000000', margin: 0 },
+    titleBar: { textAlign: 'center' as const, backgroundColor: '#000000', color: '#ffffff', padding: '10px 16px', marginBottom: '12px' },
+    titleBarLabel: { fontSize: '12px', fontWeight: 'bold', margin: '0 0 2px 0' },
+    titleBarDate: { fontSize: '18px', fontWeight: 'bold', margin: 0 },
+    twoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' },
+    box: { border: '2px solid #000000', padding: '8px' },
+    boxLabel: { fontSize: '10px', fontWeight: 'bold', color: '#000000', marginBottom: '4px', textTransform: 'uppercase' as const },
+    boxText: { fontSize: '13px', color: '#000000', margin: '2px 0' },
+    threeCol: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', marginTop: '4px' },
+    countBox: { border: '1px solid #000000', padding: '4px', textAlign: 'center' as const },
+    countLabel: { fontSize: '10px', fontWeight: 'bold', color: '#000000', margin: '0 0 2px 0' },
+    countNum: { fontSize: '22px', fontWeight: 'bold', color: '#000000', margin: 0 },
+    table: { width: '100%', borderCollapse: 'collapse' as const, border: '2px solid #000000', marginBottom: '12px' },
+    thBlack: { backgroundColor: '#000000', color: '#ffffff', padding: '6px 8px', fontSize: '11px', fontWeight: 'bold', borderRight: '1px solid #ffffff' },
+    thBlackLast: { backgroundColor: '#000000', color: '#ffffff', padding: '6px 8px', fontSize: '11px', fontWeight: 'bold', textAlign: 'right' as const },
+    td: { padding: '6px 8px', fontSize: '11px', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000' },
+    tdLast: { padding: '6px 8px', fontSize: '11px', color: '#000000', borderBottom: '1px solid #000000', textAlign: 'right' as const, fontWeight: 'bold' },
+    tdCenter: { padding: '6px 8px', fontSize: '11px', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', textAlign: 'center' as const },
+    checkbox: { width: '14px', height: '14px', border: '2px solid #000000', display: 'inline-block' },
+    typeBadge: { border: '1px solid #000000', padding: '1px 4px', fontSize: '10px', fontWeight: 'bold', color: '#000000' },
+    tfootTd: { backgroundColor: '#000000', color: '#ffffff', padding: '6px 8px', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' as const, borderRight: '1px solid #ffffff' },
+    tfootTdLast: { backgroundColor: '#000000', color: '#ffffff', padding: '6px 8px', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' as const },
+    sigBox: { border: '2px solid #000000', padding: '8px', marginBottom: '12px' },
+    sigTitle: { fontSize: '13px', fontWeight: 'bold', color: '#000000', marginBottom: '8px' },
+    sigGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' },
+    sigLabel: { fontSize: '11px', fontWeight: 'bold', color: '#000000', marginBottom: '24px' },
+    sigLine: { borderBottom: '2px solid #000000', marginBottom: '4px' },
+    sigText: { fontSize: '11px', color: '#000000', margin: '2px 0' },
+    footer: { borderTop: '1px solid #000000', paddingTop: '8px', textAlign: 'center' as const },
+    footerText: { fontSize: '12px', color: '#000000', margin: 0 },
+  };
+
   return (
-    <div className="bg-white border-2 border-black p-4">
-      {/* Header — same as ParcelLabel */}
-      <div className="text-center border-b-2 border-black pb-2 mb-3">
-        <div className="flex items-center justify-center gap-3 mb-1">
-          <img src="/logo-1.png" alt="M&M Logo" className="h-16 w-16 object-contain" />
+    <div style={s.wrap}>
+      {/* Header */}
+      <div style={s.headerWrap}>
+        <div style={s.headerInner}>
+          <img src="/logo-1.png" alt="M&M Logo" style={s.logo} />
           <div>
-            <h1 className="text-3xl font-bold text-black">Mealex &amp; Mailex (M&amp;M)</h1>
-            <p className="text-base text-black">Parcel Delivery System</p>
+            <h1 style={s.h1}>Mealex &amp; Mailex (M&amp;M)</h1>
+            <p style={s.tagline}>Parcel Delivery System</p>
           </div>
         </div>
       </div>
 
-      {/* Manifest title bar — black bar like tracking number bar */}
-      <div className="text-center mb-3 bg-black text-white py-3 px-4">
-        <p className="text-sm font-semibold mb-0.5">DRIVER MANIFEST</p>
-        <p className="text-2xl font-bold tracking-wider">{new Date().toLocaleDateString()} · {new Date().toLocaleTimeString()}</p>
+      {/* Title bar */}
+      <div style={s.titleBar}>
+        <p style={s.titleBarLabel}>DRIVER MANIFEST</p>
+        <p style={s.titleBarDate}>{new Date().toLocaleDateString()} &middot; {new Date().toLocaleTimeString()}</p>
       </div>
 
-      {/* Driver info + summary counts — bordered boxes like sender/receiver */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="border-2 border-black p-2">
-          <p className="text-xs font-bold text-black mb-1">DRIVER INFORMATION</p>
-          <p className="text-base text-black mb-0.5"><span className="font-bold">NAME:</span> {group.driverName || '—'}</p>
-          <p className="text-base text-black mb-0.5"><span className="font-bold">PHONE:</span> {group.driverPhoneNumber || '—'}</p>
-          <p className="text-base text-black"><span className="font-bold">VEHICLE:</span> {group.vehicleNumber || '—'}</p>
+      {/* Driver info + summary */}
+      <div style={s.twoCol}>
+        <div style={s.box}>
+          <p style={s.boxLabel}>Driver Information</p>
+          <p style={s.boxText}><strong>NAME:</strong> {group.driverName || '—'}</p>
+          <p style={s.boxText}><strong>PHONE:</strong> {group.driverPhoneNumber || '—'}</p>
+          <p style={s.boxText}><strong>VEHICLE:</strong> {group.vehicleNumber || '—'}</p>
         </div>
-        <div className="border-2 border-black p-2">
-          <p className="text-xs font-bold text-black mb-1">PARCEL SUMMARY</p>
-          <div className="grid grid-cols-3 gap-1 mt-1">
-            <div className="border border-black p-1 text-center">
-              <p className="text-xs font-bold text-black">TOTAL</p>
-              <p className="text-2xl font-bold text-black">{group.parcels.length}</p>
-            </div>
-            <div className="border border-black p-1 text-center">
-              <p className="text-xs font-bold text-black">REGULAR</p>
-              <p className="text-2xl font-bold text-black">{group.parcels.length - podCount}</p>
-            </div>
-            <div className="border border-black p-1 text-center">
-              <p className="text-xs font-bold text-black">POD</p>
-              <p className="text-2xl font-bold text-black">{podCount}</p>
-            </div>
+        <div style={s.box}>
+          <p style={s.boxLabel}>Parcel Summary</p>
+          <div style={s.threeCol}>
+            <div style={s.countBox}><p style={s.countLabel}>TOTAL</p><p style={s.countNum}>{group.parcels.length}</p></div>
+            <div style={s.countBox}><p style={s.countLabel}>REGULAR</p><p style={s.countNum}>{group.parcels.length - podCount}</p></div>
+            <div style={s.countBox}><p style={s.countLabel}>POD</p><p style={s.countNum}>{podCount}</p></div>
           </div>
         </div>
       </div>
 
       {/* Parcel table */}
-      <table className="w-full border-2 border-black mb-3">
+      <table style={s.table}>
         <thead>
-          <tr className="bg-black text-white">
-            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">#</th>
-            <th className="border-r border-white px-2 py-2 text-center text-xs font-bold">✓</th>
-            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">Tracking ID</th>
-            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">Receiver</th>
-            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">Phone</th>
-            <th className="border-r border-white px-2 py-2 text-left text-xs font-bold">Destination</th>
-            <th className="border-r border-white px-2 py-2 text-center text-xs font-bold">Type</th>
-            <th className="px-2 py-2 text-right text-xs font-bold">Amount</th>
+          <tr>
+            <th style={s.thBlack}>#</th>
+            <th style={{ ...s.thBlack, textAlign: 'center' }}>&nbsp;✓&nbsp;</th>
+            <th style={s.thBlack}>Tracking ID</th>
+            <th style={s.thBlack}>Receiver</th>
+            <th style={s.thBlack}>Phone</th>
+            <th style={s.thBlack}>Destination</th>
+            <th style={{ ...s.thBlack, textAlign: 'center' }}>Type</th>
+            <th style={s.thBlackLast}>Amount</th>
           </tr>
         </thead>
         <tbody>
           {group.parcels.map((p, i) => (
-            <tr key={p.parcelId} className="border-b border-black">
-              <td className="border-r border-black px-2 py-1.5 text-xs text-black">{i + 1}</td>
-              <td className="border-r border-black px-2 py-1.5 text-center"><div className="w-4 h-4 border-2 border-black mx-auto" /></td>
-              <td className="border-r border-black px-2 py-1.5 text-xs font-semibold text-black">{p.parcelId.slice(-8)}</td>
-              <td className="border-r border-black px-2 py-1.5 text-xs text-black">{p.receiverName}</td>
-              <td className="border-r border-black px-2 py-1.5 text-xs text-black">{p.recieverPhoneNumber}</td>
-              <td className="border-r border-black px-2 py-1.5 text-xs text-black">{p.to?.officeName || '—'}</td>
-              <td className="border-r border-black px-2 py-1.5 text-center text-xs text-black">
-                <span className="inline-block border border-black px-1.5 py-0.5 text-xs font-bold">{p.POD ? 'POD' : 'REG'}</span>
-              </td>
-              <td className="px-2 py-1.5 text-xs text-right font-semibold text-black">GHC {((p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0)).toFixed(2)}</td>
+            <tr key={p.parcelId}>
+              <td style={s.td}>{i + 1}</td>
+              <td style={s.tdCenter}><span style={s.checkbox} /></td>
+              <td style={{ ...s.td, fontWeight: 'bold' }}>{p.parcelId.slice(-8)}</td>
+              <td style={s.td}>{p.receiverName}</td>
+              <td style={s.td}>{p.recieverPhoneNumber}</td>
+              <td style={s.td}>{p.to?.officeName || '—'}</td>
+              <td style={s.tdCenter}><span style={s.typeBadge}>{p.POD ? 'POD' : 'REG'}</span></td>
+              <td style={s.tdLast}>GHC {((p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0)).toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr className="bg-black text-white">
-            <td colSpan={7} className="border-r border-white px-2 py-2 text-sm font-bold text-right">TOTAL AMOUNT:</td>
-            <td className="px-2 py-2 text-sm font-bold text-right">GHC {total.toFixed(2)}</td>
+          <tr>
+            <td colSpan={7} style={s.tfootTd}>TOTAL AMOUNT:</td>
+            <td style={s.tfootTdLast}>GHC {total.toFixed(2)}</td>
           </tr>
         </tfoot>
       </table>
 
-      {/* Signature section — bordered like payment details */}
-      <div className="border-2 border-black p-2 mb-3">
-        <p className="text-sm font-bold text-black mb-3">SIGNATURES</p>
-        <div className="grid grid-cols-2 gap-6">
+      {/* Signatures */}
+      <div style={s.sigBox}>
+        <p style={s.sigTitle}>SIGNATURES</p>
+        <div style={s.sigGrid}>
           <div>
-            <p className="text-xs font-bold text-black mb-6">Driver Signature</p>
-            <div className="border-b-2 border-black mb-1" />
-            <p className="text-xs text-black">Name: {group.driverName || '_________________'}</p>
-            <p className="text-xs text-black mt-0.5">Date: _________________</p>
+            <p style={s.sigLabel}>Driver Signature</p>
+            <div style={s.sigLine} />
+            <p style={s.sigText}>Name: {group.driverName || '_________________'}</p>
+            <p style={s.sigText}>Date: _________________</p>
           </div>
           <div>
-            <p className="text-xs font-bold text-black mb-6">Authorised By</p>
-            <div className="border-b-2 border-black mb-1" />
-            <p className="text-xs text-black">Name: _________________</p>
-            <p className="text-xs text-black mt-0.5">Date: _________________</p>
+            <p style={s.sigLabel}>Authorised By</p>
+            <div style={s.sigLine} />
+            <p style={s.sigText}>Name: _________________</p>
+            <p style={s.sigText}>Date: _________________</p>
           </div>
         </div>
       </div>
 
-      {/* Footer — same as ParcelLabel */}
-      <div className="pt-2 border-t border-black text-center">
-        <p className="text-sm text-black">For inquiries, contact M&amp;M Parcel Services</p>
+      {/* Footer */}
+      <div style={s.footer}>
+        <p style={s.footerText}>For inquiries, contact M&amp;M Parcel Services</p>
       </div>
     </div>
   );

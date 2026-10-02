@@ -3,12 +3,10 @@ import {
   Loader,
   PackageIcon,
   TrendingUp,
-  Users,
   DollarSign,
   XCircle,
   ChevronLeftIcon,
   ChevronRightIcon,
-  Clock,
   ChevronRightIcon as ArrowRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -298,14 +296,7 @@ export const ReconciliationAnalytics = (): JSX.Element => {
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800 mb-1">
-              Reconciliation Analytics
-            </h1>
-            <p className="text-sm text-gray-500">
-              Monthly delivery performance and financial overview
-            </p>
-          </div>
+          <div />
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigateMonth(-1)}
@@ -335,15 +326,13 @@ export const ReconciliationAnalytics = (): JSX.Element => {
         ) : (
           <>
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {[
                 { label: "Delivered", value: kpis.totalDelivered, icon: PackageIcon, color: "text-green-600", bg: "bg-green-50" },
                 { label: "Failed", value: kpis.totalFailed, icon: XCircle, color: "text-red-600", bg: "bg-red-50" },
-                { label: "Pending", value: totalPending, icon: Clock, color: "text-yellow-600", bg: "bg-yellow-50" },
                 { label: "Success Rate", value: `${kpis.successRate}%`, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
                 { label: "Total Amount", value: formatCurrency(kpis.totalAmount), icon: DollarSign, color: "text-[#ea690c]", bg: "bg-orange-50" },
                 { label: "Delivery Fees", value: formatCurrency(kpis.totalDeliveryCost), icon: DollarSign, color: "text-emerald-600", bg: "bg-emerald-50" },
-                { label: "Active Riders", value: riderStats.length, icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
               ].map(({ label, value, icon: Icon, color, bg }) => (
                 <Card key={label} className="border border-gray-200 bg-white shadow-sm">
                   <CardContent className="p-4">
@@ -593,7 +582,7 @@ export const ReconciliationAnalytics = (): JSX.Element => {
                               return (
                                 <tr
                                   key={rider.riderId}
-                                  onClick={() => navigate("/rider-detail", { state: {
+                                  onClick={() => navigate("/delivery/rider-detail", { state: {
                                     riderId: rider.riderId,
                                     riderName: rider.riderName,
                                     delivered: rider.delivered,
@@ -601,7 +590,7 @@ export const ReconciliationAnalytics = (): JSX.Element => {
                                     totalAmount: rider.totalAmount,
                                     deliveryCost: rider.deliveryCost,
                                     inboundCost: rider.inboundCost,
-                                    activeDays: rider.activeDays,
+                                    activeDays: Array.from(rider.activeDays),
                                     parcels: rider.parcels,
                                     daysInMonth: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate(),
                                     monthLabel,

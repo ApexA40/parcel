@@ -61,11 +61,11 @@ export const IncomingParcels = (): JSX.Element => {
     fetchIncomingParcels();
     const userData = authService.getUser();
     const officeId = (userData as any)?.office?.id;
-    
     if (officeId) {
       loadShelves(officeId);
     }
-  }, [loadShelves]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchIncomingParcels = async () => {
     const token = authService.getToken();
@@ -239,19 +239,6 @@ export const IncomingParcels = (): JSX.Element => {
   return (
     <div className="w-full">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-xl font-bold text-neutral-800">
-                Incoming Parcels
-              </h1>
-              <p className="text-xs text-[#5d5d5d]">
-                View all parcels being transferred to this station
-              </p>
-            </div>
-          </div>
-        </div>
-
         <Card className="border border-[#d1d1d1] bg-white">
           <CardContent className="p-4">
             <div className="space-y-4">

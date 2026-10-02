@@ -21,7 +21,11 @@ function extractZone(address: string): string {
 export const RiderDetail = (): JSX.Element => {
   const navigate = useNavigate();
   const location = useLocation();
-  const rider = location.state as RiderDetailData | undefined;
+  const raw = location.state as (Omit<RiderDetailData, 'activeDays'> & { activeDays: number[] | Set<number> }) | undefined;
+  // activeDays is serialised as an array by React Router — reconstruct the Set
+  const rider: RiderDetailData | undefined = raw
+    ? { ...raw, activeDays: raw.activeDays instanceof Set ? raw.activeDays : new Set(Array.isArray(raw.activeDays) ? raw.activeDays : []) }
+    : undefined;
   const [parcelSearch, setParcelSearch] = useState("");
 
   // The leaderboard that links here sits near the bottom of a long page, and
@@ -340,64 +344,44 @@ export const RiderDetail = (): JSX.Element => {
           </Card>
         </div>
 
-        {/* Parcel search */}
-        {rider.parcels.length > 0 && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <div className="relative flex-1 sm:max-w-md">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={parcelSearch}
-                onChange={(e) => setParcelSearch(e.target.value)}
-                placeholder="Search parcels — recipient, phone, address, description..."
-                className="w-full pl-9 pr-9 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ea690c] bg-white"
-              />
-              {parcelSearch && (
-                <button
-                  type="button"
-                  onClick={() => setParcelSearch("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  title="Clear search"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            {searchTerm && (
-              <p className="text-xs text-gray-500">
-                {deliveredParcels.length + failedParcels.length} of {totalDelivered + totalFailed} parcels match
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* No search matches */}
-        {searchTerm && deliveredParcels.length === 0 && failedParcels.length === 0 && (
-          <Card className="border border-gray-200 bg-white shadow-sm">
-            <CardContent className="py-12 flex flex-col items-center gap-3">
-              <SearchIcon className="w-10 h-10 text-gray-300" />
-              <p className="text-neutral-600 font-medium">No parcels match "{parcelSearch.trim()}"</p>
-              <button
-                onClick={() => setParcelSearch("")}
-                className="text-sm text-[#ea690c] hover:underline"
-              >
-                Clear search
-              </button>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Delivered Parcels Table */}
-        {deliveredParcels.length > 0 && (
+        {totalDelivered > 0 && (
           <Card className="border border-gray-200 bg-white shadow-sm">
             <CardContent className="p-4 sm:p-6">
-              <h2 className="text-base font-bold text-neutral-800 mb-1">
-                Delivered Parcels
-                <span className="ml-2 text-sm font-normal text-gray-400">
-                  ({searchTerm ? `${deliveredParcels.length} of ${totalDelivered}` : deliveredParcels.length})
-                </span>
-              </h2>
-              <p className="text-xs text-gray-500 mb-4">All parcels successfully delivered this month</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-base font-bold text-neutral-800">
+                    Delivered Parcels
+                    <span className="ml-2 text-sm font-normal text-gray-400">
+                      ({searchTerm ? `${deliveredParcels.length} of ${totalDelivered}` : totalDelivered})
+                    </span>
+                  </h2>
+                  <p className="text-xs text-gray-500">All parcels successfully delivered this month</p>
+                </div>
+                <div className="relative sm:w-72">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={parcelSearch}
+                    onChange={(e) => setParcelSearch(e.target.value)}
+                    placeholder="Search recipient, phone, address..."
+                    className="w-full pl-9 pr-9 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ea690c] bg-white"
+                  />
+                  {parcelSearch && (
+                    <button type="button" onClick={() => setParcelSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              {searchTerm && deliveredParcels.length === 0 ? (
+                <div className="py-10 flex flex-col items-center gap-2">
+                  <SearchIcon className="w-8 h-8 text-gray-300" />
+                  <p className="text-sm text-neutral-600">No parcels match "{parcelSearch.trim()}"</p>
+                  <button onClick={() => setParcelSearch("")} className="text-xs text-[#ea690c] hover:underline">Clear search</button>
+                </div>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead className="bg-gray-50">
@@ -450,6 +434,7 @@ export const RiderDetail = (): JSX.Element => {
                   </tbody>
                 </table>
               </div>
+              )}
             </CardContent>
           </Card>
         )}
