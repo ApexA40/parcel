@@ -17,27 +17,21 @@ export const PrintLabelModal: React.FC<PrintLabelModalProps> = ({ parcels, onClo
     const content = printRef.current;
     if (!content) return;
 
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8" />
-          <title>Parcel Label</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            body { background: white; font-family: Arial, sans-serif; }
-            .page-break { page-break-after: always; break-after: page; }
-            ${getPrintPageStyle(printerSize)}
-          </style>
-        </head>
-        <body>${content.innerHTML}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    setTimeout(() => { printWindow.focus(); printWindow.print(); }, 400);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Parcel Label</title><style>* { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; } body { background:white; font-family:Arial,sans-serif; } .page-break { page-break-after:always; break-after:page; } ${getPrintPageStyle(printerSize)}</style></head><body>${content.innerHTML}</body></html>`);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 400);
   };
 
   return (

@@ -150,134 +150,135 @@ export const ParcelLabel: React.FC<ParcelLabelProps> = ({ parcel, size = "A4" })
   }
 
   // A4 / 4×6 layout — full featured with QR code
+  const a: Record<string, React.CSSProperties> = {
+    wrap:       { backgroundColor: '#fff', border: '2px solid #000', padding: '8px', fontFamily: 'Arial, Helvetica, sans-serif', color: '#000' },
+    header:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #000', paddingBottom: '6px', marginBottom: '8px' },
+    headerMid:  { display: 'flex', alignItems: 'center', gap: '8px' },
+    logo:       { height: '32px', width: '32px', objectFit: 'contain' },
+    h1:         { fontSize: '13px', fontWeight: 'bold', color: '#000', margin: 0 },
+    sub:        { fontSize: '11px', color: '#000', margin: 0 },
+    qrWrap:     { display: 'flex', flexDirection: 'column', alignItems: 'center' },
+    qrLabel:    { fontSize: '9px', color: '#000', marginTop: '2px' },
+    trackBar:   { textAlign: 'center', backgroundColor: '#000', color: '#fff', padding: '4px 12px', marginBottom: '8px' },
+    trackLabel: { fontSize: '9px', fontWeight: 'bold', margin: 0 },
+    trackNum:   { fontSize: '13px', fontWeight: 'bold', letterSpacing: '0.05em', margin: 0 },
+    grid2:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' },
+    box:        { border: '2px solid #000', padding: '4px' },
+    boxFull:    { border: '2px solid #000', padding: '4px', marginBottom: '6px' },
+    row:        { display: 'flex', justifyContent: 'space-between' },
+    txt:        { fontSize: '11px', color: '#000', margin: '1px 0' },
+    bold:       { fontWeight: 'bold' },
+    divider:    { borderTop: '2px solid #000', paddingTop: '2px', marginTop: '2px' },
+    podBadge:   { textAlign: 'center', marginBottom: '6px' },
+    podSpan:    { display: 'inline-block', backgroundColor: '#000', color: '#fff', padding: '2px 12px', fontSize: '11px', fontWeight: 'bold' },
+    bcWrap:     { display: 'flex', justifyContent: 'center', marginBottom: '4px' },
+    footer:     { borderTop: '1px solid #000', paddingTop: '4px', textAlign: 'center' },
+    footerTxt:  { fontSize: '9px', color: '#000', margin: 0 },
+  };
+
   return (
-    <div className="bg-white border-2 border-black p-2">
+    <div style={a.wrap}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-1.5">
-        <div className="w-10" />
-        <div className="flex items-center gap-2">
-          <img src="/logo-1.png" alt="M&M Logo" className="h-8 w-8 object-contain" crossOrigin="anonymous" />
+      <div style={a.header}>
+        <div style={{ width: '40px' }} />
+        <div style={a.headerMid}>
+          <img src="/logo-1.png" alt="M&M Logo" style={a.logo} crossOrigin="anonymous" />
           <div>
-            <h1 className="text-sm font-bold text-black leading-tight">Mealex &amp; Mailex (M&amp;M)</h1>
-            <p className="text-xs text-black">Parcel Delivery System</p>
+            <p style={a.h1}>Mealex &amp; Mailex (M&amp;M)</p>
+            <p style={a.sub}>Parcel Delivery System</p>
           </div>
         </div>
-        <div className="flex flex-col items-center">
+        <div style={a.qrWrap}>
           <QRCodeSVG value={qrValue} size={72} level="H" includeMargin={false} />
-          <p className="text-[9px] text-black mt-0.5">Scan to Track</p>
+          <p style={a.qrLabel}>Scan to Track</p>
         </div>
       </div>
 
       {/* Tracking Number */}
-      <div className="text-center mb-1.5 bg-black text-white py-1 px-3">
-        <p className="text-[9px] font-semibold">TRACKING NUMBER</p>
-        <p className="text-sm font-bold tracking-wider">{trackingId}</p>
+      <div style={a.trackBar}>
+        <p style={a.trackLabel}>TRACKING NUMBER</p>
+        <p style={a.trackNum}>{trackingId}</p>
       </div>
 
       {/* Sender & Receiver */}
-      <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-        <div className="border-2 border-black p-1">
-          <p className="text-xs text-black"><span className="font-bold">SENDER:</span> {parcel.senderName || "—"}</p>
-          <p className="text-xs text-black"><span className="font-bold">CONTACT:</span> {parcel.senderPhoneNumber || "—"}</p>
+      <div style={a.grid2}>
+        <div style={a.box}>
+          <p style={a.txt}><span style={a.bold}>SENDER:</span> {parcel.senderName || '—'}</p>
+          <p style={a.txt}><span style={a.bold}>CONTACT:</span> {parcel.senderPhoneNumber || '—'}</p>
         </div>
-        <div className="border-2 border-black p-1">
-          <p className="text-xs text-black"><span className="font-bold">RECEIVER:</span> {parcel.receiverName || "—"}</p>
-          <p className="text-xs text-black"><span className="font-bold">CONTACT:</span> {parcel.recieverPhoneNumber || "—"}</p>
+        <div style={a.box}>
+          <p style={a.txt}><span style={a.bold}>RECEIVER:</span> {parcel.receiverName || '—'}</p>
+          <p style={a.txt}><span style={a.bold}>CONTACT:</span> {parcel.recieverPhoneNumber || '—'}</p>
         </div>
       </div>
 
       {/* Delivery Address */}
       {parcel.receiverAddress && (
-        <div className="border-2 border-black p-1 mb-1.5">
-          <p className="text-xs text-black"><span className="font-bold">DELIVERY ADDRESS:</span> {parcel.receiverAddress}</p>
+        <div style={a.boxFull}>
+          <p style={a.txt}><span style={a.bold}>DELIVERY ADDRESS:</span> {parcel.receiverAddress}</p>
         </div>
       )}
 
       {/* Item Description */}
       {parcel.parcelDescription && (
-        <div className="border-2 border-black p-1 mb-1.5">
-          <p className="text-xs text-black"><span className="font-bold">ITEM DESCRIPTION:</span> {parcel.parcelDescription}</p>
+        <div style={a.boxFull}>
+          <p style={a.txt}><span style={a.bold}>ITEM DESCRIPTION:</span> {parcel.parcelDescription}</p>
         </div>
       )}
 
       {/* Driver / Vehicle */}
       {(parcel.driverName || parcel.vehicleNumber) && (
-        <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+        <div style={a.grid2}>
           {parcel.vehicleNumber && (
-            <div className="border-2 border-black p-1">
-              <p className="text-xs text-black"><span className="font-bold">VEHICLE:</span> {parcel.vehicleNumber}</p>
+            <div style={a.box}>
+              <p style={a.txt}><span style={a.bold}>VEHICLE:</span> {parcel.vehicleNumber}</p>
             </div>
           )}
           {parcel.driverName && (
-            <div className="border-2 border-black p-1">
-              <p className="text-xs text-black"><span className="font-bold">DRIVER:</span> {parcel.driverName}</p>
-              {parcel.driverPhoneNumber && <p className="text-xs text-black">{parcel.driverPhoneNumber}</p>}
+            <div style={a.box}>
+              <p style={a.txt}><span style={a.bold}>DRIVER:</span> {parcel.driverName}</p>
+              {parcel.driverPhoneNumber && <p style={a.txt}>{parcel.driverPhoneNumber}</p>}
             </div>
           )}
         </div>
       )}
 
       {/* Payment Details */}
-      <div className="border-2 border-black p-1 mb-1.5">
-        <p className="text-xs font-bold text-black mb-0.5">PAYMENT DETAILS</p>
-        <div className="text-xs">
-          {(parcel.inboundCost || 0) > 0 && (
-            <div className="flex justify-between">
-              <span className="text-black">Transportation Cost:</span>
-              <span className="font-semibold text-black">GHC {(parcel.inboundCost || 0).toFixed(2)}</span>
-            </div>
-          )}
-          {(parcel.deliveryCost || 0) > 0 && (
-            <div className="flex justify-between">
-              <span className="text-black">Delivery Cost:</span>
-              <span className="font-semibold text-black">GHC {(parcel.deliveryCost || 0).toFixed(2)}</span>
-            </div>
-          )}
-          {(parcel.pickUpCost || 0) > 0 && (
-            <div className="flex justify-between">
-              <span className="text-black">Pickup Cost:</span>
-              <span className="font-semibold text-black">GHC {(parcel.pickUpCost || 0).toFixed(2)}</span>
-            </div>
-          )}
-          {isPOD && (parcel.ItemCost || 0) > 0 && (
-            <div className="flex justify-between">
-              <span className="text-black">Item Cost (POD):</span>
-              <span className="font-semibold text-black">GHC {(parcel.ItemCost || 0).toFixed(2)}</span>
-            </div>
-          )}
-          <div className="flex justify-between border-t-2 border-black pt-0.5 mt-0.5">
-            <span className="font-bold text-black">TOTAL AMOUNT:</span>
-            <span className="font-bold text-black">GHC {totalAmount.toFixed(2)}</span>
-          </div>
+      <div style={{ ...a.boxFull, marginTop: '6px' }}>
+        <p style={{ ...a.txt, ...a.bold, marginBottom: '2px' }}>PAYMENT DETAILS</p>
+        {(parcel.inboundCost || 0) > 0 && (
+          <div style={a.row}><span style={a.txt}>Transportation Cost:</span><span style={{ ...a.txt, ...a.bold }}>GHC {(parcel.inboundCost || 0).toFixed(2)}</span></div>
+        )}
+        {(parcel.deliveryCost || 0) > 0 && (
+          <div style={a.row}><span style={a.txt}>Delivery Cost:</span><span style={{ ...a.txt, ...a.bold }}>GHC {(parcel.deliveryCost || 0).toFixed(2)}</span></div>
+        )}
+        {(parcel.pickUpCost || 0) > 0 && (
+          <div style={a.row}><span style={a.txt}>Pickup Cost:</span><span style={{ ...a.txt, ...a.bold }}>GHC {(parcel.pickUpCost || 0).toFixed(2)}</span></div>
+        )}
+        {isPOD && (parcel.ItemCost || 0) > 0 && (
+          <div style={a.row}><span style={a.txt}>Item Cost (POD):</span><span style={{ ...a.txt, ...a.bold }}>GHC {(parcel.ItemCost || 0).toFixed(2)}</span></div>
+        )}
+        <div style={{ ...a.row, ...a.divider }}>
+          <span style={{ ...a.txt, ...a.bold }}>TOTAL AMOUNT:</span>
+          <span style={{ ...a.txt, ...a.bold }}>GHC {totalAmount.toFixed(2)}</span>
         </div>
       </div>
 
       {/* POD Badge */}
       {isPOD && (
-        <div className="text-center mb-1.5">
-          <span className="inline-block bg-black text-white px-3 py-0.5 text-xs font-bold">POD PARCEL</span>
+        <div style={a.podBadge}>
+          <span style={a.podSpan}>POD PARCEL</span>
         </div>
       )}
 
       {/* Barcode */}
-      <div className="flex justify-center mb-1">
-        <Barcode
-          value={trackingId}
-          width={1.4}
-          height={36}
-          fontSize={9}
-          margin={0}
-          displayValue
-          background="white"
-          lineColor="black"
-        />
+      <div style={a.bcWrap}>
+        <Barcode value={trackingId} width={1.4} height={36} fontSize={9} margin={0} displayValue background="white" lineColor="black" />
       </div>
 
       {/* Footer */}
-      <div className="pt-1 border-t border-black text-center">
-        <p className="text-[9px] text-black">
-          Date: {new Date().toLocaleDateString()} | Time: {new Date().toLocaleTimeString()} | M&amp;M Parcel Services
-        </p>
+      <div style={a.footer}>
+        <p style={a.footerTxt}>Date: {new Date().toLocaleDateString()} | Time: {new Date().toLocaleTimeString()} | M&amp;M Parcel Services</p>
       </div>
     </div>
   );

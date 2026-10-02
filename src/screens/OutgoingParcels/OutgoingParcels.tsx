@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -257,14 +257,26 @@ export const OutgoingParcels = (): JSX.Element => {
 
 
 
+  const manifestPrintRef = useRef<HTMLDivElement>(null);
+
   const handlePrintManifest = (group: typeof manifestGroup) => {
     if (!group) return;
-    const timestamp = new Date().toISOString().split('T')[0];
-    const slug = (group.driverName || 'driver').replace(/\s+/g, '_');
-    const orig = document.title;
-    document.title = `Manifest_${slug}_${timestamp}`;
     setManifestGroup(group);
-    setTimeout(() => { window.print(); setTimeout(() => { document.title = orig; }, 1000); }, 100);
+  };
+
+  const printManifestWindow = () => {
+    const content = manifestPrintRef.current;
+    if (!content) return;
+    const timestamp = new Date().toISOString().split('T')[0];
+    const slug = (manifestGroup?.driverName || 'driver').replace(/\s+/g, '_');
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Manifest_${slug}_${timestamp}</title><style>* { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; } body { background:white; font-family:Arial,sans-serif; } @page { size:A4 portrait; margin:10mm; }</style></head><body>${content.innerHTML}</body></html>`);
+    doc.close();
+    setTimeout(() => { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); setTimeout(() => document.body.removeChild(iframe), 1000); }, 400);
   };
 
   const handlePrintSelected = (groups: typeof driverGroups) => {
@@ -334,7 +346,7 @@ export const OutgoingParcels = (): JSX.Element => {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="rounded-lg bg-purple-100 p-2.5"><UserIcon className="h-5 w-5 text-purple-600" /></div>
-                <div><p className="text-xs text-[#5d5d5d]">POD Parcels</p><p className="text-xl font-bold text-neutral-800">{parcels.filter(p => p.POD).length}</p></div>
+                <div><p className="text-xs text-[#5d5d5d]">POD Parcels</p><p className="text-xl font-bold text-neutral-800">{parcels.filter(p => (p.ItemCost || 0) > 0).length}</p></div>
               </div>
             </CardContent>
           </Card>
@@ -405,12 +417,13 @@ export const OutgoingParcels = (): JSX.Element => {
                       <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">Arrived</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">Total Amount</th>
                       <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">Manifest</th>
+                      <th className="px-4 py-3 border-b-2 border-gray-200 w-8"></th>
                     </tr>
                   </thead>
                   <tbody className="bg-white">
                     {paginatedGroups.map((group, gi) => {
                       const isExpanded = expandedDrivers.has(group.key);
-                      const total = group.parcels.reduce((s, p) => s + (p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0), 0);
+                      const total = group.parcels.reduce((s, p) => s + (p.inboundCost || 0) + (p.ItemCost || 0), 0);
                       return (
                         <>
                           {/* Driver header row */}
@@ -423,7 +436,7 @@ export const OutgoingParcels = (): JSX.Element => {
                             </td>
                             <td className="px-4 py-3" onClick={() => toggleDriver(group.key)}>
                               <div className="flex items-center gap-2">
-                                <div className="p-1.5 bg-green-100 rounded-lg"><TruckIcon className="w-4 h-4 text-green-600" /></div>
+                                <div className="p-1.5 bg-gray-100 rounded-lg"><TruckIcon className="w-4 h-4 text-[#5d5d5d]" /></div>
                                 <div>
                                   <p className="text-sm font-semibold text-neutral-800">{group.driverName || 'Unknown Driver'}</p>
                                   <p className="text-xs text-[#5d5d5d]">{group.driverPhoneNumber || ''}</p>
@@ -434,13 +447,13 @@ export const OutgoingParcels = (): JSX.Element => {
                               <span className="text-sm text-neutral-700">{group.vehicleNumber || '—'}</span>
                             </td>
                             <td className="px-4 py-3 text-center" onClick={() => toggleDriver(group.key)}>
-                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-[#ea690c] text-xs font-bold">{group.parcels.length}</span>
+                              <span className="text-sm font-semibold text-neutral-800">{group.parcels.length}</span>
                             </td>
                             <td className="px-4 py-3 text-center" onClick={() => toggleDriver(group.key)}>
-                              <span className="text-sm font-medium text-yellow-700">{group.parcels.filter(p => !p.hasArrivedAtOffice).length}</span>
+                              <span className="text-sm font-medium text-neutral-800">{group.parcels.filter(p => !p.hasArrivedAtOffice).length}</span>
                             </td>
                             <td className="px-4 py-3 text-center" onClick={() => toggleDriver(group.key)}>
-                              <span className="text-sm font-medium text-green-700">{group.parcels.filter(p => p.hasArrivedAtOffice).length}</span>
+                              <span className="text-sm font-medium text-neutral-800">{group.parcels.filter(p => p.hasArrivedAtOffice).length}</span>
                             </td>
                             <td className="px-4 py-3 text-right" onClick={() => toggleDriver(group.key)}>
                               <span className="text-sm font-bold text-neutral-800">GHC {total.toFixed(2)}</span>
@@ -462,7 +475,7 @@ export const OutgoingParcels = (): JSX.Element => {
 
                           {/* Expanded parcel rows */}
                           {isExpanded && group.parcels.map((parcel, pi) => (
-                            <tr key={parcel.parcelId} className={`border-b border-gray-100 ${pi % 2 === 0 ? 'bg-orange-50/30' : 'bg-orange-50/10'} hover:bg-orange-50/50 transition-colors`}>
+                            <tr key={parcel.parcelId} className={`border-b border-gray-100 ${pi % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-gray-50 transition-colors`}>
                               <td className="px-4 py-2.5 border-l-2 border-[#ea690c]"></td>
                               <td className="px-4 py-2.5" colSpan={2}>
                                 <div className="flex items-center gap-3">
@@ -475,8 +488,8 @@ export const OutgoingParcels = (): JSX.Element => {
                                 </div>
                               </td>
                               <td className="px-4 py-2.5 text-center">
-                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${ parcel.POD ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                  {parcel.POD ? 'POD' : 'Regular'}
+                                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-gray-100 text-[#5d5d5d]">
+                                  {(parcel.ItemCost || 0) > 0 ? 'POD' : 'Regular'}
                                 </span>
                               </td>
                               <td className="px-4 py-2.5 text-center" colSpan={2}>
@@ -487,7 +500,7 @@ export const OutgoingParcels = (): JSX.Element => {
                               <td className="px-4 py-2.5" colSpan={2}>
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="text-sm font-semibold text-neutral-800 ml-auto">
-                                    GHC {((parcel.inboundCost || 0) + (parcel.POD ? (parcel.ItemCost || 0) : 0)).toFixed(2)}
+                                    GHC {((parcel.inboundCost || 0) + (parcel.ItemCost || 0)).toFixed(2)}
                                   </span>
                                   <div className="flex items-center gap-1">
                                     <button onClick={(e) => { e.stopPropagation(); setViewParcel(parcel); }} className="p-1 rounded text-[#5d5d5d] hover:bg-white hover:text-neutral-800 transition-colors" title="View"><UserIcon className="w-3.5 h-3.5" /></button>
@@ -977,37 +990,18 @@ export const OutgoingParcels = (): JSX.Element => {
         {/* Manifest Print Modal */}
         {manifestGroup && (
           <>
-            <style>{`
-              @media print {
-                body * { visibility: hidden; }
-                #manifest-print, #manifest-print * { visibility: visible; }
-                #manifest-print {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                  font-family: Arial, Helvetica, sans-serif;
-                }
-                #manifest-print * {
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
-                  color-adjust: exact !important;
-                }
-                @page { size: A4 portrait; margin: 10mm; }
-              }
-            `}</style>
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl shadow-xl border border-[#d1d1d1] w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                 <div className="sticky top-0 bg-white border-b border-[#d1d1d1] p-4 flex items-center justify-between">
                   <h3 className="text-base font-bold text-neutral-800">Driver Manifest — {manifestGroup.driverName}</h3>
                   <div className="flex items-center gap-2">
-                    <Button onClick={() => window.print()} className="bg-[#ea690c] text-white hover:bg-[#d45d0a] h-9 text-sm">
+                    <Button onClick={printManifestWindow} className="bg-[#ea690c] text-white hover:bg-[#d45d0a] h-9 text-sm">
                       <PrinterIcon className="w-4 h-4 mr-1.5" /> Print
                     </Button>
                     <Button onClick={() => setManifestGroup(null)} variant="outline" className="border border-[#d1d1d1] h-9 text-sm">Close</Button>
                   </div>
                 </div>
-                <div className="p-6" id="manifest-print">
+                <div className="p-6" ref={manifestPrintRef}>
                   <DriverManifest group={manifestGroup} />
                 </div>
               </div>
@@ -1047,8 +1041,8 @@ interface DriverManifestProps {
   group: { key: string; driverName: string; driverPhoneNumber: string; vehicleNumber: string; parcels: Parcel[] };
 }
 const DriverManifest: React.FC<DriverManifestProps> = ({ group }) => {
-  const total = group.parcels.reduce((s, p) => s + (p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0), 0);
-  const podCount = group.parcels.filter(p => p.POD).length;
+  const total = group.parcels.reduce((s, p) => s + (p.inboundCost || 0) + (p.ItemCost || 0), 0);
+  const podCount = group.parcels.filter(p => (p.ItemCost || 0) > 0).length;
 
   const s = {
     wrap: { backgroundColor: '#ffffff', border: '2px solid #000000', padding: '16px', fontFamily: 'Arial, Helvetica, sans-serif', color: '#000000' } as React.CSSProperties,
@@ -1148,8 +1142,8 @@ const DriverManifest: React.FC<DriverManifestProps> = ({ group }) => {
               <td style={s.td}>{p.receiverName}</td>
               <td style={s.td}>{p.recieverPhoneNumber}</td>
               <td style={s.td}>{p.to?.officeName || '—'}</td>
-              <td style={s.tdCenter}><span style={s.typeBadge}>{p.POD ? 'POD' : 'REG'}</span></td>
-              <td style={s.tdLast}>GHC {((p.inboundCost || 0) + (p.POD ? (p.ItemCost || 0) : 0)).toFixed(2)}</td>
+              <td style={s.tdCenter}><span style={s.typeBadge}>{(p.ItemCost || 0) > 0 ? 'POD' : 'REG'}</span></td>
+              <td style={s.tdLast}>GHC {((p.inboundCost || 0) + (p.ItemCost || 0)).toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
