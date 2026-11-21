@@ -351,9 +351,6 @@ export const RiderDashboard = (): JSX.Element => {
         }
     };
 
-    const hour = new Date().getHours();
-    const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -391,69 +388,59 @@ export const RiderDashboard = (): JSX.Element => {
     const failureReady = !!selectedFailureReason && (selectedFailureReason !== "Other" || !!failureReason.trim());
 
     return (
-        <div className="space-y-5">
-            {/* Summary card */}
-            <section className="rounded-3xl bg-gradient-to-br from-[#ea690c] to-[#f59e0b] text-white p-5 shadow-[0_10px_30px_-12px_rgba(234,105,12,0.6)]">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                        <p className="text-sm text-white/80">{greeting}</p>
-                        <h1 className="text-2xl font-bold leading-tight truncate">{currentUser?.name?.split(" ")[0] || "Rider"}</h1>
+        <div className="space-y-4">
+            {/* Today at a glance: kept slim so the delivery list gets the screen */}
+            <section className="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/[0.04]">
+                <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between text-sm">
+                            <span className="font-semibold">{todayDelivered} of {todayTotal} done today</span>
+                            <span className="text-xs text-gray-500">{progressPct}%</span>
+                        </div>
+                        <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-[#ea690c] transition-all duration-500" style={{ width: `${progressPct}%` }} />
+                        </div>
                     </div>
                     <button
                         onClick={() => fetchAssignments(pagination.page, pagination.size)}
                         disabled={loading}
-                        className="h-10 w-10 shrink-0 rounded-full bg-white/20 flex items-center justify-center active:scale-95 disabled:opacity-60"
+                        className="h-9 w-9 shrink-0 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center active:scale-95 disabled:opacity-60"
                         aria-label="Refresh"
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
                     </button>
                 </div>
-
-                <div className="mt-5">
-                    <div className="flex items-baseline justify-between text-sm">
-                        <span className="text-white/85">Today's progress</span>
-                        <span className="font-semibold">{todayDelivered} of {todayTotal} done</span>
-                    </div>
-                    <div className="mt-2 h-2.5 rounded-full bg-white/25 overflow-hidden">
-                        <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${progressPct}%` }} />
-                    </div>
-                </div>
-
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-white/15 px-3.5 py-3">
-                        <p className="text-[11px] uppercase tracking-wide text-white/75">To collect</p>
-                        <p className="text-lg font-bold leading-tight mt-0.5">{formatCurrency(totalAmountToCollect)}</p>
-                    </div>
-                    <div className="rounded-2xl bg-white/15 px-3.5 py-3">
-                        <p className="text-[11px] uppercase tracking-wide text-white/75">Collected today</p>
-                        <p className="text-lg font-bold leading-tight mt-0.5">{formatCurrency(todayCollected)}</p>
-                    </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                    <span className="whitespace-nowrap">To collect <strong className="text-[#ea690c] font-semibold">{formatCurrency(totalAmountToCollect)}</strong></span>
+                    <span className="whitespace-nowrap">Collected <strong className="text-green-700 font-semibold">{formatCurrency(todayCollected)}</strong></span>
                 </div>
             </section>
 
-            {/* Segmented control */}
-            <div className="flex items-center gap-2">
-                <div className="flex-1 grid grid-cols-2 p-1 rounded-2xl bg-gray-200/70">
-                    {([["active", `To deliver · ${activeAssignments.length}`], ["done", `Done today · ${doneToday.length}`]] as const).map(([key, label]) => (
+            {/* Tabs stay pinned under the app bar while the list scrolls */}
+            <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 -mx-4 px-4 py-2 -my-2 bg-[#f5f4f1]/95 backdrop-blur">
+                <div className="flex items-center gap-2">
+                    <div className="flex-1 grid grid-cols-2 p-1 rounded-2xl bg-gray-200/70">
+                        {([["active", `To deliver · ${activeAssignments.length}`], ["done", `Done today · ${doneToday.length}`]] as const).map(([key, label]) => (
+                            <button
+                                key={key}
+                                onClick={() => setTab(key)}
+                                className={`h-9 rounded-xl text-sm font-semibold transition ${tab === key ? "bg-white text-neutral-900 shadow-sm" : "text-gray-600"}`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                    {activeAssignments.length > 0 && (
                         <button
-                            key={key}
-                            onClick={() => setTab(key)}
-                            className={`h-10 rounded-xl text-sm font-semibold transition ${tab === key ? "bg-white text-neutral-900 shadow-sm" : "text-gray-600"}`}
+                            onClick={handleDownloadPDF}
+                            className="h-11 w-11 shrink-0 rounded-2xl bg-white border border-gray-200 text-gray-700 flex items-center justify-center active:scale-95"
+                            aria-label="Download route sheet"
+                            title="Download route sheet (PDF)"
                         >
-                            {label}
+                            <Download className="w-5 h-5" />
                         </button>
-                    ))}
+                    )}
                 </div>
-                {activeAssignments.length > 0 && (
-                    <button
-                        onClick={handleDownloadPDF}
-                        className="h-12 w-12 shrink-0 rounded-2xl bg-white border border-gray-200 text-gray-700 flex items-center justify-center active:scale-95"
-                        aria-label="Download route sheet"
-                        title="Download route sheet (PDF)"
-                    >
-                        <Download className="w-5 h-5" />
-                    </button>
-                )}
             </div>
 
             {loading && assignments.length === 0 ? (
@@ -462,55 +449,48 @@ export const RiderDashboard = (): JSX.Element => {
                 activeAssignments.length === 0 ? (
                     <EmptyState icon={<PackageIcon className="w-8 h-8" />} title="No deliveries right now" hint="New assignments will show up here." />
                 ) : (
-                    <ul className="space-y-3">
+                    <ul className="space-y-2">
                         {activeAssignments.map((a, i) => {
                             const p = a.parcel;
                             return (
                                 <li key={`${a.assignmentId}-${p.parcelId}`}>
                                     <article
                                         onClick={() => openDetails(a)}
-                                        className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/[0.04] active:bg-gray-50 cursor-pointer"
+                                        className="rounded-2xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/[0.04] active:bg-gray-50 cursor-pointer"
                                     >
-                                        <div className="flex items-start gap-3">
-                                            <span className="h-8 w-8 shrink-0 rounded-full bg-orange-50 text-[#ea690c] text-sm font-bold flex items-center justify-center">
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="h-6 w-6 shrink-0 rounded-full bg-orange-50 text-[#ea690c] text-xs font-bold flex items-center justify-center">
                                                 {i + 1}
                                             </span>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <h3 className="font-semibold leading-tight truncate">{p.receiverName || "Unknown recipient"}</h3>
-                                                    <span className="shrink-0 font-bold text-[#ea690c]">{formatCurrency(parcelTotal(p))}</span>
-                                                </div>
-                                                <p className="text-xs text-gray-500 mt-0.5 truncate">{p.parcelDescription || "Parcel"} · {p.parcelId}</p>
-                                                <p className="flex items-start gap-1.5 text-sm text-gray-700 mt-2">
-                                                    <MapPinIcon className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
-                                                    <span className="line-clamp-2">{p.receiverAddress || "No address given"}</span>
-                                                </p>
-                                                {(p.pod || p.fragile) && (
-                                                    <div className="flex gap-1.5 mt-2">
-                                                        {p.pod && <StatusPill tone="pending">Pay on delivery</StatusPill>}
-                                                        {p.fragile && <StatusPill tone="returned">Fragile</StatusPill>}
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <h3 className="min-w-0 flex-1 font-semibold truncate">{p.receiverName || "Unknown recipient"}</h3>
+                                            {p.pod && <StatusPill tone="pending">POD</StatusPill>}
+                                            {p.fragile && <StatusPill tone="returned">Fragile</StatusPill>}
+                                            <span className="shrink-0 font-bold text-[#ea690c] text-sm">{formatCurrency(parcelTotal(p))}</span>
                                         </div>
+                                        <p className="flex items-center gap-1.5 text-sm text-gray-600 mt-1 pl-[34px]">
+                                            <MapPinIcon className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                                            <span className="truncate">{p.receiverAddress || "No address given"}</span>
+                                        </p>
 
-                                        <div className="flex items-center gap-2 mt-4">
+                                        <div className="flex items-center gap-2 mt-2.5">
                                             <IconAction href={telHref(p.recieverPhoneNumber)} label="Call recipient" tone="green">
-                                                <Phone className="w-5 h-5" />
+                                                <Phone className="w-[18px] h-[18px]" />
                                             </IconAction>
                                             <IconAction href={mapsHref(p.receiverAddress)} label="Directions" tone="blue">
-                                                <Navigation className="w-5 h-5" />
+                                                <Navigation className="w-[18px] h-[18px]" />
                                             </IconAction>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); startFailed(a); }}
-                                                className="h-11 px-4 rounded-2xl bg-gray-100 text-gray-700 text-sm font-semibold active:scale-95"
+                                                className="h-10 w-10 shrink-0 rounded-xl bg-red-50 text-red-600 flex items-center justify-center active:scale-95"
+                                                aria-label="Delivery failed"
+                                                title="Delivery failed"
                                             >
-                                                Failed
+                                                <XCircleIcon className="w-[18px] h-[18px]" />
                                             </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); startDelivered(a); }}
                                                 disabled={updatingAssignment === a.assignmentId}
-                                                className="h-11 flex-1 rounded-2xl bg-[#ea690c] text-white text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-60"
+                                                className="h-10 flex-1 rounded-xl bg-[#ea690c] text-white text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-60"
                                             >
                                                 <CheckCircleIcon className="w-4 h-4" /> Delivered
                                             </button>

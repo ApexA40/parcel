@@ -113,7 +113,7 @@ export const IconAction = ({ href, label, children, tone = "gray" }: { href?: st
             rel="noreferrer"
             aria-label={label}
             onClick={(e) => e.stopPropagation()}
-            className={`h-11 w-11 shrink-0 rounded-2xl flex items-center justify-center active:scale-95 transition ${tones[tone]} ${href ? "" : "opacity-40 pointer-events-none"}`}
+            className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center active:scale-95 transition ${tones[tone]} ${href ? "" : "opacity-40 pointer-events-none"}`}
         >
             {children}
         </a>

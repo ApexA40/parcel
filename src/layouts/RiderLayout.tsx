@@ -110,7 +110,7 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
                 </div>
             </header>
 
-            <main className="mx-auto max-w-md sm:max-w-xl lg:max-w-3xl px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] lg:pb-10">
+            <main className="mx-auto max-w-md sm:max-w-xl lg:max-w-3xl px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+6rem)] lg:pb-10">
                 {children}
             </main>
 
