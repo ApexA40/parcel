@@ -411,13 +411,13 @@ export const RiderDashboard = (): JSX.Element => {
                     </button>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                    <span className="whitespace-nowrap">To collect <strong className="text-[#ea690c] font-semibold">{formatCurrency(totalAmountToCollect)}</strong></span>
-                    <span className="whitespace-nowrap">Collected <strong className="text-green-700 font-semibold">{formatCurrency(todayCollected)}</strong></span>
+                    <span className="whitespace-nowrap">To collect <strong className="text-neutral-900 font-semibold">{formatCurrency(totalAmountToCollect)}</strong></span>
+                    <span className="whitespace-nowrap">Collected <strong className="text-neutral-900 font-semibold">{formatCurrency(todayCollected)}</strong></span>
                 </div>
             </section>
 
             {/* Tabs stay pinned under the app bar while the list scrolls */}
-            <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 -mx-4 px-4 py-2 -my-2 bg-[#f5f4f1]/95 backdrop-blur">
+            <div className="sticky top-[var(--rider-bar)] transition-[top] duration-200 motion-reduce:transition-none z-30 -mx-4 px-4 py-2 -my-2 bg-[#f5f4f1]/95 backdrop-blur">
                 <div className="flex items-center gap-2">
                     <div className="flex-1 grid grid-cols-2 p-1 rounded-2xl bg-gray-200/70">
                         {([["active", `To deliver · ${activeAssignments.length}`], ["done", `Done today · ${doneToday.length}`]] as const).map(([key, label]) => (
@@ -459,13 +459,13 @@ export const RiderDashboard = (): JSX.Element => {
                                         className="rounded-2xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/[0.04] active:bg-gray-50 cursor-pointer"
                                     >
                                         <div className="flex items-center gap-2.5">
-                                            <span className="h-6 w-6 shrink-0 rounded-full bg-orange-50 text-[#ea690c] text-xs font-bold flex items-center justify-center">
+                                            <span className="h-6 w-6 shrink-0 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold flex items-center justify-center">
                                                 {i + 1}
                                             </span>
                                             <h3 className="min-w-0 flex-1 font-semibold truncate">{p.receiverName || "Unknown recipient"}</h3>
-                                            {p.pod && <StatusPill tone="pending">POD</StatusPill>}
-                                            {p.fragile && <StatusPill tone="returned">Fragile</StatusPill>}
-                                            <span className="shrink-0 font-bold text-[#ea690c] text-sm">{formatCurrency(parcelTotal(p))}</span>
+                                            {p.pod && <StatusPill tone="neutral">POD</StatusPill>}
+                                            {p.fragile && <StatusPill tone="pending">Fragile</StatusPill>}
+                                            <span className="shrink-0 font-semibold text-sm">{formatCurrency(parcelTotal(p))}</span>
                                         </div>
                                         <p className="flex items-center gap-1.5 text-sm text-gray-600 mt-1 pl-[34px]">
                                             <MapPinIcon className="w-3.5 h-3.5 shrink-0 text-gray-400" />
@@ -473,15 +473,15 @@ export const RiderDashboard = (): JSX.Element => {
                                         </p>
 
                                         <div className="flex items-center gap-2 mt-2.5">
-                                            <IconAction href={telHref(p.recieverPhoneNumber)} label="Call recipient" tone="green">
+                                            <IconAction href={telHref(p.recieverPhoneNumber)} label="Call recipient">
                                                 <Phone className="w-[18px] h-[18px]" />
                                             </IconAction>
-                                            <IconAction href={mapsHref(p.receiverAddress)} label="Directions" tone="blue">
+                                            <IconAction href={mapsHref(p.receiverAddress)} label="Directions">
                                                 <Navigation className="w-[18px] h-[18px]" />
                                             </IconAction>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); startFailed(a); }}
-                                                className="h-10 w-10 shrink-0 rounded-xl bg-red-50 text-red-600 flex items-center justify-center active:scale-95"
+                                                className="h-10 w-10 shrink-0 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center active:scale-95"
                                                 aria-label="Delivery failed"
                                                 title="Delivery failed"
                                             >
@@ -511,7 +511,7 @@ export const RiderDashboard = (): JSX.Element => {
                         return (
                             <li key={`${a.assignmentId}-${p.parcelId}`}>
                                 <button onClick={() => openDetails(a)} className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-gray-50">
-                                    <span className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center ${failed ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"}`}>
+                                    <span className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center bg-gray-100 ${failed ? "text-red-600" : "text-gray-500"}`}>
                                         {failed ? <XCircleIcon className="w-5 h-5" /> : <CheckCircleIcon className="w-5 h-5" />}
                                     </span>
                                     <div className="min-w-0 flex-1">
@@ -578,7 +578,7 @@ export const RiderDashboard = (): JSX.Element => {
                     <button
                         onClick={handleDeliveryComplete}
                         disabled={!amountCollected || !paymentMethod || busy}
-                        className="w-full h-12 rounded-2xl bg-green-600 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="w-full h-12 rounded-2xl bg-[#ea690c] text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         {busy ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircleIcon className="w-5 h-5" />}
                         {busy ? "Saving..." : "Confirm delivered"}
@@ -586,9 +586,9 @@ export const RiderDashboard = (): JSX.Element => {
                 }
             >
                 <div className="space-y-5">
-                    <div className="rounded-2xl bg-orange-50 p-4 flex items-center justify-between">
+                    <div className="rounded-2xl bg-gray-50 p-4 flex items-center justify-between">
                         <span className="text-sm text-gray-700">Amount due</span>
-                        <span className="text-2xl font-bold text-[#ea690c]">{formatCurrency(expected)}</span>
+                        <span className="text-2xl font-bold">{formatCurrency(expected)}</span>
                     </div>
 
                     <div>
@@ -617,7 +617,7 @@ export const RiderDashboard = (): JSX.Element => {
                                     type="button"
                                     onClick={() => setPaymentMethod(opt.value)}
                                     className={`h-12 rounded-2xl border-2 text-sm font-semibold transition ${
-                                        paymentMethod === opt.value ? "border-[#ea690c] bg-orange-50 text-[#ea690c]" : "border-gray-200 text-gray-700"
+                                        paymentMethod === opt.value ? "border-neutral-900 text-neutral-900" : "border-gray-200 text-gray-600"
                                     }`}
                                 >
                                     {opt.label}
@@ -665,7 +665,7 @@ export const RiderDashboard = (): JSX.Element => {
                             type="button"
                             onClick={() => { setSelectedFailureReason(reason); if (reason !== "Other") setFailureReason(""); }}
                             className={`w-full text-left px-4 h-12 rounded-2xl border-2 text-sm font-medium transition ${
-                                selectedFailureReason === reason ? "border-red-500 bg-red-50 text-red-700" : "border-gray-200 text-gray-800"
+                                selectedFailureReason === reason ? "border-neutral-900 text-neutral-900" : "border-gray-200 text-gray-700"
                             }`}
                         >
                             {reason}
@@ -677,7 +677,7 @@ export const RiderDashboard = (): JSX.Element => {
                         value={failureReason}
                         onChange={(e) => setFailureReason(e.target.value)}
                         placeholder="Describe what happened"
-                        className="mt-3 w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-red-400 resize-none text-sm"
+                        className="mt-3 w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-neutral-900 resize-none text-sm"
                         rows={3}
                         autoFocus
                     />

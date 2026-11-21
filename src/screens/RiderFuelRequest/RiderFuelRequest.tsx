@@ -128,7 +128,7 @@ const RiderFuelRequest: React.FC = () => {
   const phoneField = (label: string, value: string, set: (v: string) => void) => (
     <label className="block">
       <span className="text-sm font-semibold">{label}</span>
-      <div className="mt-1.5 flex h-12 rounded-2xl border border-gray-200 overflow-hidden focus-within:border-[#ea690c]">
+      <div className="mt-1.5 flex h-12 rounded-2xl border border-gray-200 overflow-hidden focus-within:border-neutral-900">
         <span className="px-3.5 flex items-center bg-gray-50 text-gray-600 text-sm border-r border-gray-200">+233</span>
         <input
           type="tel"
@@ -151,7 +151,7 @@ const RiderFuelRequest: React.FC = () => {
     <div className="space-y-5">
       <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-black/[0.04]">
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-orange-50 text-[#ea690c] flex items-center justify-center">
+          <div className="h-12 w-12 rounded-2xl bg-gray-100 text-gray-600 flex items-center justify-center">
             <Fuel className="w-6 h-6" />
           </div>
           <div className="min-w-0">
@@ -178,9 +178,9 @@ const RiderFuelRequest: React.FC = () => {
             {requests.map((r) => (
               <li key={r.id} className="flex items-center gap-3 px-4 py-3.5">
                 <span className="h-9 w-9 shrink-0 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center">
-                  {r.status === 'COMPLETED' ? <CheckCircle className="w-5 h-5 text-green-600" />
+                  {r.status === 'COMPLETED' ? <CheckCircle className="w-5 h-5" />
                     : r.status === 'REJECTED' ? <XCircle className="w-5 h-5 text-red-600" />
-                    : <Clock className="w-5 h-5 text-amber-600" />}
+                    : <Clock className="w-5 h-5" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium truncate">{r.station || 'Fuel station'}</p>
@@ -221,7 +221,7 @@ const RiderFuelRequest: React.FC = () => {
                   type="button"
                   onClick={() => setFuelType(v)}
                   className={`h-12 rounded-2xl border-2 text-sm font-semibold transition ${
-                    fuelType === v ? 'border-[#ea690c] bg-orange-50 text-[#ea690c]' : 'border-gray-200 text-gray-700'
+                    fuelType === v ? 'border-neutral-900 text-neutral-900' : 'border-gray-200 text-gray-600'
                   }`}
                 >
                   {l}
@@ -255,7 +255,7 @@ const RiderFuelRequest: React.FC = () => {
                   type="button"
                   onClick={() => setStationName(st)}
                   className={`h-10 px-4 rounded-full border text-sm font-medium transition ${
-                    stationName === st ? 'border-[#ea690c] bg-orange-50 text-[#ea690c]' : 'border-gray-200 text-gray-700'
+                    stationName === st ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-gray-200 text-gray-700'
                   }`}
                 >
                   {st}

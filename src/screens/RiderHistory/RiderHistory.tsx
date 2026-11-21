@@ -324,11 +324,11 @@ export const RiderHistory = (): JSX.Element => {
             <div className="grid grid-cols-3 gap-2.5">
                 <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/[0.04]">
                     <p className="text-[11px] text-gray-500">Delivered</p>
-                    <p className="text-xl font-bold text-green-600">{completedAssignments.length}</p>
+                    <p className="text-xl font-bold">{completedAssignments.length}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/[0.04]">
                     <p className="text-[11px] text-gray-500">Returned</p>
-                    <p className="text-xl font-bold text-red-600">{returnedAssignments.length}</p>
+                    <p className="text-xl font-bold">{returnedAssignments.length}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/[0.04] min-w-0">
                     <p className="text-[11px] text-gray-500">Collected</p>
@@ -337,7 +337,7 @@ export const RiderHistory = (): JSX.Element => {
             </div>
 
             {/* Search + actions (sticky under the app bar) */}
-            <div className="sticky top-14 z-30 -mx-4 px-4 py-2 bg-[#f5f4f1]/95 backdrop-blur">
+            <div className="sticky top-[var(--rider-bar)] transition-[top] duration-200 motion-reduce:transition-none z-30 -mx-4 px-4 py-2 bg-[#f5f4f1]/95 backdrop-blur">
                 <div className="flex gap-2">
                     <div className="relative flex-1">
                         <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -346,7 +346,7 @@ export const RiderHistory = (): JSX.Element => {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Search name, phone, ID"
-                            className="w-full h-12 pl-10 pr-3 rounded-2xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-[#ea690c]"
+                            className="w-full h-12 pl-10 pr-3 rounded-2xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-neutral-900"
                         />
                     </div>
                     <button
@@ -356,7 +356,7 @@ export const RiderHistory = (): JSX.Element => {
                     >
                         <SlidersHorizontal className="w-5 h-5" />
                         {filterCount > 0 && (
-                            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-[#ea690c] text-white text-[10px] font-bold flex items-center justify-center">{filterCount}</span>
+                            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-neutral-900 text-white text-[10px] font-bold flex items-center justify-center">{filterCount}</span>
                         )}
                     </button>
                     <button
@@ -418,7 +418,7 @@ export const RiderHistory = (): JSX.Element => {
                                                         onClick={() => { setSelectedAssignment(a); setShowDetailsModal(true); }}
                                                         className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-gray-50"
                                                     >
-                                                        <span className="h-9 w-9 shrink-0 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+                                                        <span className="h-9 w-9 shrink-0 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center">
                                                             <CheckCircleIcon className="w-5 h-5" />
                                                         </span>
                                                         <div className="min-w-0 flex-1">

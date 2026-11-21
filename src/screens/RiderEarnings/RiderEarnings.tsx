@@ -125,23 +125,23 @@ export const RiderEarnings = (): JSX.Element => {
     return (
         <div className="space-y-5">
             {/* Earnings summary */}
-            <section className="rounded-3xl bg-neutral-900 text-white p-5 shadow-lg">
-                <p className="text-sm text-white/60">Earned today</p>
+            <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-black/[0.04]">
+                <p className="text-sm text-gray-500">Earned today</p>
                 <p className="text-4xl font-bold tracking-tight mt-1">{formatCurrency(todayTotal)}</p>
-                <p className="text-sm text-white/60 mt-1">
+                <p className="text-sm text-gray-500 mt-1">
                     {todayAssignments.length} deliver{todayAssignments.length === 1 ? "y" : "ies"} today
                 </p>
                 <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-white/10 px-3.5 py-3">
-                        <p className="text-[11px] uppercase tracking-wide text-white/60">All time</p>
+                    <div className="rounded-2xl bg-gray-50 px-3.5 py-3">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">All time</p>
                         <p className="text-lg font-bold">{formatCurrency(overallTotal)}</p>
                     </div>
-                    <div className="rounded-2xl bg-white/10 px-3.5 py-3">
-                        <p className="text-[11px] uppercase tracking-wide text-white/60">Deliveries</p>
+                    <div className="rounded-2xl bg-gray-50 px-3.5 py-3">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Deliveries</p>
                         <p className="text-lg font-bold">{deliveredAssignments.length}</p>
                     </div>
                 </div>
-                <p className="flex items-center gap-1.5 text-xs text-white/50 mt-4">
+                <p className="flex items-center gap-1.5 text-xs text-gray-400 mt-4">
                     <InfoIcon className="w-3.5 h-3.5" /> You earn {Math.round(RIDER_SHARE * 100)}% of each delivery fee.
                 </p>
             </section>
@@ -182,7 +182,7 @@ export const RiderEarnings = (): JSX.Element => {
                                     aria-expanded={!collapsed}
                                 >
                                     <span className="text-sm font-bold">{formatDateHeader(key)}</span>
-                                    <span className="flex items-center gap-1.5 text-sm font-semibold text-green-700">
+                                    <span className="flex items-center gap-1.5 text-sm font-semibold">
                                         +{formatCurrency(dayEarning)}
                                         {collapsed ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronUp className="w-4 h-4 text-gray-400" />}
                                     </span>
@@ -193,7 +193,7 @@ export const RiderEarnings = (): JSX.Element => {
                                             const d = getDate(a);
                                             return (
                                                 <li key={`${a.assignmentId}-${a.parcel.parcelId}`} className="flex items-center gap-3 px-4 py-3.5">
-                                                    <span className="h-9 w-9 shrink-0 rounded-full bg-green-50 text-green-700 flex items-center justify-center">
+                                                    <span className="h-9 w-9 shrink-0 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center">
                                                         <TrendingUpIcon className="w-4 h-4" />
                                                     </span>
                                                     <div className="min-w-0 flex-1">
@@ -202,7 +202,7 @@ export const RiderEarnings = (): JSX.Element => {
                                                             {d ? d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""} · Fee {formatCurrency(a.parcel.deliveryCost || 0)} · Collected {formatCurrency(getAmount(a))}
                                                         </p>
                                                     </div>
-                                                    <span className="font-semibold text-green-700 text-sm">+{formatCurrency(getRiderEarning(a))}</span>
+                                                    <span className="font-semibold text-sm">+{formatCurrency(getRiderEarning(a))}</span>
                                                 </li>
                                             );
                                         })}

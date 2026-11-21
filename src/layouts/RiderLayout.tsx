@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { LogOut, Package, History, Wallet, Fuel, Building2, Mail } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
@@ -30,6 +30,22 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
         try { return localStorage.getItem(ONLINE_KEY) !== "OFFLINE"; } catch { return true; }
     });
     const [savingStatus, setSavingStatus] = useState(false);
+    // Hide the app bar while scrolling down so the list gets the space back;
+    // bring it back as soon as the rider scrolls up.
+    const [barHidden, setBarHidden] = useState(false);
+    const lastY = useRef(0);
+    useEffect(() => {
+        const onScroll = () => {
+            const y = window.scrollY;
+            const dy = y - lastY.current;
+            if (y < 80) setBarHidden(false);
+            else if (dy > 6) setBarHidden(true);
+            else if (dy < -6) setBarHidden(false);
+            if (Math.abs(dy) > 6 || y < 80) lastY.current = y;
+        };
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => window.removeEventListener("scroll", onScroll);
+    }, []);
     const { currentUser, logout } = useStation();
     const { showToast } = useToast();
     const navigate = useNavigate();
@@ -57,11 +73,16 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
     };
 
     return (
-        <div className="min-h-[100dvh] bg-[#f5f4f1] text-neutral-900">
+        <div
+            className="min-h-[100dvh] bg-[#f5f4f1] text-neutral-900"
+            style={{ ["--rider-bar" as string]: barHidden ? "0px" : "calc(3.5rem + env(safe-area-inset-top))" }}
+        >
             <UpdateNotificationPopup />
 
             {/* App bar */}
-            <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-black/5 pt-[env(safe-area-inset-top)]">
+            <header
+                className={`sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-black/5 pt-[env(safe-area-inset-top)] transition-transform duration-200 motion-reduce:transition-none ${barHidden ? "-translate-y-full" : ""}`}
+            >
                 <div className="mx-auto max-w-5xl h-14 px-4 flex items-center gap-3">
                     <img src="/logo-1.png" alt="M&M" className="h-8 w-8 rounded-lg object-cover shadow-sm" />
                     <div className="min-w-0 flex-1 lg:flex-none">
@@ -79,7 +100,7 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
                                     key={t.path}
                                     onClick={() => navigate(t.path)}
                                     className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
-                                        on ? "bg-orange-50 text-[#ea690c]" : "text-gray-600 hover:bg-gray-100"
+                                        on ? "bg-gray-100 text-neutral-900" : "text-gray-500 hover:bg-gray-50"
                                     }`}
                                 >
                                     <t.icon className="w-4 h-4" />
@@ -93,7 +114,7 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
                         onClick={toggleOnline}
                         disabled={savingStatus}
                         className={`flex items-center gap-1.5 h-8 pl-2 pr-2.5 rounded-full text-xs font-semibold transition-colors disabled:opacity-60 ${
-                            online ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
+                            online ? "bg-gray-100 text-gray-700" : "bg-gray-100 text-gray-400"
                         }`}
                         aria-pressed={online}
                     >
@@ -102,7 +123,7 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
                     </button>
                     <button
                         onClick={() => setProfileOpen(true)}
-                        className="h-9 w-9 rounded-full bg-[#ea690c] text-white text-xs font-bold flex items-center justify-center active:scale-95"
+                        className="h-9 w-9 rounded-full bg-gray-200 text-gray-700 text-xs font-bold flex items-center justify-center active:scale-95"
                         aria-label="Profile"
                     >
                         {initials(currentUser?.name)}
@@ -131,7 +152,7 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
                                 }`}
                                 aria-current={on ? "page" : undefined}
                             >
-                                <span className={`flex items-center justify-center h-7 w-12 rounded-full transition-colors ${on ? "bg-orange-50" : ""}`}>
+                                <span className="flex items-center justify-center h-7 w-12">
                                     <t.icon className="w-[22px] h-[22px]" strokeWidth={on ? 2.4 : 1.8} />
                                 </span>
                                 {t.label}
@@ -143,12 +164,12 @@ export const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
 
             <BottomSheet open={profileOpen} onClose={() => setProfileOpen(false)} title="Profile">
                 <div className="flex items-center gap-4 pb-4">
-                    <div className="h-14 w-14 rounded-full bg-[#ea690c] text-white text-lg font-bold flex items-center justify-center">
+                    <div className="h-14 w-14 rounded-full bg-gray-200 text-gray-700 text-lg font-bold flex items-center justify-center">
                         {initials(currentUser?.name)}
                     </div>
                     <div className="min-w-0">
                         <p className="font-bold text-lg truncate">{currentUser?.name ?? "Rider"}</p>
-                        <p className={`text-sm font-medium ${online ? "text-green-600" : "text-gray-500"}`}>
+                        <p className="text-sm text-gray-500">
                             {online ? "Online · receiving deliveries" : "Offline"}
                         </p>
                     </div>

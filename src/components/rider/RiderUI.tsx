@@ -76,19 +76,22 @@ export const BottomSheet = ({
     );
 };
 
+// Colour is reserved for states that need attention (amber) or went wrong (red).
+const NEUTRAL = "bg-gray-100 text-gray-600";
 const PILL: Record<string, string> = {
-    delivered: "bg-green-50 text-green-700 ring-green-600/20",
-    returned: "bg-red-50 text-red-700 ring-red-600/20",
-    cancelled: "bg-gray-100 text-gray-600 ring-gray-500/20",
-    active: "bg-blue-50 text-blue-700 ring-blue-600/20",
-    pending: "bg-amber-50 text-amber-700 ring-amber-600/20",
-    approved: "bg-blue-50 text-blue-700 ring-blue-600/20",
-    completed: "bg-green-50 text-green-700 ring-green-600/20",
-    rejected: "bg-red-50 text-red-700 ring-red-600/20",
+    neutral: NEUTRAL,
+    delivered: NEUTRAL,
+    cancelled: NEUTRAL,
+    active: NEUTRAL,
+    approved: NEUTRAL,
+    completed: NEUTRAL,
+    pending: "bg-amber-50 text-amber-800",
+    returned: "bg-red-50 text-red-700",
+    rejected: "bg-red-50 text-red-700",
 };
 
 export const StatusPill = ({ tone, children }: { tone: keyof typeof PILL | string; children: ReactNode }) => (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${PILL[tone] ?? PILL.cancelled}`}>
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${PILL[tone] ?? NEUTRAL}`}>
         {children}
     </span>
 );
@@ -99,13 +102,8 @@ export const parcelTone = (p?: RiderParcelResponse) =>
 export const parcelStatusLabel = (p?: RiderParcelResponse) =>
     p?.cancelled ? "Cancelled" : p?.returned ? "Returned" : p?.delivered ? "Delivered" : "To deliver";
 
-/** Round icon button used for call / directions. */
-export const IconAction = ({ href, label, children, tone = "gray" }: { href?: string; label: string; children: ReactNode; tone?: "gray" | "green" | "blue" }) => {
-    const tones = {
-        gray: "bg-gray-100 text-gray-700",
-        green: "bg-green-50 text-green-700",
-        blue: "bg-blue-50 text-blue-700",
-    };
+/** Square icon button used for call / directions. */
+export const IconAction = ({ href, label, children }: { href?: string; label: string; children: ReactNode }) => {
     return (
         <a
             href={href}
@@ -113,7 +111,7 @@ export const IconAction = ({ href, label, children, tone = "gray" }: { href?: st
             rel="noreferrer"
             aria-label={label}
             onClick={(e) => e.stopPropagation()}
-            className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center active:scale-95 transition ${tones[tone]} ${href ? "" : "opacity-40 pointer-events-none"}`}
+            className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center active:scale-95 transition bg-gray-100 text-gray-700 ${href ? "" : "opacity-40 pointer-events-none"}`}
         >
             {children}
         </a>
@@ -122,7 +120,7 @@ export const IconAction = ({ href, label, children, tone = "gray" }: { href?: st
 
 const Row = ({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) => (
     <div className="flex gap-3 py-3">
-        <div className="w-9 h-9 rounded-xl bg-orange-50 text-[#ea690c] flex items-center justify-center shrink-0">{icon}</div>
+        <div className="w-9 h-9 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">{icon}</div>
         <div className="min-w-0 flex-1">
             <p className="text-xs text-gray-500">{label}</p>
             <div className="text-sm font-medium text-neutral-900 break-words">{children}</div>
@@ -143,21 +141,21 @@ export const ParcelDetails = ({ assignment }: { assignment: RiderAssignmentRespo
         <div>
             <div className="flex items-center gap-2 flex-wrap pb-1">
                 <StatusPill tone={parcelTone(p)}>{parcelStatusLabel(p)}</StatusPill>
-                {p.pod && <StatusPill tone="pending">Pay on delivery</StatusPill>}
-                {p.fragile && <StatusPill tone="returned">Fragile</StatusPill>}
+                {p.pod && <StatusPill tone="neutral">Pay on delivery</StatusPill>}
+                {p.fragile && <StatusPill tone="pending">Fragile</StatusPill>}
                 <span className="text-xs text-gray-400 font-mono ml-auto">{p.parcelId}</span>
             </div>
             <div className="divide-y divide-gray-100">
                 <Row icon={<UserIcon className="w-4 h-4" />} label="Recipient">
                     {p.receiverName || "N/A"}
                     {p.recieverPhoneNumber && (
-                        <a href={telHref(p.recieverPhoneNumber)} className="block text-[#ea690c] font-semibold mt-0.5">{p.recieverPhoneNumber}</a>
+                        <a href={telHref(p.recieverPhoneNumber)} className="block font-semibold underline decoration-gray-300 underline-offset-2 mt-0.5">{p.recieverPhoneNumber}</a>
                     )}
                 </Row>
                 <Row icon={<MapPinIcon className="w-4 h-4" />} label="Delivery address">
                     {p.receiverAddress || "No address given"}
                     {p.receiverAddress && (
-                        <a href={mapsHref(p.receiverAddress)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 font-semibold mt-0.5">
+                        <a href={mapsHref(p.receiverAddress)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gray-700 font-semibold underline decoration-gray-300 underline-offset-2 mt-0.5">
                             <Navigation className="w-3.5 h-3.5" /> Open in Maps
                         </a>
                     )}
@@ -182,7 +180,7 @@ export const ParcelDetails = ({ assignment }: { assignment: RiderAssignmentRespo
                 ))}
                 <div className="flex justify-between pt-2 mt-1 border-t border-gray-200">
                     <span className="font-semibold">Total to collect</span>
-                    <span className="font-bold text-[#ea690c]">{formatCurrency(parcelTotal(p))}</span>
+                    <span className="font-bold">{formatCurrency(parcelTotal(p))}</span>
                 </div>
             </div>
             <div className="grid grid-cols-2 gap-3 mt-4 text-xs text-gray-500">
