@@ -64,7 +64,10 @@ export const HOME_OFFICE = OFFICES[0];
 const officeRef = (o = HOME_OFFICE) => ({ id: o.id, name: o.name, code: o.code, address: o.address });
 
 export const locationsWithOffices = () =>
-    LOCATIONS.map((l) => ({ ...l, offices: OFFICES.filter((o) => o.location.id === l.id) }));
+    LOCATIONS.map((l) => ({
+        ...l,
+        offices: OFFICES.filter((o) => o.location.id === l.id).map(({ location: _location, ...o }) => o),
+    }));
 
 // ── Shelves ─────────────────────────────────────────────────────
 export const SHELVES = OFFICES.flatMap((o) =>
@@ -76,13 +79,14 @@ export const SHELVES = OFFICES.flatMap((o) =>
 );
 
 // ── Demo login accounts (any password works) ────────────────────
+// Roles use the backend's spelling (SUPERADMIN, CALLCENTER), as /api-user/login returns them.
 export const DEMO_ACCOUNTS: Record<string, { name: string; role: string; email: string }> = {
     "0200000001": { name: "Abena Owusu", role: "ADMIN", email: "admin@demo.parcelflow" },
     "0200000002": { name: "Kofi Mensah", role: "MANAGER", email: "manager@demo.parcelflow" },
     "0200000003": { name: "Akosua Boateng", role: "FRONTDESK", email: "frontdesk@demo.parcelflow" },
-    "0200000004": { name: "Esi Addo", role: "CALLER", email: "caller@demo.parcelflow" },
+    "0200000004": { name: "Esi Addo", role: "CALLCENTER", email: "caller@demo.parcelflow" },
     "0200000005": { name: "Kwame Asante", role: "RIDER", email: "rider@demo.parcelflow" },
-    "0200000006": { name: "Nana Osei", role: "SUPER_ADMIN", email: "super@demo.parcelflow" },
+    "0200000006": { name: "Nana Osei", role: "SUPERADMIN", email: "super@demo.parcelflow" },
 };
 
 // ── Riders ──────────────────────────────────────────────────────
@@ -95,7 +99,7 @@ export const RIDERS = [
 ].map((r, i) => ({
     ...r,
     email: `${r.name.split(" ")[0].toLowerCase()}@demo.parcelflow`,
-    office: officeRef(),
+    officeId: HOME_OFFICE.id,
     role: "RIDER" as const,
     status: "ACTIVE" as const,
     riderStatus: i === 3 ? "OFFLINE" : i === 1 ? "ON_TRIP" : "READY",
@@ -109,14 +113,17 @@ export const USERS = [
     ...RIDERS.slice(1).map((r) => ({ userId: r.userId, name: r.name, phoneNumber: r.phoneNumber, email: r.email, role: "RIDER" })),
     ...Array.from({ length: 8 }, (_, i) => ({
         userId: `user-x${i}`, name: person(), phoneNumber: phone(),
-        email: undefined as string | undefined, role: pick(["FRONTDESK", "MANAGER", "CALLER", "FRONTDESK"]),
+        email: undefined as string | undefined, role: pick(["FRONTDESK", "MANAGER", "CALLCENTER", "FRONTDESK"]),
     })),
 ].map((u, i) => {
     const o = i < 6 ? HOME_OFFICE : pick(OFFICES);
     return {
         ...u,
         status: i === 13 ? "SUSPENDED" : "ACTIVE",
-        office: { ...officeRef(o), phoneNumber: o.phoneNumber, location: o.location },
+        officeId: o.id,
+        officeIds: [o.id],
+        companyId: "company-demo",
+        availability: true,
         createdAt: now - int(20, 300) * DAY,
         updatedAt: now - int(0, 20) * DAY,
     };
@@ -143,7 +150,6 @@ const makeParcel = (i: number, stage: Stage, createdAt: number, office = HOME_OF
         senderPhoneNumber: phone(),
         receiverName: person(),
         recieverPhoneNumber: phone(),
-        receiverPhoneNumber: undefined,
         alternativePhoneNumber: rand() < 0.3 ? phone() : undefined,
         receiverAddress: homeDelivery ? `${int(1, 60)} ${pick(STREETS)}, ${pick(AREAS)}` : undefined,
         parcelDescription: pick(ITEMS),
@@ -155,14 +161,13 @@ const makeParcel = (i: number, stage: Stage, createdAt: number, office = HOME_OF
         pickUpCost: 0,
         deliveryCost,
         storageCost: rand() < 0.15 ? 5 : 0,
-        itemValue: pod ? pick([120, 250, 400, 680, 1200]) : undefined,
+        itemCost: pod ? pick([120, 250, 400, 680, 1200]) : undefined,
         shelfNumber: shelf.name,
         shelfName: shelf.name,
         shelfId: shelf.id,
-        officeId: officeRef(office),
-        officeName: office.name,
+        officeId: office.id,
+        companyId: "company-demo",
         pod,
-        POD: pod,
         fragile: rand() < 0.15,
         homeDelivery,
         typeofParcel: pick(["PARCEL", "PARCEL", "PARCEL", "ONLINE"]),
@@ -175,6 +180,7 @@ const makeParcel = (i: number, stage: Stage, createdAt: number, office = HOME_OF
         returned: stage === "returned",
         cancelled: false,
         returnCount: stage === "returned" ? 1 : 0,
+        parcelStatus: stage === "delivered" || stage === "picked" ? "DELIVERD" : stage === "returned" ? "FAILED" : "RECEIVED",
         registeredDate: createdAt,
         createdAt,
         updatedAt: createdAt + int(1, 30) * HOUR,
@@ -215,12 +221,13 @@ export interface MockAssignment {
     completedAt?: number;
     payed: boolean;
     paymentMethod?: string;
+    returnReason?: string;
     parcels: MockParcel[];
 }
 
 export const ASSIGNMENTS: MockAssignment[] = [];
 
-const homeParcels = PARCELS.filter((p) => p.officeId.id === HOME_OFFICE.id);
+const homeParcels = PARCELS.filter((p) => p.officeId === HOME_OFFICE.id);
 const assignedParcels = homeParcels.filter((p) => p.parcelAssigned);
 const deliveredHomeParcels = homeParcels.filter((p) => (p.delivered && !p.pickedUp) || p.returned);
 
@@ -267,31 +274,47 @@ deliveredHomeParcels.forEach((p, idx) => {
 export const parcelAmount = (p: MockParcel) =>
     (p.inboundCost || 0) + (p.pickUpCost || 0) + (p.deliveryCost || 0) + (p.storageCost || 0);
 
-export const serializeAssignment = (a: MockAssignment) => {
-    const rider = RIDERS.find((r) => r.userId === a.riderId)!;
-    const parcels = a.parcels.map((p) => ({
-        ...p,
-        receiverPhoneNumber: p.recieverPhoneNumber,
-        parcelAmount: parcelAmount(p),
-        officeId: p.officeId.id,
-    }));
-    return {
-        assignmentId: a.assignmentId,
-        riderName: rider.name,
-        riderInfo: { riderId: rider.userId, riderName: rider.name, riderPhoneNumber: rider.phoneNumber },
-        status: a.status,
-        assignedAt: a.assignedAt,
-        acceptedAt: a.acceptedAt,
-        completedAt: a.completedAt,
-        payed: a.payed,
-        payementMethod: a.paymentMethod,
-        paymentMethod: a.paymentMethod,
-        amount: a.parcels.reduce((s, p) => s + parcelAmount(p), 0),
-        officeId: HOME_OFFICE.id,
-        parcels,
-        parcel: parcels[0],
-    };
+// Field lists copied from the backend OpenAPI spec (/shortly/v3/api-docs).
+// Responses are trimmed to these so the mock can't hide a field the real API lacks.
+const PARCEL_FIELDS = ["parcelId", "barCode", "parcelDescription", "inboundCost", "deliveryCost", "storageCost", "hasCalled", "pickedUp", "driverId", "officeId", "companyId", "paymentMethod", "driverName", "driverPhoneNumber", "vehicleNumber", "senderName", "senderPhoneNumber", "receiverName", "receiverAddress", "recieverPhoneNumber", "alternativePhoneNumber", "shelfName", "inboudPayed", "shelfId", "homeDelivery", "returnCount", "riderId", "riderInfo", "typeofParcel", "from", "to", "fromOfficeId", "toOfficeId", "hasArrivedAtOffice", "parcelTransfer", "pickupAddress", "pickupContactName", "pickupContactPhoneNumber", "pickupInstructions", "deliveryAddress", "deliveryContactName", "deliveryContactPhoneNumber", "specialInstructions", "pickUpCost", "parcelStatus", "imageUrls", "vendorName", "vendorId", "vendorDeliveryFee", "numberOfItems", "itemQuantity", "parcelWeight", "createdAt", "updatedAt", "callerName", "callerPhoneNumber", "notes", "hasCallCenterSpokenToClient", "callOutCome", "callCenterRemark", "pod", "delivered", "parcelAssigned", "itemCost", "vendorPayed", "fragile", "itemOwnerPaid"];
+const PARCEL_INFO_FIELDS = ["parcelId", "receiverName", "receiverPhoneNumber", "alternativePhoneNumber", "receiverAddress", "senderName", "senderPhoneNumber", "parcelAmount", "parcelWeight", "payed", "returned", "delivered", "paymentMethod", "inboundCost", "deliveryCost", "imageUrls", "storageCost", "pickUpCost", "pickedUp", "homeDelivery", "vehicleNumber", "driverName", "driverPhoneNumber", "driverId", "officeId", "shelfName", "inboudPayed", "shelfId", "typeofParcel", "pickupAddress", "pickupContactName", "pickupContactPhoneNumber", "pickupInstructions", "deliveryAddress", "deliveryContactName", "deliveryContactPhoneNumber", "specialInstructions", "pod", "itemCost", "fragile"];
+export const USER_FIELDS = ["userId", "name", "officeId", "companyId", "phoneNumber", "email", "availability", "status", "officeIds", "role", "departmentRole", "createdAt", "updatedAt"];
+
+export const only = (obj: Record<string, any>, fields: string[]) =>
+    Object.fromEntries(fields.filter((f) => obj[f] !== undefined).map((f) => [f, obj[f]]));
+
+export const serializeParcel = (p: MockParcel) => only(p, PARCEL_FIELDS);
+
+const serializeParcelInfo = (p: MockParcel, a?: MockAssignment) =>
+    only({ ...p, receiverPhoneNumber: p.recieverPhoneNumber, parcelAmount: parcelAmount(p), payed: a?.payed, paymentMethod: a?.paymentMethod }, PARCEL_INFO_FIELDS);
+
+const riderInfo = (riderId: string) => {
+    const r = RIDERS.find((x) => x.userId === riderId)!;
+    return { riderId: r.userId, riderName: r.name, riderPhoneNumber: r.phoneNumber, stationName: HOME_OFFICE.name };
 };
+
+/** Shape of DeliveryAssignments in the spec. */
+export const serializeAssignment = (a: MockAssignment) => ({
+    assignmentId: a.assignmentId,
+    riderInfo: riderInfo(a.riderId),
+    parcels: a.parcels.map((p) => serializeParcelInfo(p, a)),
+    officeId: HOME_OFFICE.id,
+    companyId: "company-demo",
+    status: a.status,
+    assignedAt: a.assignedAt,
+    acceptedAt: a.acceptedAt,
+    completedAt: a.completedAt,
+    payementMethod: a.paymentMethod,
+    payed: a.payed,
+    amount: a.parcels.reduce((s, p) => s + parcelAmount(p), 0),
+    inboundCost: a.parcels.reduce((s, p) => s + (p.inboundCost || 0), 0),
+    deliveryCost: a.parcels.reduce((s, p) => s + (p.deliveryCost || 0), 0),
+    returnReason: a.returnReason,
+    amountPayed: a.payed ? a.parcels.reduce((s, p) => s + parcelAmount(p), 0) : undefined,
+    payedAt: a.payed ? a.completedAt : undefined,
+    createdAt: a.assignedAt,
+    updatedAt: a.completedAt ?? a.acceptedAt ?? a.assignedAt,
+});
 
 // ── Driver (inbound) assignments for the driver tracker ─────────
 export const DRIVER_ASSIGNMENTS = homeParcels
@@ -300,7 +323,9 @@ export const DRIVER_ASSIGNMENTS = homeParcels
         id: `drva-${i}`,
         driverName: p.driverName,
         driverPhoneNumber: p.driverPhoneNumber,
-        parcelInfo: { ...p, officeId: p.officeId.id },
+        officeId: HOME_OFFICE.id,
+        parcelId: p.parcelId,
+        parcelInfo: serializeParcelInfo(p),
         payed: false,
         amount: p.inboundCost,
         delivered: !!p.delivered,
@@ -314,8 +339,10 @@ const transfer = (i: number, from: (typeof OFFICES)[number], to: (typeof OFFICES
     fromOfficeId: from.id,
     toOfficeId: to.id,
     destinationOfficeId: to.id,
-    fromOfficeName: from.name,
-    toOfficeName: to.name,
+    from: { officeId: from.id, officeName: from.name },
+    to: { officeId: to.id, officeName: to.name },
+    typeofParcel: "TRANSFER",
+    hasArrivedAtOffice: false,
 });
 export const INCOMING_TRANSFERS = Array.from({ length: 5 }, (_, i) => transfer(i, OFFICES[1 + (i % 4)], HOME_OFFICE));
 export const OUTGOING_TRANSFERS = Array.from({ length: 4 }, (_, i) => transfer(10 + i, HOME_OFFICE, OFFICES[1 + (i % 4)]));
@@ -326,7 +353,7 @@ export const FUEL_REQUESTS = Array.from({ length: 7 }, (_, i) => {
     const createdAt = now - i * 1.3 * DAY - int(1, 5) * HOUR;
     return {
         id: `fuel-${i}`,
-        status: (["PENDING", "APPROVED", "COMPLETED", "COMPLETED", "REJECTED", "COMPLETED", "COMPLETED"] as const)[i],
+        status: (["PENDING", "APPROVED", "APPROVED", "APPROVED", "REJECTED", "APPROVED", "APPROVED"] as const)[i],
         riderInfo: { riderId: rider.userId, riderName: rider.name, riderPhoneNumber: rider.phoneNumber, stationName: HOME_OFFICE.name },
         officeId: HOME_OFFICE.id,
         station: pick(["Shell Ring Road", "GOIL Airport", "Total Osu", "Star Oil Madina"]),
@@ -341,7 +368,7 @@ export const FUEL_REQUESTS = Array.from({ length: 7 }, (_, i) => {
 });
 
 // ── Addresses (delivery zones & prices) ─────────────────────────
-export const ADDRESSES = AREAS.map((name, i) => ({ id: i + 1, name, cost: [20, 25, 30, 35, 40][i % 5] }));
+export const ADDRESSES = AREAS.map((name, i) => ({ id: `addr-${i + 1}`, name, officeId: HOME_OFFICE.id, cost: [20, 25, 30, 35, 40][i % 5] }));
 
 // ── Audit log ───────────────────────────────────────────────────
 export const USER_ACTIONS = Array.from({ length: 40 }, (_, i) => {
@@ -353,7 +380,7 @@ export const USER_ACTIONS = Array.from({ length: 40 }, (_, i) => {
         role: u.role,
         action: pick(["LOGIN", "CREATE_PARCEL", "UPDATE_PARCEL", "ASSIGN_PARCEL", "RECONCILE", "DELIVER_PARCEL"]),
         description: pick(["Registered parcel", "Updated shelf location", "Assigned 4 parcels to rider", "Reconciled rider payments", "Signed in"]),
-        officeName: u.office.name,
+        officeId: u.officeId,
         createdAt: now - i * 47 * 60 * 1000,
         timestamp: now - i * 47 * 60 * 1000,
     };

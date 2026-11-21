@@ -123,7 +123,8 @@ class RiderService {
      */
     async updateRiderStatus(status: RiderStatus): Promise<ApiResponse> {
         try {
-            const response = await this.apiClient.post<RiderStatusResponse>('/rider-status', {
+            // PUT per the backend spec (PUT /api-rider/rider-status)
+            const response = await this.apiClient.put<RiderStatusResponse>('/rider-status', {
                 riderStatus: status,
             });
             return {

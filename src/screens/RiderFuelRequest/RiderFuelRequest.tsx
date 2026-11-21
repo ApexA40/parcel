@@ -178,7 +178,7 @@ const RiderFuelRequest: React.FC = () => {
             {requests.map((r) => (
               <li key={r.id} className="flex items-center gap-3 px-4 py-3.5">
                 <span className="h-9 w-9 shrink-0 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center">
-                  {r.status === 'COMPLETED' ? <CheckCircle className="w-5 h-5" />
+                  {r.status === 'APPROVED' || r.status === 'COMPLETED' ? <CheckCircle className="w-5 h-5" />
                     : r.status === 'REJECTED' ? <XCircle className="w-5 h-5 text-red-600" />
                     : <Clock className="w-5 h-5" />}
                 </span>

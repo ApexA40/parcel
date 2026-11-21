@@ -6,7 +6,7 @@ import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from "ax
 import {
     ADDRESSES, ASSIGNMENTS, DEMO_ACCOUNTS, DRIVER_ASSIGNMENTS, FUEL_REQUESTS, HOME_OFFICE,
     INCOMING_TRANSFERS, OUTGOING_TRANSFERS, PARCELS, RIDERS, SHELVES, USERS, USER_ACTIONS,
-    locationsWithOffices, serializeAssignment, MockParcel,
+    locationsWithOffices, serializeAssignment, serializeParcel, only, USER_FIELDS, MockParcel,
 } from "./mockData";
 import API_BASE_URL from "../config/api";
 
@@ -31,7 +31,8 @@ const page = <T,>(items: T[], params: URLSearchParams) => {
 
 const bool = (v: string | null) => (v === null ? undefined : v === "true");
 const byNewest = (a: MockParcel, b: MockParcel) => (b.createdAt ?? 0) - (a.createdAt ?? 0);
-const officeIdOf = (p: MockParcel) => (typeof p.officeId === "string" ? p.officeId : p.officeId?.id);
+const officeIdOf = (p: MockParcel) => p.officeId as string;
+const parcelPage = (items: MockParcel[], params: URLSearchParams) => page(items.map(serializeParcel), params);
 
 const filterParcels = (params: URLSearchParams, scopeToHome: boolean) => {
     const office = params.get("officeId") || (scopeToHome ? HOME_OFFICE.id : null);
@@ -59,10 +60,15 @@ on("post", /^\/api-user\/login$/, ({ body }) => {
     const [phoneNumber, acct] = DEMO_ACCOUNTS[phone] ? [phone, DEMO_ACCOUNTS[phone]] : byEmail ?? ["0200000002", DEMO_ACCOUNTS["0200000002"]];
     const user = USERS.find((u) => u.phoneNumber === phoneNumber);
     const userId = acct.role === "RIDER" ? "rider-1" : user?.userId ?? "user-2";
+    // UserLoginResponse
     return {
-        name: acct.name, phoneNumber, role: acct.role, email: acct.email, userId,
-        token: `mock-token-${acct.role.toLowerCase()}`, stationId: HOME_OFFICE.id,
-        office: { id: HOME_OFFICE.id, name: HOME_OFFICE.name, code: HOME_OFFICE.code, address: HOME_OFFICE.address, phoneNumber: HOME_OFFICE.phoneNumber, location: HOME_OFFICE.location },
+        userId, token: `mock-token-${acct.role.toLowerCase()}`, phoneNumber, name: acct.name, role: acct.role,
+        companyId: "company-demo", companyName: "M&M Demo",
+        office: {
+            id: HOME_OFFICE.id, name: HOME_OFFICE.name, companyId: "company-demo", code: HOME_OFFICE.code,
+            address: HOME_OFFICE.address, phoneNumber: HOME_OFFICE.phoneNumber, location: HOME_OFFICE.location,
+            createdAt: HOME_OFFICE.createdAt, updatedAt: HOME_OFFICE.updatedAt,
+        },
     };
 });
 on("post", /\/auth\/refresh-token$/, () => ({ token: "mock-token-refreshed" }));
@@ -73,51 +79,63 @@ on("get", /^\/api\/offices\/locations?\/([^/]+)$/, ({ match }) => locationsWithO
 on("get", /^\/api-user\/shelf\/office\/([^/]+)$/, ({ match }) => SHELVES.filter((s) => s.office.id === match[1]));
 
 // ── Frontdesk parcels ───────────────────────────────────────────
-on("get", /^\/api-frontdesk\/parcels$/, ({ params }) => page(filterParcels(params, true), params));
-on("get", /^\/api-frontdesk\/parcels-uncalled$/, ({ params }) => page(homeParcels().filter((p) => !p.hasCalled).sort(byNewest), params));
-on("get", /^\/api-frontdesk\/parcels\/home-delivery$/, () => homeParcels().filter((p) => p.homeDelivery && !p.delivered && !p.parcelAssigned && !p.returned));
-on("get", /^\/api-frontdesk\/parcels\/delivered$/, ({ params }) => page(homeParcels().filter((p) => p.delivered).sort(byNewest), params));
-on("get", /^\/api-frontdesk\/parcels\/transfer\/in-transit$/, () => INCOMING_TRANSFERS);
-on("get", /^\/api-frontdesk\/parcels\/transfer\/outgoing$/, () => OUTGOING_TRANSFERS);
-on("get", /^\/api-frontdesk\/riders\/office$/, () => RIDERS);
+on("get", /^\/api-frontdesk\/parcels$/, ({ params }) => parcelPage(filterParcels(params, true), params));
+on("get", /^\/api-frontdesk\/parcels-uncalled$/, ({ params }) => parcelPage(homeParcels().filter((p) => !p.hasCalled).sort(byNewest), params));
+on("get", /^\/api-frontdesk\/parcels\/home-delivery$/, ({ params }) =>
+    parcelPage(homeParcels().filter((p) => p.homeDelivery && !p.delivered && !p.parcelAssigned && !p.returned), params));
+// Not in the backend spec; kept because frontdeskService.getDeliveredParcels still calls it.
+on("get", /^\/api-frontdesk\/parcels\/delivered$/, ({ params }) => parcelPage(homeParcels().filter((p) => p.delivered).sort(byNewest), params));
+on("get", /^\/api-frontdesk\/parcels\/transfer\/in-transit$/, ({ params }) => parcelPage(INCOMING_TRANSFERS, params));
+on("get", /^\/api-frontdesk\/parcels\/transfer\/outgoing$/, ({ params }) => parcelPage(OUTGOING_TRANSFERS, params));
+on("get", /^\/api-frontdesk\/riders\/office$/, () => RIDERS.map((r) => only(r, USER_FIELDS)));
 on("get", /^\/api-frontdesk\/addresses$/, ({ params }) => {
     const q = params.get("name")?.toLowerCase();
     return q ? ADDRESSES.filter((a) => a.name.toLowerCase().includes(q)) : ADDRESSES;
 });
 on("get", /^\/api-frontdesk\/parcel-assignment$/, ({ params }) => {
     const parcelId = params.get("parcelId");
-    const list = ASSIGNMENTS.filter((a) => !parcelId || a.parcels.some((p) => p.parcelId === parcelId));
+    const status = params.get("status");
+    const list = ASSIGNMENTS.filter((a) =>
+        (!parcelId || a.parcels.some((p) => p.parcelId === parcelId)) && (!status || a.status === status));
     return page(list.sort((a, b) => b.assignedAt - a.assignedAt).map(serializeAssignment), params);
 });
 on("get", /^\/api-frontdesk\/rider\/([^/]+)\/assignments$/, ({ match, params }) => {
     const payed = bool(params.get("payed"));
     return ASSIGNMENTS.filter((a) => a.riderId === match[1] && (payed === undefined || a.payed === payed)).map(serializeAssignment);
 });
-on("get", /^\/api-frontdesk\/driver\/([^/]+)\/parcels$/, ({ match }) => homeParcels().filter((p) => p.driverId === match[1]));
-on("get", /^\/api-frontdesk\/driver-assignments\/unpaid$/, ({ params }) => page(DRIVER_ASSIGNMENTS, params));
-on("get", /^\/api-frontdesk\/reconciliations\/by-date$/, () => []);
+on("get", /^\/api-frontdesk\/driver\/([^/]+)\/parcels$/, ({ match }) => homeParcels().filter((p) => p.driverId === match[1]).map(serializeParcel));
+on("get", /^\/api-frontdesk\/driver-assignments\/unpaid$/, ({ params }) => {
+    const phone = params.get("driverPhoneNumber");
+    return page(DRIVER_ASSIGNMENTS.filter((d) => !d.payed && (!phone || d.driverPhoneNumber === phone)), params);
+});
+const reconciledOn = (params: URLSearchParams) => {
+    const start = Number(params.get("date")) || new Date().setHours(0, 0, 0, 0);
+    const end = start + 24 * 60 * 60 * 1000;
+    return page(ASSIGNMENTS.filter((a) => a.payed && (a.completedAt ?? 0) >= start && (a.completedAt ?? 0) < end).map(serializeAssignment), params);
+};
+on("get", /^\/api-frontdesk\/reconciliations\/by-date$/, ({ params }) => reconciledOn(params));
 on("get", /^\/api-frontdesk\/fuel-requests$/, ({ params }) => page(FUEL_REQUESTS, params));
 on("get", /^\/api-tracking\/([^/]+)(\/track)?$/, ({ match }) => {
     const p = findParcel(match[1]);
     if (!p) return undefined;
-    return { ...p, status: p.delivered ? "DELIVERED" : p.parcelAssigned ? "OUT_FOR_DELIVERY" : "AT_STATION", officeName: HOME_OFFICE.name };
+    return { ...serializeParcel(p), status: p.delivered ? "DELIVERED" : p.parcelAssigned ? "OUT_FOR_DELIVERY" : "AT_STATION" };
 });
 
 on("post", /^\/api-frontdesk\/parcel$/, ({ body }) => {
     const parcel: MockParcel = {
         ...body,
         parcelId: `PF${Math.floor(300000 + Math.random() * 600000)}`,
-        officeId: { id: HOME_OFFICE.id, name: HOME_OFFICE.name, code: HOME_OFFICE.code },
+        officeId: HOME_OFFICE.id,
         createdAt: Date.now(), registeredDate: Date.now(), updatedAt: Date.now(),
         delivered: false, parcelAssigned: false, hasCalled: false,
     };
     PARCELS.unshift(parcel);
-    return parcel;
+    return serializeParcel(parcel);
 });
 on("put", /^\/api-frontdesk\/parcel\/([^/]+)$/, ({ match, body }) => {
     const p = findParcel(match[1]);
     if (p) Object.assign(p, body, { updatedAt: Date.now() });
-    return p ?? ok();
+    return p ? serializeParcel(p) : ok();
 });
 on("delete", /^\/api-frontdesk\/parcel\/([^/]+)$/, ({ match }) => {
     const i = PARCELS.findIndex((p) => p.parcelId === match[1]);
@@ -136,39 +154,47 @@ on("post", /^\/api-frontdesk\/assign-parcels$/, ({ body }) => {
     ASSIGNMENTS.unshift({ assignmentId: `asg-${Date.now()}`, riderId: body?.riderId ?? "rider-1", status: "ASSIGNED", assignedAt: Date.now(), payed: false, parcels });
     return ok(`${parcels.length} parcel(s) assigned`);
 });
-on("post", /^\/api-frontdesk\/(reconcilation-parcels|driver-assignments\/pay)$/, ({ body }) => {
+const markPaid: Handler = ({ body }) => {
     const ids: string[] = (Array.isArray(body) ? body : [body]).map((x: any) => (typeof x === "string" ? x : x?.assignmentId));
     ASSIGNMENTS.forEach((a) => ids.includes(a.assignmentId) && (a.payed = true));
     DRIVER_ASSIGNMENTS.forEach((d) => ids.includes(d.id) && (d.payed = true));
     return ok("Payments reconciled");
-});
+};
+on("post", /^\/api-frontdesk\/reconcilation-parcels$/, markPaid);
+on("put", /^\/api-frontdesk\/driver-assignments\/pay$/, markPaid); // PUT in the spec
 on("post", /^\/api-frontdesk\/addresses$/, ({ body }) => {
-    const a = { id: ADDRESSES.length + 1, name: body?.name, cost: Number(body?.cost) || 0 };
+    const a = { id: `addr-${ADDRESSES.length + 1}`, name: body?.name, officeId: HOME_OFFICE.id, cost: Number(body?.cost) || 0 };
     ADDRESSES.push(a);
     return a;
 });
 
 // ── Admin ───────────────────────────────────────────────────────
-on("get", /^\/api-admin\/parcels$/, ({ params }) => page(filterParcels(params, false), params));
-on("get", /^\/api-admin\/users$/, () => USERS);
+on("get", /^\/api-admin\/parcels$/, ({ params }) => parcelPage(filterParcels(params, false), params));
+on("get", /^\/api-admin\/users$/, ({ params }) => {
+    const office = params.get("officeId");
+    return page(USERS.filter((u) => !office || u.officeId === office).map((u) => only(u, USER_FIELDS)), params);
+});
 on("get", /^\/api-admin\/user-actions$/, ({ params }) => page(USER_ACTIONS, params));
-on("get", /^\/api-admin\/reconciliations\/by-date$/, () => []);
-on("get", /^\/api-admin\/fuel-requests$/, ({ params }) => page(FUEL_REQUESTS, params));
+on("get", /^\/api-admin\/reconciliations\/by-date$/, ({ params }) => reconciledOn(params));
 
 // ── Call center ─────────────────────────────────────────────────
 on("get", /^\/api-call-center\/stats$/, () => ({ totalDeliveredYesterday: 23, reached: 15, unreachable: 3, notCalled: 5 }));
-on("get", /^\/api-call-center\/parcels\/uncalled$/, ({ params }) => page(homeParcels().filter((p) => !p.hasCalled && !p.delivered).sort(byNewest), params));
-on("get", /^\/api-call-center\/parcels\/not-delivered-uncalled$/, ({ params }) => page(homeParcels().filter((p) => !p.delivered).sort(byNewest), params));
-on("get", /^\/api-call-center\/parcels\/delivered-uncalled$/, ({ params }) =>
-    page(homeParcels().filter((p) => p.delivered).map((p, i) => ({ ...p, followUpStatus: i % 3 === 0 ? "FOLLOWED_UP" : "PENDING" })), params));
+on("get", /^\/api-call-center\/parcels\/uncalled$/, ({ params }) => parcelPage(homeParcels().filter((p) => !p.hasCalled && !p.delivered).sort(byNewest), params));
+on("get", /^\/api-call-center\/parcels\/not-delivered-uncalled$/, ({ params }) => parcelPage(homeParcels().filter((p) => !p.delivered).sort(byNewest), params));
+on("get", /^\/api-call-center\/parcels\/delivered-uncalled$/, ({ params }) => parcelPage(homeParcels().filter((p) => p.delivered), params));
 
 // ── Rider ───────────────────────────────────────────────────────
 const riderAssignments = () => ASSIGNMENTS.filter((a) => a.riderId === "rider-1").sort((a, b) => b.assignedAt - a.assignedAt);
-on("get", /^\/api-rider\/assignments$/, ({ params }) => page(riderAssignments().map(serializeAssignment), params));
+// The spec returns a plain array here, not a page. onlyUndelivered=true drops finished ones.
+on("get", /^\/api-rider\/assignments$/, ({ params }) =>
+    riderAssignments()
+        .filter((a) => params.get("onlyUndelivered") !== "true" || !["DELIVERED", "RETURNED", "COMPLETED", "CANCELLED"].includes(a.status))
+        .map(serializeAssignment));
 on("put", /^\/api-rider\/(?:manager\/)?assignments\/([^/]+)\/status$/, ({ match, body }) => {
     const a = ASSIGNMENTS.find((x) => x.assignmentId === match[1]);
     if (!a) return ok();
     a.status = body?.status ?? a.status;
+    if (body?.returnReason) a.returnReason = body.returnReason;
     if (body?.status === "DELIVERED" || body?.status === "RETURNED") {
         a.completedAt = Date.now();
         a.paymentMethod = body?.payementMethod;
@@ -179,9 +205,9 @@ on("put", /^\/api-rider\/(?:manager\/)?assignments\/([^/]+)\/status$/, ({ match,
             p.deliveryDate = Date.now();
         });
     }
-    return ok("Assignment status updated");
+    return serializeAssignment(a);
 });
-on("post", /^\/api-rider\/rider-status$/, () => ok("Status updated"));
+on("put", /^\/api-rider\/rider-status$/, () => ok("Status updated"));
 on("get", /^\/api-rider\/fuel-requests$/, ({ params }) => page(FUEL_REQUESTS.filter((f) => f.riderInfo.riderId === "rider-1"), params));
 on("post", /^\/api-rider\/fuel-request$/, ({ body }) => {
     const r = RIDERS[0];
@@ -238,6 +264,15 @@ export const mockAdapter: AxiosAdapter = async (config) => {
             throw err;
         }
         return respond(200, JSON.parse(JSON.stringify(data)));
+    }
+
+    // Path exists but not for this method: answer like Spring would, so mismatches show up.
+    if (routes.some((r) => r.pattern.test(path))) {
+        console.warn(`[mock api] ${method.toUpperCase()} ${path} is not allowed; the API expects ${routes.filter((r) => r.pattern.test(path)).map((r) => r.method.toUpperCase()).join("/")}`);
+        const err: any = new Error(`Request failed with status code 405`);
+        err.response = respond(405, { message: "Method Not Allowed" });
+        err.config = config;
+        throw err;
     }
 
     // Unknown endpoint: answer with an empty list so screens render their empty state.
