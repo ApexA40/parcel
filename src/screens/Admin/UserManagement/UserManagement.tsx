@@ -12,6 +12,7 @@ import { useToast } from "../../../components/ui/toast";
 import userService, { AdminCreatableRole, DepartmentRole, fromBackendRole, roleRequiresOffice } from "../../../services/userService";
 
 const roleColors: Record<string, string> = {
+    SUPER_ADMIN: "bg-gray-900 text-white",
     ADMIN: "bg-red-100 text-red-800",
     MANAGER: "bg-blue-100 text-blue-800",
     FRONTDESK: "bg-green-100 text-green-800",
@@ -525,6 +526,7 @@ export const UserManagement = (): JSX.Element => {
                                         className="w-full px-3 py-2 border border-[#d1d1d1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ea690c]"
                                     >
                                         <option value="">All Roles</option>
+                                        <option value="SUPER_ADMIN">Super Admin</option>
                                         <option value="ADMIN">Admin</option>
                                         <option value="MANAGER">Manager</option>
                                         <option value="FRONTDESK">Front Desk</option>
@@ -680,7 +682,7 @@ export const UserManagement = (): JSX.Element => {
                                                                 </td>
                                                                 <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap">
                                                                     <Badge className={roleColors[fromBackendRole(user.role)] || roleColors[user.role] || "bg-gray-100 text-gray-800"}>
-                                                                        <span className="text-xs">{fromBackendRole(user.role).replace(/([A-Z])/g, ' $1').trim()}</span>
+                                                                        <span className="text-xs">{fromBackendRole(user.role).replace(/_/g, "").replace(/([A-Z])/g, ' $1').trim()}</span>
                                                                     </Badge>
                                                                 </td>
                                                                 <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap">

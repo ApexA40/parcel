@@ -27,8 +27,9 @@ export const toBackendRole = (role: string): BackendRole => {
 };
 
 /** Convert backend API role to internal app role (routes, sidebar, filters) */
-export const fromBackendRole = (role: string): AdminCreatableRole | "ADMIN" => {
+export const fromBackendRole = (role: string): AdminCreatableRole | "ADMIN" | "SUPER_ADMIN" => {
     const r = role?.toUpperCase()?.trim() || "";
+    if (["SUPERADMIN", "SUPER_ADMIN", "SUPER-ADMIN", "SUPER ADMIN"].includes(r)) return "SUPER_ADMIN";
     if (["CALLCENTER", "CALL_CENTER", "CALL-CENTER", "CALL CENTER", "CALLER"].includes(r)) {
         return "CALLER";
     }

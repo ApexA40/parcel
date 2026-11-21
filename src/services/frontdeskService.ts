@@ -926,12 +926,12 @@ class FrontdeskService {
 
     /**
      * Pay driver assignments (mark as paid)
-     * Endpoint: POST /driver-assignments/pay
+     * Endpoint: PUT /driver-assignments/pay (PUT per the backend spec)
      * Body: array of assignment IDs
      */
     async payDriverAssignments(assignmentIds: string[]): Promise<ApiResponse> {
         try {
-            const response = await this.apiClient.post<{ message: string }>('/driver-assignments/pay', assignmentIds);
+            const response = await this.apiClient.put<{ message: string }>('/driver-assignments/pay', assignmentIds);
             return {
                 success: true,
                 message: response.data.message || 'Driver assignments marked as paid successfully',
