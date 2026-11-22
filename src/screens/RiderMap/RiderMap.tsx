@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapPin, RefreshCw, Search, Navigation, AlertTriangle } from "lucide-react";
+import { MapPin, RefreshCw, Search, Navigation, AlertTriangle, History } from "lucide-react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { useStation } from "../../contexts/StationContext";
@@ -9,6 +9,8 @@ import frontdeskService from "../../services/frontdeskService";
 import userService, { fromBackendRole } from "../../services/userService";
 import { ACCRA_CENTER, loadGoogleMaps } from "../../utils/googleMaps";
 import { runPool } from "../../utils/asyncPool";
+import { parseGpsTime } from "./trackUtils";
+import { RouteHistoryPanel } from "./RouteHistoryPanel";
 
 const REFRESH_MS = 30_000;
 /** A fix newer than this counts as "live". */
@@ -29,15 +31,6 @@ type RiderState =
     | { kind: "not-found" }
     | { kind: "forbidden" }
     | { kind: "error"; message: string };
-
-/** The tracking API sends UTC "yyyy-MM-dd HH:mm:ss"; fall back to Date parsing for anything else. */
-const parseGpsTime = (t?: string): number | null => {
-    if (!t) return null;
-    const m = t.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
-    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
-    const ms = Date.parse(t);
-    return Number.isNaN(ms) ? null : ms;
-};
 
 const ago = (ms: number) => {
     const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
@@ -89,6 +82,8 @@ export const RiderMap = (): JSX.Element => {
     const [selected, setSelected] = useState<string | null>(null);
     const [mapError, setMapError] = useState<string | null>(null);
     const [mapReady, setMapReady] = useState(false);
+    /** Rider whose route history is open; live markers are hidden meanwhile. */
+    const [historyRider, setHistoryRider] = useState<RiderRow | null>(null);
 
     const mapEl = useRef<HTMLDivElement>(null);
     // Google Maps objects. The project's typings only cover the address picker, so these stay loosely typed.
@@ -228,7 +223,7 @@ export const RiderMap = (): JSX.Element => {
         const bounds = new g.maps.LatLngBounds();
         let count = 0;
 
-        visibleRiders.forEach((r) => {
+        (historyRider ? [] : visibleRiders).forEach((r) => {
             const st = states[r.userId];
             if (st?.kind !== "located") return;
             const pos = { lat: st.loc.lat!, lng: st.loc.lng! };
@@ -266,10 +261,10 @@ export const RiderMap = (): JSX.Element => {
             else map.fitBounds(bounds, 48);
             fittedRef.current = true;
         }
-    }, [states, visibleRiders, mapReady]);
+    }, [states, visibleRiders, mapReady, historyRider]);
 
     useEffect(() => {
-        if (!selected) return;
+        if (!selected || historyRider) return;
         const st = states[selected];
         if (st?.kind === "located" && mapReady && mapRef.current) {
             mapRef.current.panTo({ lat: st.loc.lat, lng: st.loc.lng });
@@ -277,7 +272,7 @@ export const RiderMap = (): JSX.Element => {
             const r = riders.find((x) => x.userId === selected);
             if (r) openInfo(r);
         }
-    }, [selected, states, riders, openInfo, mapReady]);
+    }, [selected, states, riders, openInfo, mapReady, historyRider]);
 
     // ── Summary ─────────────────────────────────────────────────
     const counts = useMemo(() => {
@@ -375,9 +370,17 @@ export const RiderMap = (): JSX.Element => {
                         </div>
                     </Card>
 
-                    {/* Rider list */}
+                    {/* Rider list, or the route history panel */}
                     <Card className="order-2 lg:order-1 border border-[#d1d1d1] bg-white">
                         <CardContent className="p-0">
+                            {historyRider ? (
+                                <RouteHistoryPanel
+                                    key={historyRider.userId}
+                                    rider={historyRider}
+                                    map={mapReady ? mapRef.current : null}
+                                    onClose={() => { setHistoryRider(null); fittedRef.current = false; }}
+                                />
+                            ) : (<>
                             <div className="p-3 border-b border-[#ececec] space-y-2">
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -411,10 +414,10 @@ export const RiderMap = (): JSX.Element => {
                                         const d = describe(st);
                                         const clickable = st.kind === "located";
                                         return (
-                                            <li key={r.userId}>
+                                            <li key={r.userId} className={`flex items-center ${selected === r.userId ? "bg-orange-50" : ""}`}>
                                                 <button
                                                     onClick={() => clickable && setSelected(r.userId)}
-                                                    className={`w-full flex items-center gap-3 px-4 py-3 text-left ${clickable ? "hover:bg-gray-50" : "cursor-default"} ${selected === r.userId ? "bg-orange-50" : ""}`}
+                                                    className={`min-w-0 flex-1 flex items-center gap-3 pl-4 pr-2 py-3 text-left ${clickable ? "hover:bg-gray-50" : "cursor-default"}`}
                                                 >
                                                     <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${TONE_DOT[d.tone]}`} />
                                                     <div className="min-w-0 flex-1">
@@ -427,11 +430,21 @@ export const RiderMap = (): JSX.Element => {
                                                     <span className={`text-xs font-medium text-right ${TONE_TEXT[d.tone]}`}>{d.label}</span>
                                                     {clickable && <Navigation className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
                                                 </button>
+                                                <button
+                                                    onClick={() => { infoRef.current?.close?.(); setSelected(null); setHistoryRider(r); }}
+                                                    disabled={st.kind === "no-device" || st.kind === "not-found"}
+                                                    className="mr-2 h-8 w-8 shrink-0 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-neutral-800 flex items-center justify-center disabled:opacity-30 disabled:hover:bg-transparent"
+                                                    title={st.kind === "no-device" ? "No GPS device, so no history" : `View ${r.name}'s route history`}
+                                                    aria-label={`View route history for ${r.name}`}
+                                                >
+                                                    <History className="w-4 h-4" />
+                                                </button>
                                             </li>
                                         );
                                     })}
                                 </ul>
                             )}
+                            </>)}
                         </CardContent>
                     </Card>
                 </div>

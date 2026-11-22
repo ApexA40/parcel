@@ -112,6 +112,23 @@ export interface RiderLocation {
   located?: boolean;
 }
 
+/** GET /api-admin/riders/track (RiderTrackResponse in the backend spec). */
+export interface RiderTrack {
+  riderId: string;
+  riderName: string;
+  deviceImei?: string;
+  trackPoints?: Array<{
+    lat: number;
+    lng: number;
+    speed?: number;
+    /** UTC "yyyy-MM-dd HH:mm:ss" */
+    gpsTime: string;
+    direction?: number;
+    altitude?: number;
+    posType?: number;
+  }>;
+}
+
 /** Optional filters shared by the admin dashboards. Dates are epoch milliseconds; the API defaults to the last 30 days. */
 export interface DashboardFilters {
   officeId?: string;
@@ -290,6 +307,25 @@ class AdminService {
         error.response?.status === 400 ? "User is not a rider" :
         "Failed to assign the GPS device.";
       return { success: false, message: typeof body === "string" && body ? body : body?.message || fallback };
+    }
+  }
+
+  /**
+   * GPS points for one rider between two times. Times are UTC "yyyy-MM-dd HH:mm:ss";
+   * the API allows at most 2 days per request, within the last 3 months.
+   */
+  async getRiderTrack(phoneNumber: string, beginTime: string, endTime: string): Promise<ApiResponse<RiderTrack> & { status?: number }> {
+    try {
+      const params = new URLSearchParams({ phoneNumber, beginTime, endTime });
+      const response = await this.apiClient.get<RiderTrack>(`/riders/track?${params.toString()}`);
+      return { success: true, status: response.status, data: response.data };
+    } catch (error: any) {
+      const body = error.response?.data;
+      return {
+        success: false,
+        status: error.response?.status,
+        message: (typeof body === "string" && body) || body?.message || "Failed to load the rider's route.",
+      };
     }
   }
 }

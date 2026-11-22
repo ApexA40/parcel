@@ -121,6 +121,63 @@ const RIDER_ROUTES: Record<string, { lat: number; lng: number; radius: number; m
 
 const utcStamp = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
 
+/**
+ * Sample GPS history for /api-admin/riders/track: a workday per rider per day, one point a
+ * minute from about 08:30, riding at 15-40 km/h between drop-offs around Accra and stopping
+ * 8-20 minutes at each. Deterministic per rider and day, so replays look the same.
+ */
+export const riderTrackPoints = (riderId: string, begin: number, end: number) => {
+    const route = RIDER_ROUTES[riderId];
+    if (!route || route.noFix) return [];
+    const DAY = 24 * 60 * 60_000;
+    const until = Math.min(end, Date.now() - (route.minutesBehind ?? 0) * 60_000);
+    const points: Array<{ lat: number; lng: number; speed: number; gpsTime: string; direction: number; altitude: number; posType: number }> = [];
+
+    for (let day = Math.floor(begin / DAY) * DAY; day <= until; day += DAY) {
+        let seed = (day / DAY) * 31 + riderId.length * 977 + riderId.charCodeAt(riderId.length - 1);
+        const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+        const station = { lat: 5.5560, lng: -0.2050 }; // Accra Central
+        const stopsToday = 6 + Math.floor(rnd() * 4);
+        let pos = { ...station };
+        let t = day + (8 * 60 + 30 + Math.floor(rnd() * 20)) * 60_000;
+        const legs = [...Array.from({ length: stopsToday }, () => ({
+            lat: route.lat + (rnd() - 0.5) * 0.06,
+            lng: route.lng + (rnd() - 0.5) * 0.06,
+        })), station];
+
+        legs.forEach((target, li) => {
+            const km = Math.hypot((target.lat - pos.lat) * 111, (target.lng - pos.lng) * 111);
+            const cruise = 18 + rnd() * 17;
+            const minutes = Math.max(2, Math.round((km / cruise) * 60 * 1.3)); // roads aren't straight
+            const heading = (Math.atan2(target.lng - pos.lng, target.lat - pos.lat) * 180) / Math.PI;
+            for (let m = 0; m < minutes; m++) {
+                const f = m / minutes;
+                const wobble = Math.sin(m * 1.7) * 0.0006;
+                points.push({
+                    lat: pos.lat + (target.lat - pos.lat) * f + wobble,
+                    lng: pos.lng + (target.lng - pos.lng) * f - wobble,
+                    speed: Math.round(cruise * (0.6 + 0.8 * Math.abs(Math.sin(m * 0.9)))),
+                    direction: Math.round((heading + 360) % 360),
+                    altitude: 40 + Math.round(rnd() * 30),
+                    gpsTime: utcStamp(t),
+                    posType: 1,
+                });
+                t += 60_000;
+            }
+            pos = { ...target };
+            const dwell = li === legs.length - 1 ? 1 : 8 + Math.floor(rnd() * 13);
+            for (let m = 0; m < dwell; m++) {
+                points.push({ lat: pos.lat, lng: pos.lng, speed: 0, direction: 0, altitude: 45, gpsTime: utcStamp(t), posType: 1 });
+                t += 60_000;
+            }
+        });
+    }
+    return points.filter((p) => {
+        const ms = Date.parse(p.gpsTime.replace(" ", "T") + "Z");
+        return ms >= begin && ms <= until;
+    });
+};
+
 export const riderLocationNow = (riderId: string) => {
     const r = RIDERS.find((x) => x.userId === riderId);
     if (!r) return { status: 404 as const };

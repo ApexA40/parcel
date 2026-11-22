@@ -6,7 +6,7 @@ import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from "ax
 import {
     ADDRESSES, ASSIGNMENTS, DEMO_ACCOUNTS, DRIVER_ASSIGNMENTS, FUEL_REQUESTS, HOME_OFFICE,
     INCOMING_TRANSFERS, OUTGOING_TRANSFERS, PARCELS, RIDERS, SHELVES, USERS, USER_ACTIONS,
-    locationsWithOffices, serializeAssignment, serializeParcel, only, USER_FIELDS, riderLocationNow, MockParcel,
+    locationsWithOffices, serializeAssignment, serializeParcel, only, USER_FIELDS, riderLocationNow, riderTrackPoints, MockParcel,
 } from "./mockData";
 import API_BASE_URL from "../config/api";
 
@@ -234,6 +234,23 @@ on("get", /^\/api-admin\/riders\/location$/, ({ params }) => {
     const res = riderLocationNow(rider?.userId ?? "");
     if (res.status === 200) return res.body;
     throw { status: res.status, message: res.status === 422 ? "Rider has no GPS device assigned" : "Rider not found" };
+});
+
+// Rider GPS history. Enforces the documented limits: UTC "yyyy-MM-dd HH:mm:ss", max 2 days, last 3 months.
+on("get", /^\/api-admin\/riders\/track$/, ({ params }) => {
+    const parse = (v: string | null) => {
+        const m = v?.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+        return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : NaN;
+    };
+    const begin = parse(params.get("beginTime"));
+    const end = parse(params.get("endTime"));
+    if (!Number.isFinite(begin) || !Number.isFinite(end)) throw { status: 400, message: "Times must be in UTC format: yyyy-MM-dd HH:mm:ss" };
+    if (end - begin > 2 * 24 * 60 * 60_000) throw { status: 400, message: "Max range is 2 days" };
+    if (begin < Date.now() - 90 * 24 * 60 * 60_000) throw { status: 400, message: "History is only kept for 3 months" };
+    const rider = RIDERS.find((r) => r.phoneNumber === params.get("phoneNumber"));
+    if (!rider) throw { status: 404, message: "Rider not found" };
+    if (!rider.deviceImei) throw { status: 422, message: "Rider has no GPS device assigned" };
+    return { riderId: rider.userId, riderName: rider.name, deviceImei: rider.deviceImei, trackPoints: riderTrackPoints(rider.userId, begin, end) };
 });
 
 // Assign a GPS tracker. Like the real API, answers are plain strings.
