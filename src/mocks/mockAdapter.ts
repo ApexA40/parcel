@@ -223,13 +223,42 @@ on("get", /^\/api-admin\/revenue-dashboard$/, ({ params }) => {
     const outstanding = done.filter((a) => !a.payed).reduce((s, a) => s + a.parcels.reduce((t, p) => t + amountOf(p), 0), 0);
     const driverPayments = parcels.filter((p) => p.inboudPayed).reduce((s, p) => s + (p.inboundCost || 0), 0);
     const pod = parcels.filter((p) => p.pod).reduce((s, p) => s + amountOf(p), 0);
+    const round = (n: number) => Math.round(n * 100) / 100;
+    const total = (a: (typeof ASSIGNMENTS)[number]) => a.parcels.reduce((t, p) => t + amountOf(p), 0);
+    const ymd = (t: number) => new Date(t).toISOString().slice(0, 10);
+    const days: string[] = [];
+    for (let t = start; t <= end; t += DAY_MS) days.push(ymd(t));
+    const paid = done.filter((a) => a.payed);
+    const methodOf = (a: (typeof ASSIGNMENTS)[number]) => (a.paymentMethod === "momo" ? "MOMO" : a.paymentMethod === "cash" ? "CASH" : "OTHER");
+    const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     return {
-        totalRevenue, collected, outstanding, driverPayments,
+        totalRevenue: round(totalRevenue), collected: round(collected), outstanding: round(outstanding), driverPayments: round(driverPayments),
         collectionRate: totalRevenue ? Math.round((collected / totalRevenue) * 1000) / 10 : 0,
         avgPerParcel: parcels.length ? Math.round((totalRevenue / parcels.length) * 100) / 100 : 0,
-        revenueVsCollectedTrend: [], revenueByStation: [], paymentMethodTrend: [],
-        revenueByType: { pod, nonPod: totalRevenue - pod },
-        paymentMethods: [], revenueByDayOfWeek: [],
+        revenueVsCollectedTrend: days.map((d) => ({
+            date: d,
+            revenue: round(parcels.filter((p) => ymd(p.createdAt) === d).reduce((s, p) => s + amountOf(p), 0)),
+            collected: round(paid.filter((a) => ymd(a.completedAt ?? 0) === d).reduce((s, a) => s + total(a), 0)),
+            outstanding: round(done.filter((a) => !a.payed && ymd(a.completedAt ?? 0) === d).reduce((s, a) => s + total(a), 0)),
+        })),
+        revenueByStation: OFFICES.filter((o) => inScope(o.id)).map((o) => {
+            const mine = parcels.filter((p) => officeIdOf(p) === o.id);
+            const rev = mine.reduce((s, p) => s + amountOf(p), 0);
+            const col = o.id === HOME_OFFICE.id ? collected : mine.filter((p) => p.delivered).reduce((s, p) => s + amountOf(p), 0);
+            const out = o.id === HOME_OFFICE.id ? outstanding : 0;
+            return { officeId: o.id, stationName: o.name, parcels: mine.length, revenue: round(rev), collected: round(col), outstanding: round(out), collectionRate: rev ? Math.round((col / rev) * 1000) / 10 : 0 };
+        }).sort((a, b) => b.revenue - a.revenue),
+        paymentMethodTrend: days.map((d) => {
+            const today = paid.filter((a) => ymd(a.completedAt ?? 0) === d);
+            const by = (m: string) => round(today.filter((a) => methodOf(a) === m).reduce((s, a) => s + total(a), 0));
+            return { date: d, cash: by("CASH"), momo: by("MOMO"), other: by("OTHER") };
+        }),
+        revenueByType: { pod: round(pod), nonPod: round(totalRevenue - pod) },
+        paymentMethods: ["CASH", "MOMO"].map((m) => {
+            const list = paid.filter((a) => methodOf(a) === m);
+            return { method: m, amount: round(list.reduce((s, a) => s + total(a), 0)), count: list.length };
+        }),
+        revenueByDayOfWeek: weekday.map((day, i) => ({ day, revenue: round(parcels.filter((p) => new Date(p.createdAt).getDay() === i).reduce((s, p) => s + amountOf(p), 0)) })),
     };
 });
 
