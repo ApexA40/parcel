@@ -10,6 +10,11 @@ Items are grouped by priority:
 - **Part D** is recommended: server-side delivery checks for reports and audits.
 - **Part E** covers off-task detection (detours and stops away from the day's deliveries). It needs station coordinates and extends Part D.
 - **Part F** covers route plans: the best stop order worked out when parcels are assigned, saved with the assignment and given to the rider.
+- **Part G** lists every screen that still runs on placeholder or browser-only data, and what each needs from the backend.
+- **Part H** is the plan for fuel management (requests, dispensing, receipts, consumption, limits).
+- **Part I** is the plan for motorbike fleet maintenance (bikes, service schedules, repairs, defects, documents).
+- **Part J** covers the per-station pickup charge (frontend done; needs the fields and one endpoint).
+- **Part K** covers reconciliation with actual amounts and variance reasons (frontend done; needs storage).
 
 To see the exact request and response shapes the frontend expects, run the frontend with `npm run dev:mock`. That mode answers every call from sample data in `src/mocks/`, using only the fields listed here. The field whitelists are in `src/mocks/mockData.ts` (`PARCEL_FIELDS`, `PARCEL_INFO_FIELDS`, `USER_FIELDS`).
 
@@ -448,6 +453,378 @@ The first test stops winding roads being flagged. The second stops a skipped pla
 
 ---
 
+## Part G: Screens still on placeholder or browser-only data
+
+The audit covers every screen and the data behind it. "Placeholder" means the numbers are hard-coded or come from the old `src/data/mockData.ts` sample file, so they're **not real**. Items marked *frontend* need no backend work; they're listed so you know they're on our side.
+
+### G1. Admin and finance pages showing sample numbers
+
+| Screen (route) | Today | Needs |
+|---|---|---|
+| **Admin Dashboard** (`/admin/dashboard`, `AdminStatistics.tsx`) | Hard-coded `STATIC_DATA` (2,847 parcels, GHS 45,680…). | Nothing new: `GET /api-admin/dashboard` already exists. *Frontend* integration is pending on our side. |
+| **Financial Reports** (`/admin/financial-reports`) | `calculateFinancialSummary` from sample data. | `GET /api-admin/financial-report?officeId=&from=&to=&groupBy=day\|week\|month` → revenue, collected, outstanding, driver payments, pickup charges, net, per period and per station. CSV/PDF export can stay client-side. |
+| **Delivery Income** (`/admin/delivery-income`) | Sample data. | Mostly covered by `revenue-dashboard` and `rider-performance-dashboard`. Add rider commission paid vs owed per period (see G4). |
+| **Delivery Accountability** (`/admin/accountability`) | Sample data. | `GET /api-admin/accountability?officeId=&from=&to=` → per station: parcels handed from Parcel Hub to Delivery Hub, delivered, returned, cash expected vs remitted, outstanding, ageing of unremitted cash. |
+| **Driver Payments Overview** (not routed) | Sample data. | Not linked from any menu. *Frontend:* remove, or route it and use `GET /api-frontdesk/driver-assignments/unpaid`. |
+| **Billing** (`/admin/billing`) | Hard-coded plans and invoices; buttons only show messages. | Subscription APIs: `GET /api-company/subscription`, `PUT /api-company/subscription` (plan, billing cycle), `GET /api-company/invoices`, `GET /api-company/invoices/{id}/pdf`, `PUT /api-company/billing-details`, plus payment-method update through Paystack (the frontend already has a Paystack key). |
+| **Tenant Management** (`/admin/tenants`, super admin) | `MOCK_TENANTS`. | `GET /api-superadmin/tenants` (name, plan, branches, users, status, created), `PUT /api-superadmin/tenants/{id}/status` (activate, suspend), `GET /api-superadmin/tenants/{id}`. |
+| **Cross-Tenant Analytics** (`/admin/analytics`, super admin) | Hard-coded tenant list and charts. | `GET /api-superadmin/analytics?from=&to=` → per tenant: parcels, revenue, active riders, delivery success rate, growth. |
+
+### G2. Settings saved only in the browser
+
+These look like they save, but they write to `localStorage`, so other staff, other devices, and even the same person after clearing the browser don't see the changes.
+
+| Screen | Today | Needs |
+|---|---|---|
+| **Tenant Settings** (`/admin/settings`) | Company name, logo, favicon and colours saved in the browser (`BrandingContext`). | `GET/PUT /api-company/branding` {companyName, logoUrl, faviconUrl, primaryColor, secondaryColor}, plus image upload `POST /api-company/branding/logo` (multipart) returning a URL. Load on login so every user sees the branding. |
+| **Branch Settings** (`/parcel/settings`), Visual Identity, Branch Info and Printing tabs | Branch name, logo, address, phone, email, hours, tagline and label footer saved in the browser. (The Charges tab is real; see Part J.) | `GET/PUT /api-frontdesk/office/settings` for the manager's office, with the same fields plus logo upload. The printed parcel labels use these, so they must be shared across the station. |
+| **Preferences** (`/parcel/preferences`, `/delivery/preferences`) | Email and SMS notification checkboxes; nothing is saved. | `GET/PUT /api-user/preferences` {emailNotifications, smsNotifications, pushNotifications, language}. |
+| **Partner Portal → Settings** | Notification and preference toggles saved in the browser. | `GET/PUT /api-vendor/settings`. |
+
+### G3. Notifications (not implemented at all)
+
+- **Today:** the **bell icon** in the staff header always shows **9**, and clicking it does nothing. The **gear icon** next to it does nothing either. `websocketService.ts` exists but is never used, and has a "TODO: Replace with your actual WebSocket URL".
+- **Proposed:**
+  - **Model:** `Notification` {id, userId, officeId, type, title, body, link, createdAt, readAt}.
+  - **Endpoints:**
+    - `GET /api-user/notifications?unreadOnly=&page=&size=`
+    - `GET /api-user/notifications/unread-count`
+    - `PUT /api-user/notifications/{id}/read`
+    - `PUT /api-user/notifications/read-all`
+  - **Real time:** a WebSocket (STOMP over SockJS suits Spring) or Server-Sent Events channel per user, pushing new notifications and live updates (rider locations, assignment status), so screens don't need to poll.
+  - **Events worth notifying:**
+    - a parcel transfer arriving at a station;
+    - a rider marking a delivery failed or returned;
+    - a fuel request awaiting approval (Part H);
+    - a reconciliation with a variance (Part K);
+    - a bike service due or overdue, or a defect reported (Part I);
+    - a delivery marked done far from its drop-off, or a long detour (Parts D and E);
+    - documents expiring (Part I).
+  - **Settings:** users choose channels per type in Preferences (G2).
+- **Frontend after this:** a dropdown under the bell with the unread list and "mark all read", plus a real Settings menu.
+
+### G4. Values hard-coded in the frontend
+
+| What | Where | Needs |
+|---|---|---|
+| Rider earns **60%** of each delivery fee | `RiderEarnings.tsx` (`RIDER_SHARE = 0.6`) | A company or station setting `riderCommissionRate`, and ideally `GET /api-rider/earnings?from=&to=` computing earnings server-side (with bonuses and deductions, e.g. shortfalls from Part K). |
+| Update pop-up content | `src/config/updateNotification.ts` | Fine as is. Optionally `GET /api-user/announcements` to publish announcements without a release. |
+| Average speed and road factor for route estimates | `routePlan.ts` (22 km/h, ×1.3) | Fine as is. Optionally a company setting. |
+
+### G5. Actions that don't reach the backend
+
+| Action | Where | Needs |
+|---|---|---|
+| **Delete station** | Station Management | `DELETE /api-admin/office/{id}`. Reject with 409 if the station has parcels, users or open assignments; consider "deactivate" instead. |
+| **Delete location** | Station Management | `DELETE /api-admin/location/{id}` (see Part C). |
+| **Edit station code / manager name** | Station Management | `OfficeUpdateRequest` has no `code`. Add it, or make `code` read-only on screen (*frontend*). The manager is set by `managerId`. |
+| Pickup request, call-centre follow-up, delivered-parcels list | various | See Part C. |
+
+### G6. Legacy screens (frontend clean-up, no backend)
+
+`/parcel-costs-pod`, `/parcel-review`, `/parcel-sms-success` and `/reconciliation-confirmation` belong to an older intake and reconciliation flow, and keep their data in page state only. *Frontend:* remove them, unless they're still reachable from somewhere we've missed. The "SMS sent" page claims an SMS was sent, but no SMS call exists in the frontend. If recipients should get an SMS at intake, the backend should send it when `POST /api-frontdesk/parcel` succeeds, and return whether it was sent.
+
+---
+
+## Part H: Fuel management (plan)
+
+### What exists today
+
+- **Riders** create a fuel request: station, station phone, attendant phone, tank (full, half, or litres), notes. `POST /api-rider/fuel-request`, and they see their list via `GET /api-rider/fuel-requests`.
+- **Managers and admins** see requests (`GET /api-frontdesk/fuel-requests`), change status, and enter an amount (`PUT /api-frontdesk/fuel-request/{id}`). Counts come from `GET /api-frontdesk/fuel-request/stats`.
+- **Gap:** the frontend uses a `COMPLETED` status ("fuel given, amount paid"), but the API enum only has `PENDING | APPROVED | REJECTED`.
+- **Not recorded:** which bike was fuelled, litres, price per litre, odometer, a receipt, or who paid the station. So there's no way to tell whether fuel use is reasonable.
+
+### H1. Goals
+
+1. **Control:** limits per bike and per period, and a clear approve → dispense → confirm flow.
+2. **Proof:** an attendant confirmation code or receipt photo for every fill.
+3. **Consumption:** km per litre per bike, using the GPS distance we already have (`/riders/track`), so leaks, theft or a bike needing service show up.
+4. **Cost:** fuel spend per rider, bike, station and month, feeding Financial Reports.
+
+### H2. Data
+
+**FuelRequest** (extend the existing one):
+
+| Field | Type | Notes |
+|---|---|---|
+| `status` | enum | `PENDING → APPROVED → DISPENSED → CONFIRMED`, or `REJECTED` / `CANCELLED`. Replaces the frontend's ad-hoc `COMPLETED` (map it to `CONFIRMED`). |
+| `vehicleId` | string | The bike (Part I). Defaults to the rider's assigned bike. |
+| `requestedTank` | enum + number | `FULL_TANK`, `HALF_TANK`, or `LITRES` with `requestedLitres`. |
+| `approvedAmount` | number | GHC ceiling set by the approver. |
+| `approvedBy`, `approvedAt` | | |
+| `dispensedLitres`, `pricePerLitre`, `dispensedAmount` | number | Entered by the rider or attendant when dispensed. |
+| `odometerKm` | number | Odometer reading at the fill (photo optional). |
+| `receiptUrl` | string | Photo of the receipt, via upload. |
+| `confirmationCode` | string | 6-digit code SMS'd to the attendant's phone on approval. The rider enters it once fuelled, proving the station dispensed. |
+| `paymentMethod` | enum | `STATION_ACCOUNT`, `MOMO`, `CASH_ADVANCE`. |
+| `paidAt`, `paidBy` | | When the company settled with the fuel station. |
+| `gpsKmSinceLastFill` | number | Computed from the tracker between this fill and the previous one. |
+| `kmPerLitre` | number | `gpsKmSinceLastFill / previous fill litres`. |
+| `flags` | string[] | e.g. `OVER_LIMIT`, `LOW_EFFICIENCY`, `ODOMETER_MISMATCH`, `TOO_SOON`. |
+
+**FuelPolicy** (per company, overridable per station or bike):
+
+- `maxLitresPerFill`, `maxAmountPerWeek`, `minHoursBetweenFills`;
+- `expectedKmPerLitre` (per bike model);
+- `lowEfficiencyThresholdPct` (e.g. flag if 25% below expected);
+- `approvalRequiredAbove` (GHC; below this, auto-approve).
+
+**FuelStation** (optional directory): name, phone, location, contract or account number, `pricePerLitre` history.
+
+### H3. Endpoints
+
+| Method and path | Who | Purpose |
+|---|---|---|
+| `POST /api-rider/fuel-request` | Rider | As today, plus `vehicleId` (optional; defaults to their bike). The server applies the policy: auto-approve or `PENDING`, and adds flags. |
+| `GET /api-rider/fuel-requests` | Rider | As today, with the new fields. |
+| `PUT /api-rider/fuel-request/{id}/dispensed` | Rider | `{dispensedLitres, pricePerLitre, odometerKm, confirmationCode, receipt (multipart)}` → `DISPENSED`, or `CONFIRMED` if the code matches. |
+| `PUT /api-frontdesk/fuel-request/{id}/approve` | Manager | `{approvedAmount}` → `APPROVED`; SMS the confirmation code to the attendant. |
+| `PUT /api-frontdesk/fuel-request/{id}/reject` | Manager | `{reason}`. |
+| `PUT /api-frontdesk/fuel-request/{id}/confirm` | Manager | Confirm a `DISPENSED` request without a code (manual check), with a note. |
+| `PUT /api-frontdesk/fuel-request/{id}/paid` | Manager or finance | `{paymentMethod, paidAt}`. |
+| `GET /api-frontdesk/fuel-requests?status=&riderId=&vehicleId=&from=&to=&flag=` | Manager | Filtered list. |
+| `GET /api-frontdesk/fuel/summary?from=&to=&groupBy=rider\|vehicle\|day` | Manager or admin | Litres, spend, km, km per litre, flags count. |
+| `GET/PUT /api-admin/fuel-policy` | Admin | The policy above. |
+
+Keep `PUT /api-frontdesk/fuel-request/{id}` (generic update) working during the switch, mapping `COMPLETED` → `CONFIRMED`.
+
+### H4. Rules
+
+- **Too soon:** a new request within `minHoursBetweenFills` of the last confirmed fill is flagged `TOO_SOON` and needs manual approval.
+- **Limits:** requests over the per-fill litres or the weekly amount are flagged `OVER_LIMIT` and need manual approval.
+- **Efficiency:** on `CONFIRMED`, compute `gpsKmSinceLastFill` from the bike's tracker between the two fills, then `kmPerLitre`. If it's below the expected value by more than the threshold, flag `LOW_EFFICIENCY` and notify the manager (G3).
+- **Odometer:** if the odometer distance since the last fill differs from the GPS distance by more than 20%, flag `ODOMETER_MISMATCH`.
+- **Maintenance link:** feed `odometerKm` into maintenance (Part I) as the bike's latest odometer.
+
+### H5. What the frontend will build once this exists
+
+- **Rider app:** request fuel, see the approval and code status, and a "Fuel dispensed" step with litres, price, odometer, code and a receipt photo.
+- **Manager:** an approvals queue with flags, a confirm or pay step, and per-bike consumption charts.
+- **Admin:** fuel policy settings, and fuel spend in Financial Reports.
+
+---
+
+## Part I: Motorbike fleet maintenance (plan)
+
+### I1. Goals
+
+1. **Know the fleet:** every bike, who rides it, its condition and documents.
+2. **Prevent breakdowns:** service schedules by distance and by time, using GPS distance so nobody has to log odometers by hand.
+3. **Fix fast:** riders report problems from the app; managers track repairs and downtime.
+4. **Know the cost:** spend per bike on maintenance and fuel, and when a bike is costing more than it's worth.
+
+### I2. Data
+
+**Vehicle:**
+
+| Field | Notes |
+|---|---|
+| `id`, `companyId`, `officeId` | The bike's home station. |
+| `plateNumber` | Unique per company. |
+| `make`, `model`, `year`, `engineCc`, `color` | |
+| `vin` / `chassisNumber`, `engineNumber` | |
+| `deviceImei` | GPS tracker. Today the IMEI sits on the rider (`User.deviceImei`); move it to the bike, since the tracker is fitted to the bike. Keep the rider field as "current tracker" for compatibility. |
+| `assignedRiderId`, `assignedAt` | One rider per bike at a time; keep the history in `VehicleAssignment`. |
+| `status` | `ACTIVE`, `IN_SERVICE` (in the workshop), `OUT_OF_SERVICE` (unsafe), `RETIRED`. |
+| `odometerKm`, `odometerUpdatedAt`, `odometerSource` | `GPS`, `MANUAL` or `FUEL_LOG`. |
+| `purchaseDate`, `purchasePrice` | |
+| `expectedKmPerLitre` | For fuel checks (Part H). |
+
+**VehicleAssignment:** `vehicleId`, `riderId`, `from`, `to`, `handoverOdometerKm`, `handoverPhotos[]`, `handoverNotes`, and `conditionChecklist` (tyres, brakes, lights, horn, mirrors, chain) at hand-over and return.
+
+**ServicePlan** (per model, overridable per bike). Each item is a task with an interval by distance and/or time, whichever comes first. Defaults to start from (adjust to your bikes):
+
+| Task | Every |
+|---|---|
+| Engine oil change | 1,000–1,500 km or 1 month |
+| Oil filter | 3,000 km |
+| Chain clean, lube and adjust | 500 km or 2 weeks |
+| Brake pads check | 2,000 km |
+| Tyres check (pressure, tread) | weekly |
+| Air filter clean or replace | 3,000 km |
+| Spark plug | 6,000 km |
+| Full service | 5,000 km or 3 months |
+
+**ServiceSchedule** (per bike, per task, computed): `lastDoneAt`, `lastDoneKm`, `nextDueAt`, `nextDueKm`, `status` (`OK`, `DUE_SOON` at 85% of the interval, `DUE`, `OVERDUE`).
+
+**MaintenanceRecord** (each service or repair):
+
+| Field | Notes |
+|---|---|
+| `vehicleId`, `type` | `SCHEDULED_SERVICE`, `REPAIR`, `ACCIDENT`, `INSPECTION`. |
+| `tasks[]` | Which plan items were done; resets their schedule. |
+| `odometerKm`, `startedAt`, `completedAt` | Downtime = completed − started. |
+| `workshop` | Name and phone, or "in-house". |
+| `parts[]` | {name, quantity, unitCost}. |
+| `labourCost`, `totalCost`, `invoiceUrl` | |
+| `defectIds[]` | Defects this fixed. |
+| `notes`, `createdBy` | |
+
+**Defect** (reported problem): `vehicleId`, `reportedBy` (rider or staff), `category` (BRAKES, TYRES, ENGINE, LIGHTS, ELECTRICAL, BODY, CHAIN, OTHER), `severity` (`LOW`, `MEDIUM`, `UNSAFE`), `description`, `photos[]`, `odometerKm`, `status` (`OPEN`, `SCHEDULED`, `FIXED`, `DISMISSED`), `fixedByRecordId`. An `UNSAFE` defect sets the bike `OUT_OF_SERVICE` until fixed.
+
+**VehicleDocument:** `type` (`INSURANCE`, `ROADWORTHY`, `REGISTRATION`, `RIDER_LICENCE`, `OTHER`), `number`, `issuedAt`, `expiresAt`, `fileUrl`. Riders' licences can sit on the user with the same shape.
+
+### I3. Endpoints
+
+| Method and path | Who | Purpose |
+|---|---|---|
+| `GET /api-admin/vehicles?officeId=&status=` | Admin, manager | Fleet list with service status, open defects and document expiry. |
+| `POST /api-admin/vehicles`, `PUT /api-admin/vehicles/{id}` | Admin | Create and edit a bike. |
+| `PUT /api-admin/vehicles/{id}/assign` | Manager | `{riderId, handoverOdometerKm, checklist, photos}` → hand-over. |
+| `PUT /api-admin/vehicles/{id}/status` | Manager | `{status, reason}`. |
+| `GET /api-admin/vehicles/{id}` | Admin, manager | Details: assignments, schedule, records, defects, documents, fuel. |
+| `GET /api-admin/vehicles/{id}/schedule` | Manager | Per-task due status. |
+| `POST /api-admin/vehicles/{id}/maintenance` | Manager | Log a service or repair (multipart for the invoice). |
+| `GET /api-admin/maintenance?officeId=&from=&to=&type=` | Manager, admin | Records list. |
+| `GET /api-admin/maintenance/due?officeId=&within=7d` | Manager | What's due or overdue, for the dashboard and notifications. |
+| `POST /api-rider/defects` | Rider | Report a problem with photos (multipart); uses their current bike. |
+| `GET /api-rider/vehicle` | Rider | My bike, its status, next service and open defects. |
+| `POST /api-rider/vehicle/checklist` | Rider | Daily pre-ride check (optional; see I4). |
+| `GET /api-admin/defects?status=&officeId=`, `PUT /api-admin/defects/{id}` | Manager | Defect queue: schedule, fix, dismiss. |
+| `POST /api-admin/vehicles/{id}/documents`, `GET /api-admin/documents/expiring?within=30d` | Admin | Documents and expiry. |
+| `GET /api-admin/fleet/costs?from=&to=&groupBy=vehicle\|month` | Admin | Maintenance + fuel cost per bike, cost per km. |
+| `GET/PUT /api-admin/service-plans` | Admin | Edit plan templates. |
+
+### I4. Rules and automation
+
+- **Odometer from GPS:** each night, add the day's GPS distance for the bike's tracker (from the tracking provider, the same source as `/riders/track`) to `odometerKm` (`odometerSource = GPS`). Fuel logs and services with a reading correct it.
+- **Schedules:** recompute after every odometer update and every maintenance record. Notify the manager (G3) at `DUE_SOON` and `OVERDUE`. Notify the rider in the app ("Oil change due in 120 km").
+- **Overdue bikes:** if a safety task (brakes, tyres) is overdue by more than 20% of its interval, warn on assignment (Part F) when that bike's rider is chosen. Don't block, but show it.
+- **Unsafe defects:** set the bike `OUT_OF_SERVICE`. Its rider shouldn't get assignments until it's fixed or they're given another bike.
+- **Daily check (optional):** before the first assignment of the day, the rider confirms a short checklist. Failing items create defects automatically.
+- **Documents:** notify 30 and 7 days before expiry. Expired insurance or roadworthy sets the bike `OUT_OF_SERVICE`.
+- **Cost per km:** (maintenance + fuel) ÷ GPS km per month. Flag bikes more than 50% above the fleet average.
+
+### I5. What the frontend will build once this exists
+
+- **Rider app:** a "My bike" tab with next service, open problems, "Report a problem" with photos, and the daily check.
+- **Manager:**
+  - **Fleet:** bikes with status, rider, next service and documents.
+  - **Bike details:** timeline of services, repairs, defects and fuel.
+  - **Logging:** a "Log service" form and the defect queue.
+- **Admin:** service plan templates, the documents list, and a fleet cost report.
+- **Rider Map:** show the bike and its service status in the rider list. Hand-over replaces "Assign GPS device", because the tracker moves to the bike.
+
+---
+
+## Part J: Station pickup charge (frontend done)
+
+### What the frontend does
+
+Each station can charge a default amount for **Pickup Requests**, where a rider collects a parcel from a sender. Stations that don't charge switch it off.
+
+- **Admins** set it per station in **Station Management → Edit Station**. That dialog now really saves through `PUT /api-admin/office/{id}`; before, it only showed a "saved" message. The station list shows each station's charge.
+- **Managers** set it for their own station in **Branch Settings → Charges**.
+- **Pickup Request** behaves in three ways:
+  - charge **on**: the amount is pre-filled with a note, and staff can still change it for one request;
+  - charge **off**: the cost box is replaced by "This station doesn't charge for pickups", and `pickUpCost` is sent as 0;
+  - setting **not provided** by the backend yet: the old optional manual box stays.
+
+### J1. Fields on Office (required)
+
+| Field | Type | Notes |
+|---|---|---|
+| `pickupChargeEnabled` | boolean, nullable | `null` means not configured. |
+| `pickupChargeAmount` | number, nullable | GHC. Required and greater than 0 when enabled; `null` when disabled. |
+
+- Return both on `OfficeResponse` (in `/api/offices/locations`) and on the login `office`.
+- Accept both on `POST /api-admin/office` and `PUT /api-admin/office/{id}` (`OfficeUpdateRequest`).
+
+### J2. Manager endpoint (required)
+
+```
+PUT /api-frontdesk/office/pickup-charge
+{ "pickupChargeEnabled": true, "pickupChargeAmount": 12.5 }
+→ 200 { "message": "Pickup charge saved" }
+```
+
+- **Access:** `MANAGER` only, and it applies to the caller's own office.
+- **Validation:** `400` if enabled without a positive amount.
+
+### J3. Pickup requests (recommended)
+
+The frontend sends `pickUpCost` on the request as before. If the backend creates a pickup request without `pickUpCost`, it should fall back to the station's charge when enabled. Keep the amount on the parcel as charged; don't recompute it later if the station changes its charge.
+
+---
+
+## Part K: Reconciliation with actual amounts and variance reasons (frontend done)
+
+### What the frontend does
+
+On **Reconciliation** (manager), each rider's expanded list now shows every delivered parcel with:
+
+- the **System** amount (what the rider should hand over),
+- a **Collected (GHC)** box (empty means the same as the system amount),
+- the **Variance**, and
+- a **reason** whenever there's a difference. The reasons are:
+  - Customer paid less
+  - Customer didn't pay
+  - Rider short on cash
+  - Discount approved
+  - Paid by mobile money to a different number
+  - Overpaid / tip
+  - Other (a note is required)
+
+Confirming is blocked until every difference has a reason. Rules and tests are in `src/utils/reconciliation.ts`.
+
+On **Admin → Reconciliation**, each rider shows **System amount**, **Manager collected** and **Variance**. Each parcel shows **System**, **Manager**, **Variance** and the **reason and note**. Older reconciliations show "Not recorded".
+
+### K1. Accept the new fields on `POST /api-frontdesk/reconcilation-parcels` (required)
+
+The body is still one item, or an array of items, per assignment. `assignmentId`, `reconciledAt` and `payedAmount` are unchanged in meaning and format (strings, as today). Three fields are new:
+
+```json
+{
+  "assignmentId": "asg-PF241739",
+  "reconciledAt": "1795349169203",
+  "payedAmount": "30",
+  "expectedAmount": 40,
+  "varianceAmount": -10,
+  "lines": [
+    {
+      "parcelId": "PF241739",
+      "systemAmount": 40,
+      "collectedAmount": 30,
+      "variance": -10,
+      "varianceReason": "Other",
+      "varianceNote": "Customer will bring GHC 10 to the station tomorrow"
+    }
+  ]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `payedAmount` | Now what the rider **actually** handed over: `expectedAmount + varianceAmount`. |
+| `expectedAmount` | What the system expected for the assignment, as computed on the screen. |
+| `varianceAmount` | Sum of line variances. Negative means short, positive means over. |
+| `lines[]` | One per delivered parcel. `varianceReason` and `varianceNote` are present only when `variance ≠ 0`. |
+
+**Validation:**
+
+- Every line's `parcelId` must belong to the assignment.
+- `variance = collectedAmount − systemAmount`, to 2 decimal places.
+- A non-zero variance needs `varianceReason`; `Other` needs `varianceNote`.
+- Store the reason as text (the list may grow) or as an enum, as long as the listed values above are accepted.
+
+### K2. Store and return (required)
+
+- **Storage:** keep the lines with the reconciliation record (`Reconcilations` already has `expectedAmount` and `payedAmount`) or with the assignment.
+- **Return:** on `DeliveryAssignments` from `GET /api-admin/reconciliations/by-date`, `GET /api-frontdesk/reconciliations/by-date` and `GET /api-frontdesk/parcel-assignment`, include:
+  - `amountPayed`: what the manager recorded (already in the spec);
+  - `reconciliationLines`: the `lines[]` above;
+  - `varianceAmount`.
+- Also record **who** reconciled (`reconciledBy` user id and name) and **when**, for the audit trail.
+
+### K3. Reports and follow-up (recommended)
+
+- **Variance report:** `GET /api-admin/reconciliations/variances?officeId=&from=&to=` lists every non-zero line, with rider, parcel, amounts, reason, note and who recorded it, for finance.
+- **Rider shortfall balance:** the running total of negative variances per rider, so "Rider short on cash" can be followed up and settled later. Add `POST /api-frontdesk/riders/{riderId}/shortfall-payments` to record a repayment.
+- **Edits after confirming:** don't allow them silently. If corrections are needed, add a correction record (who, when, old value, new value, reason) rather than overwriting.
+
+---
+
 ## Frontend follow-ups (no backend work)
 
 Once A3 is in place, the frontend team should:
@@ -477,5 +854,17 @@ Once A3 is in place, the frontend team should:
 - [ ] F3 Keep `stopOrder` in step when a parcel is unassigned. *(recommended)*
 - [ ] F4 Server-side planning endpoint. *(optional)*
 - [ ] Enable the **Directions API** on the Google Maps key used by the frontend.
+- [ ] J1 Office `pickupChargeEnabled` / `pickupChargeAmount` (on office responses, create and update).
+- [ ] J2 `PUT /api-frontdesk/office/pickup-charge` (manager, own office).
+- [ ] K1 Accept `expectedAmount`, `varianceAmount` and `lines[]` on `reconcilation-parcels`, with validation.
+- [ ] K2 Store and return `amountPayed`, `reconciliationLines`, `varianceAmount` and `reconciledBy` on reconciled assignments.
+- [ ] K3 Variance report and rider shortfall balance. *(recommended)*
+- [ ] G1 Endpoints for Financial Reports, Accountability, Billing, Tenant Management and Cross-Tenant Analytics (Admin Dashboard already has its endpoint).
+- [ ] G2 Server-side branding, branch settings, user preferences and vendor settings.
+- [ ] G3 Notifications: model, endpoints, real-time channel, events.
+- [ ] G4 `riderCommissionRate` setting and server-side rider earnings.
+- [ ] G5 `DELETE /api-admin/office/{id}` (and location delete from Part C); station `code` in `OfficeUpdateRequest`.
+- [ ] H Fuel management: statuses, dispense confirmation, receipts, policy, consumption, summary.
+- [ ] I Fleet maintenance: vehicles, assignments, service plans and schedules, records, defects, documents, costs, GPS odometer.
 
-Questions about the frontend side: the relevant code is in `src/components/DeliveryLocationPicker.tsx`, `src/components/RoutePlanPanel.tsx`, `src/utils/routePlan.ts`, `src/screens/ParcelRegistration/`, `src/screens/ParcelSelection/`, `src/screens/RiderMap/` (rules in `trackUtils.ts`) and `src/services/adminService.ts`.
+Questions about the frontend side: the relevant code is in `src/components/DeliveryLocationPicker.tsx`, `src/components/RoutePlanPanel.tsx`, `src/utils/routePlan.ts`, `src/utils/reconciliation.ts`, `src/screens/ParcelRegistration/`, `src/screens/ParcelSelection/`, `src/screens/Reconciliation/`, `src/screens/BranchSettings/`, `src/screens/RiderMap/` (rules in `trackUtils.ts`) and `src/services/adminService.ts`.
