@@ -461,7 +461,7 @@ The audit covers every screen and the data behind it. "Placeholder" means the nu
 
 | Screen (route) | Today | Needs |
 |---|---|---|
-| **Admin Dashboard** (`/admin/dashboard`, `AdminStatistics.tsx`) | Hard-coded `STATIC_DATA` (2,847 parcels, GHS 45,680…). | Nothing new: `GET /api-admin/dashboard` already exists. *Frontend* integration is pending on our side. |
+| **Admin Dashboard** (`/admin/dashboard`, `AdminStatistics.tsx`) | **Done:** uses `GET /api-admin/dashboard` with `officeId`, `startDate` and `endDate`. It calls it twice (this period and the one before) to show the % change on each card. | Nothing new. Optional: rider `rating` in `topRiders`, and fuel cost for the period, if those cards should come back. |
 | **Financial Reports** (`/admin/financial-reports`) | `calculateFinancialSummary` from sample data. | `GET /api-admin/financial-report?officeId=&from=&to=&groupBy=day\|week\|month` → revenue, collected, outstanding, driver payments, pickup charges, net, per period and per station. CSV/PDF export can stay client-side. |
 | **Delivery Income** (`/admin/delivery-income`) | Sample data. | Mostly covered by `revenue-dashboard` and `rider-performance-dashboard`. Add rider commission paid vs owed per period (see G4). |
 | **Delivery Accountability** (`/admin/accountability`) | Sample data. | `GET /api-admin/accountability?officeId=&from=&to=` → per station: parcels handed from Parcel Hub to Delivery Hub, delivered, returned, cash expected vs remitted, outstanding, ageing of unremitted cash. |
@@ -859,7 +859,7 @@ Once A3 is in place, the frontend team should:
 - [ ] K1 Accept `expectedAmount`, `varianceAmount` and `lines[]` on `reconcilation-parcels`, with validation.
 - [ ] K2 Store and return `amountPayed`, `reconciliationLines`, `varianceAmount` and `reconciledBy` on reconciled assignments.
 - [ ] K3 Variance report and rider shortfall balance. *(recommended)*
-- [ ] G1 Endpoints for Financial Reports, Accountability, Billing, Tenant Management and Cross-Tenant Analytics (Admin Dashboard already has its endpoint).
+- [ ] G1 Endpoints for Financial Reports, Accountability, Billing, Tenant Management and Cross-Tenant Analytics (Admin Dashboard is now wired to `/api-admin/dashboard`).
 - [ ] G2 Server-side branding, branch settings, user preferences and vendor settings.
 - [ ] G3 Notifications: model, endpoints, real-time channel, events.
 - [ ] G4 `riderCommissionRate` setting and server-side rider earnings.

@@ -233,6 +233,66 @@ on("get", /^\/api-admin\/revenue-dashboard$/, ({ params }) => {
     };
 });
 
+on("get", /^\/api-admin\/dashboard$/, ({ params }) => {
+    const { start, end, inScope } = dashboardWindow(params);
+    const inRange = (t?: number) => (t ?? 0) >= start && (t ?? 0) <= end;
+    const parcels = PARCELS.filter((p) => inScope(officeIdOf(p)) && inRange(p.createdAt));
+    const finished = ASSIGNMENTS.filter((a) => inScope(HOME_OFFICE.id) && inRange(a.completedAt));
+    const delivered = finished.filter((a) => a.status === "DELIVERED");
+    const failed = finished.filter((a) => a.status === "RETURNED");
+    const assignmentTotal = (a: (typeof ASSIGNMENTS)[number]) => a.parcels.reduce((t, p) => t + amountOf(p), 0);
+    const totalRevenue = parcels.reduce((s, p) => s + amountOf(p), 0);
+    const collected = delivered.filter((a) => a.payed).reduce((s, a) => s + assignmentTotal(a), 0)
+        + parcels.filter((p) => p.pickedUp).reduce((s, p) => s + amountOf(p), 0);
+    const outstanding = delivered.filter((a) => !a.payed).reduce((s, a) => s + assignmentTotal(a), 0);
+    const ymd = (t: number) => new Date(t).toISOString().slice(0, 10);
+    const days: string[] = [];
+    for (let t = start; t <= end; t += DAY_MS) days.push(ymd(t));
+    const onDay = <T,>(list: T[], at: (x: T) => number | undefined, d: string) => list.filter((x) => ymd(at(x) ?? 0) === d);
+    const deliveredCount = delivered.length + parcels.filter((p) => p.pickedUp).length;
+    const round = (n: number) => Math.round(n * 100) / 100;
+    return {
+        totalRevenue: round(totalRevenue),
+        totalParcels: parcels.length,
+        successRate: deliveredCount + failed.length ? Math.round((deliveredCount / (deliveredCount + failed.length)) * 1000) / 10 : 0,
+        activeRiders: new Set(finished.map((a) => a.riderId)).size,
+        collected: round(collected),
+        outstanding: round(outstanding),
+        driverPaymentsOwed: round(parcels.filter((p) => !p.inboudPayed).reduce((s, p) => s + (p.inboundCost || 0), 0)),
+        revenueVsCollected: days.map((d) => {
+            const revenue = onDay(parcels, (p) => p.createdAt, d).reduce((s, p) => s + amountOf(p), 0);
+            const paid = onDay(delivered, (a) => a.completedAt, d);
+            const col = paid.filter((a) => a.payed).reduce((s, a) => s + assignmentTotal(a), 0);
+            const out = paid.filter((a) => !a.payed).reduce((s, a) => s + assignmentTotal(a), 0);
+            return { date: d, revenue: round(revenue), collected: round(col), outstanding: round(out) };
+        }),
+        deliveredVsFailed: days.map((d) => ({ date: d, delivered: onDay(delivered, (a) => a.completedAt, d).length, failed: onDay(failed, (a) => a.completedAt, d).length })),
+        parcelPipeline: {
+            registered: parcels.length,
+            contacted: parcels.filter((p) => p.hasCalled).length,
+            readyForDelivery: parcels.filter((p) => p.hasCalled && !p.parcelAssigned && !p.delivered && !p.returned).length,
+            assigned: parcels.filter((p) => p.parcelAssigned).length,
+            outForDelivery: ASSIGNMENTS.filter((a) => inScope(HOME_OFFICE.id) && ["ACCEPTED", "IN_TRANSIT"].includes(a.status)).length,
+            delivered: parcels.filter((p) => p.delivered).length,
+            failed: parcels.filter((p) => p.returned).length,
+        },
+        stationSnapshot: OFFICES.filter((o) => inScope(o.id)).map((o) => {
+            const mine = parcels.filter((p) => officeIdOf(p) === o.id);
+            const ok = mine.filter((p) => p.delivered).length;
+            const bad = mine.filter((p) => p.returned).length;
+            return {
+                officeId: o.id, stationName: o.name, parcels: mine.length,
+                revenue: round(mine.reduce((s, p) => s + amountOf(p), 0)),
+                successRate: ok + bad ? Math.round((ok / (ok + bad)) * 1000) / 10 : 0,
+            };
+        }).sort((a, b) => b.revenue - a.revenue),
+        topRiders: RIDERS.map((r) => {
+            const mine = delivered.filter((a) => a.riderId === r.userId);
+            return { riderId: r.userId, riderName: r.name, deliveries: mine.length, revenue: round(mine.reduce((s, a) => s + assignmentTotal(a), 0)) };
+        }).filter((r) => r.deliveries > 0).sort((a, b) => b.revenue - a.revenue).slice(0, 5),
+    };
+});
+
 on("get", /^\/api-admin\/rider-performance-dashboard$/, ({ params }) => {
     const { start, end, inScope } = dashboardWindow(params);
     const finished = ASSIGNMENTS.filter((a) => inScope(HOME_OFFICE.id) && (a.completedAt ?? 0) >= start && (a.completedAt ?? 0) <= end);

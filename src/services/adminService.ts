@@ -60,6 +60,30 @@ export interface AdminReconciliationPage {
   last: boolean;
 }
 
+/** GET /api-admin/dashboard (DashboardStatsResponse in the backend spec). */
+export interface DashboardStats {
+  totalRevenue: number;
+  totalParcels: number;
+  successRate: number;
+  activeRiders: number;
+  collected: number;
+  outstanding: number;
+  driverPaymentsOwed: number;
+  revenueVsCollected: { date: string; revenue: number; collected: number; outstanding: number }[];
+  deliveredVsFailed: { date: string; delivered: number; failed: number }[];
+  parcelPipeline: {
+    registered: number;
+    contacted: number;
+    readyForDelivery: number;
+    assigned: number;
+    outForDelivery: number;
+    delivered: number;
+    failed: number;
+  };
+  stationSnapshot: { officeId: string; stationName: string; parcels: number; revenue: number; successRate: number }[];
+  topRiders: { riderId: string; riderName: string; deliveries: number; revenue: number }[];
+}
+
 /** GET /api-admin/revenue-dashboard (RevenueDashboardResponse in the backend spec). */
 export interface RevenueDashboard {
   totalRevenue: number;
@@ -254,6 +278,15 @@ class AdminService {
           error.response?.data?.message ||
           "Failed to fetch reconciliations. Please try again.",
       };
+    }
+  }
+
+  async getDashboardStats(filters: DashboardFilters = {}): Promise<ApiResponse<DashboardStats>> {
+    try {
+      const response = await this.apiClient.get<DashboardStats>(`/dashboard${dashboardParams(filters)}`);
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      return { success: false, message: error.response?.data?.message || "Failed to load dashboard figures." };
     }
   }
 
