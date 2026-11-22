@@ -9,6 +9,7 @@ Items are grouped by priority:
 - **Part C** lists calls the frontend makes that are missing from the API description.
 - **Part D** is recommended: server-side delivery checks for reports and audits.
 - **Part E** covers off-task detection (detours and stops away from the day's deliveries). It needs station coordinates and extends Part D.
+- **Part F** covers route plans: the best stop order worked out when parcels are assigned, saved with the assignment and given to the rider.
 
 To see the exact request and response shapes the frontend expects, run the frontend with `npm run dev:mock`. That mode answers every call from sample data in `src/mocks/`, using only the fields listed here. The field whitelists are in `src/mocks/mockData.ts` (`PARCEL_FIELDS`, `PARCEL_INFO_FIELDS`, `USER_FIELDS`).
 
@@ -349,6 +350,104 @@ Thresholds should be configurable. Nothing in the frontend depends on alerts yet
 
 ---
 
+## Part F: Route plans when assigning parcels
+
+### Why
+
+When a manager assigns parcels to a rider (Package Assignments → choose rider → **Next: plan route**), the frontend works out the best order to deliver them, from the station through every pinned drop-off and back. The manager can move stops before confirming. The confirmed plan is sent with the assignment. The rider app then shows deliveries in that order with a **Start route** button that opens Google Maps through the stops. Route history uses the plan line when checking for detours (Part E).
+
+How the order is worked out (frontend, `src/utils/routePlan.ts`):
+
+- **`GOOGLE`:** Google Directions with `optimizeWaypoints`, giving road distances and times. Used when Maps is loaded and there are at most 25 stops.
+- **`ESTIMATE`:** nearest-neighbour + 2-opt on straight-line distance, with distance ×1.3 for roads and 22 km/h average speed. Used when Google isn't available, there are more than 25 stops, or Google returns an error.
+
+Parcels without a pin can't be placed on a route. They're assigned after the planned stops and aren't in `stopOrder`.
+
+### F1. Accept the plan on `POST /api-frontdesk/assign-parcels` (required)
+
+`DeliveryAssignmentRequest` gets an optional `routePlan`. `parcelIds` arrives **in planned order**: planned stops first, unpinned parcels after.
+
+Example (`legs` shortened; there is one leg per hop, 5 here):
+
+```json
+{
+  "riderId": "rider-1",
+  "parcelIds": ["PF240111", "PF240555", "PF240074", "PF240259", "PF240037", "PF240222"],
+  "routePlan": {
+    "method": "GOOGLE",
+    "stopOrder": ["PF240111", "PF240555", "PF240074", "PF240259"],
+    "totalKm": 115.3,
+    "totalMinutes": 288,
+    "legs": [
+      { "from": "START", "to": "PF240111", "km": 8.6, "minutes": 22 },
+      { "from": "PF240111", "to": "PF240555", "km": 25.2, "minutes": 63 },
+      { "from": "PF240259", "to": "END", "km": 9.9, "minutes": 25 }
+    ],
+    "encodedPath": "_d|`@f`g@xQxvIdvAxn^…",
+    "startLatitude": 5.556,
+    "startLongitude": -0.205,
+    "edited": false,
+    "plannedAt": 1795347641074
+  }
+}
+```
+
+| Field | Notes |
+|---|---|
+| `method` | `GOOGLE` (road distances) or `ESTIMATE` (straight-line). |
+| `stopOrder` | Parcel ids in visiting order. Only pinned parcels. |
+| `totalKm`, `totalMinutes` | Whole plan, station → stops → station. Riding time only, no time at stops. |
+| `legs` | One per hop. `from` / `to` are parcel ids, or `START` / `END` for the station. |
+| `encodedPath` | The route line in [Google's encoded polyline format](https://developers.google.com/maps/documentation/utilities/polylinealgorithm) (precision 5). For `GOOGLE` it follows the roads; for `ESTIMATE` it's straight lines between stops. |
+| `startLatitude`, `startLongitude` | The station, when known (E1). Missing means the plan starts at the first stop. |
+| `edited` | `true` if the manager changed the order by hand. |
+| `plannedAt` | Epoch ms. |
+
+**Storage.** Store `routePlan` with the assignment as-is. A JSON column or document field is fine; nothing needs to query inside it yet. Keep `parcelIds` in the order received.
+
+**Validation.**
+
+- Every id in `stopOrder` must be in `parcelIds`.
+- `encodedPath` is at most ~50 KB.
+- Ignore the plan, but still assign, if it fails validation. The plan is helpful, not essential.
+
+### F2. Return the plan on assignments (required)
+
+Return `routePlan` on `DeliveryAssignments` in:
+
+- `GET /api-rider/assignments`, which the rider app uses for the order and Start route;
+- `GET /api-frontdesk/rider/{riderId}/assignments`, which route history uses for the planned line;
+- `GET /api-frontdesk/parcel-assignment`.
+
+If one assignment holds several parcels, the plan appears once on it. If you split parcels into separate assignments, put the same plan on each. The frontend de-duplicates by `plannedAt` + `stopOrder`.
+
+### F3. Keep the plan in step with changes (recommended)
+
+- **Parcel unassigned** (`DELETE /api-frontdesk/assignment/{assignmentId}/parcel/{parcelId}`): remove its id from `stopOrder`. Leave `encodedPath` as is; it's only a guide.
+- **Parcel delivered or returned:** nothing to do. The rider app hides finished stops itself.
+- **Pin changed after assignment** (`PUT /parcel/{id}` with new coordinates): optionally mark the plan stale (`stale: true`). The frontend doesn't act on this yet.
+
+### F4. Server-side planning (optional, later)
+
+The frontend calls Google from the browser, using the existing `VITE_GOOGLE_MAPS_API_KEY`. That key needs the **Directions API** enabled. If you'd rather plan on the server (to control cost, or to re-plan automatically), add:
+
+```
+POST /api-frontdesk/route-plan  { "parcelIds": [...], "officeId": "…" }  → routePlan (same shape as F1)
+```
+
+Use Google's Routes API (`computeRoutes` with `optimizeWaypointOrder: true`), or the Route Optimization API for multi-rider planning with time windows. The frontend can switch to this endpoint without UI changes.
+
+### F5. How the plan is used in off-task checks (Part E)
+
+When a plan exists, a GPS point counts as off route only when **both** of these hold:
+
+- it's more than the corridor from the plan line (**500 m** for `GOOGLE` plans, **1,500 m** for `ESTIMATE`), and
+- it's more than 1,500 m from the straight leg between the drop-offs actually reached.
+
+The first test stops winding roads being flagged. The second stops a skipped planned stop turning the ride home into a "detour" (the skipped stop is already reported by Part D). Without a plan, Part E's straight-leg rule applies alone.
+
+---
+
 ## Frontend follow-ups (no backend work)
 
 Once A3 is in place, the frontend team should:
@@ -373,5 +472,10 @@ Once A3 is in place, the frontend team should:
 - [ ] E1 Station (office) `latitude` / `longitude`.
 - [ ] E2 / E3 Off-task block (detours, off-task stops, daily figures) in the delivery-check responses. *(recommended)*
 - [ ] E4 Alerts. *(optional)*
+- [ ] F1 Accept and store `routePlan` (and keep `parcelIds` order) on `POST /api-frontdesk/assign-parcels`.
+- [ ] F2 Return `routePlan` on assignments (rider, rider/{id}/assignments, parcel-assignment).
+- [ ] F3 Keep `stopOrder` in step when a parcel is unassigned. *(recommended)*
+- [ ] F4 Server-side planning endpoint. *(optional)*
+- [ ] Enable the **Directions API** on the Google Maps key used by the frontend.
 
-Questions about the frontend side: the relevant code is in `src/components/DeliveryLocationPicker.tsx`, `src/screens/ParcelRegistration/`, `src/screens/RiderMap/` (rules in `trackUtils.ts`) and `src/services/adminService.ts`.
+Questions about the frontend side: the relevant code is in `src/components/DeliveryLocationPicker.tsx`, `src/components/RoutePlanPanel.tsx`, `src/utils/routePlan.ts`, `src/screens/ParcelRegistration/`, `src/screens/ParcelSelection/`, `src/screens/RiderMap/` (rules in `trackUtils.ts`) and `src/services/adminService.ts`.

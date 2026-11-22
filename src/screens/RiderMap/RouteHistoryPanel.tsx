@@ -3,8 +3,9 @@ import { ArrowLeft, Pause, Play, RotateCcw, Loader, MapPin, CheckCircle2, XCircl
 import { Button } from "../../components/ui/button";
 import adminService from "../../services/adminService";
 import frontdeskService from "../../services/frontdeskService";
+import { decodePolyline, type LatLng } from "../../utils/routePlan";
 import {
-    CORRIDOR_M, DeliveryCheck, DeliveryStop, EXPLAINED_STOP_M, MIN_DETOUR_MS, OffTaskReport, Stop, TimedPoint, VISIT_RADIUS_M,
+    CORRIDOR_M, PLANNED_ROAD_CORRIDOR_M, DeliveryCheck, DeliveryStop, EXPLAINED_STOP_M, MIN_DETOUR_MS, OffTaskReport, Stop, TimedPoint, VISIT_RADIUS_M,
     analyzeOffTask, checkDeliveries, formatDistance, formatDuration,
     indexAt, normalizePoints, positionAt, summarize, toApiTime, validateRange,
 } from "./trackUtils";
@@ -72,6 +73,8 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
     const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(60);
     const [stops, setStops] = useState<DeliveryStop[] | null>(null);
     const [stopsError, setStopsError] = useState<string | null>(null);
+    /** Route(s) the manager confirmed for these deliveries, joined in planning order. */
+    const [planned, setPlanned] = useState<{ path: LatLng[]; road: boolean; count: number } | null>(null);
 
     const range = useMemo(() => {
         const now = Date.now();
@@ -94,14 +97,29 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
         setLoading(false);
         if (del.success && Array.isArray(del.data)) {
             // Deliveries finished in the range, plus ones still open that were assigned before it ended.
-            setStops(toStops(del.data).filter((s) =>
+            const inRange = toStops(del.data).filter((s) =>
                 s.completedAt != null
                     ? s.completedAt >= range.start && s.completedAt <= range.end
                     : (s.assignedAt ?? 0) <= range.end && !FINISHED.includes(s.status)
-            ).sort((a, b) => (a.completedAt ?? Infinity) - (b.completedAt ?? Infinity)));
+            ).sort((a, b) => (a.completedAt ?? Infinity) - (b.completedAt ?? Infinity));
+            setStops(inRange);
             setStopsError(null);
+            // Plans attached to these deliveries' assignments (one plan may repeat across assignments).
+            const ids = new Set(inRange.map((s) => s.parcelId));
+            const plans = new Map<string, any>();
+            (del.data as any[]).forEach((a) => {
+                const pl = a.routePlan;
+                if (pl?.encodedPath && (a.parcels ?? []).some((p: any) => ids.has(p.parcelId))) {
+                    plans.set(`${pl.plannedAt ?? ""}|${(pl.stopOrder ?? []).join(",")}`, pl);
+                }
+            });
+            const ordered = Array.from(plans.values()).sort((x, y) => (x.plannedAt ?? 0) - (y.plannedAt ?? 0));
+            setPlanned(ordered.length
+                ? { path: ordered.flatMap((pl) => decodePolyline(pl.encodedPath)), road: ordered.every((pl) => pl.method === "GOOGLE"), count: ordered.length }
+                : null);
         } else {
             setStops(null);
+            setPlanned(null);
             setStopsError(del.message || "Couldn't load this rider's deliveries.");
         }
         if (!res.success) {
@@ -142,8 +160,12 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
         return t;
     }, [checks]);
     const offTask = useMemo<OffTaskReport | null>(
-        () => (points && summary && stops ? analyzeOffTask(points, checks, summary.stops) : null),
-        [points, summary, stops, checks]
+        () => (points && summary && stops
+            ? analyzeOffTask(points, checks, summary.stops, planned
+                ? { plannedPath: planned.path, corridorM: planned.road ? PLANNED_ROAD_CORRIDOR_M : CORRIDOR_M }
+                : {})
+            : null),
+        [points, summary, stops, checks, planned]
     );
     const isOffTaskStop = (st: Stop) => !!offTask?.unexplainedStops.some((u) => u.start === st.start);
     const first = points?.[0]?.t ?? 0;
@@ -236,6 +258,14 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
         return () => made.forEach((m) => m.setMap(null));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [map, points, summary, offTask]);
+
+    // The planned route, under everything else.
+    useEffect(() => {
+        const g = (window as any).google;
+        if (!g || !map || !planned) return;
+        const line = new g.maps.Polyline({ map, path: planned.path, strokeColor: "#2563eb", strokeOpacity: 0.45, strokeWeight: 4, zIndex: 1 });
+        return () => line.setMap(null);
+    }, [map, planned]);
 
     // Drop-off pins, coloured by whether the GPS reached them.
     useEffect(() => {
@@ -541,8 +571,10 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
                                 </ul>
                             )}
                             <p className="text-[11px] text-[#9a9a9a] mt-2">
-                                Detour = over {formatDistance(CORRIDOR_M)} from the straight line between consecutive drop-offs for {formatDuration(MIN_DETOUR_MS)}+.
-                                Roads aren't straight, so check flagged stretches on the map. Stops within {EXPLAINED_STOP_M} m of a drop-off, the start or the end count as on task.
+                                {planned
+                                    ? <>Detour = over {formatDistance(planned.road ? PLANNED_ROAD_CORRIDOR_M : CORRIDOR_M)} from the planned route (blue line{planned.road ? ", road route from Google" : ", straight-line plan"}) for {formatDuration(MIN_DETOUR_MS)}+.</>
+                                    : <>Detour = over {formatDistance(CORRIDOR_M)} from the straight line between consecutive drop-offs for {formatDuration(MIN_DETOUR_MS)}+. No route was planned for these deliveries, and roads aren't straight, so check flagged stretches on the map.</>}
+                                {" "}Stops within {EXPLAINED_STOP_M} m of a drop-off, the start or the end count as on task.
                             </p>
                         </div>
                     )}

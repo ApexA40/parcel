@@ -214,6 +214,19 @@ export const buildRiderTracks = () => {
             a.assignedAt = Math.min(a.assignedAt, t - 20 * 60_000);
             a.acceptedAt = Math.min(a.acceptedAt ?? a.assignedAt, t - 10 * 60_000);
         });
+        // The plan the manager confirmed that morning: station -> every drop-off in order -> station
+        // (straight-line estimate, as demo mode has no Google). It includes the delivery that gets skipped.
+        {
+            const planStops: PlanStop[] = visits.map((v) => ({ id: v.a.parcels[0].parcelId, lat: v.target.lat, lng: v.target.lng, label: "" }));
+            const plan = estimatePlan(planStops, station, station);
+            const stored = {
+                method: plan.method, stopOrder: plan.order,
+                totalKm: Math.round(plan.totalKm * 10) / 10, totalMinutes: Math.round(plan.totalMinutes),
+                legs: plan.legs, encodedPath: encodePolyline(plan.path),
+                startLatitude: station.lat, startLongitude: station.lng, edited: false, plannedAt: t - 25 * 60_000,
+            };
+            list.forEach((a) => (a.routePlan = stored));
+        }
 
         const pts: TrackPoint[] = [];
         const ride = (from: { lat: number; lng: number }, to: { lat: number; lng: number }, minutes: number) => {

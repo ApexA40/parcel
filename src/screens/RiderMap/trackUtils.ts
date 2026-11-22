@@ -271,6 +271,8 @@ export interface OffTaskReport {
 
 /** How far from the straight line between two drop-offs still counts as "on the way". */
 export const CORRIDOR_M = 1500;
+/** Tighter allowance when measuring against a road-following planned route (Google). */
+export const PLANNED_ROAD_CORRIDOR_M = 500;
 /** Off-route stretches shorter than this are ignored (GPS drift, one-way streets). */
 export const MIN_DETOUR_MS = 3 * MINUTE;
 /** A stop within this distance of a drop-off, the start or the end is explained. */
@@ -287,12 +289,33 @@ export const distanceToSegmentM = (p: { lat: number; lng: number }, a: { lat: nu
     return Math.hypot(px - t * bx, py - t * by);
 };
 
+/** Distance in metres from p to the nearest point of a polyline. */
+export const distanceToPathM = (p: { lat: number; lng: number }, path: Array<{ lat: number; lng: number }>) => {
+    if (path.length === 0) return Infinity;
+    if (path.length === 1) return distanceKm(p, path[0]) * 1000;
+    let best = Infinity;
+    for (let i = 1; i < path.length; i++) best = Math.min(best, distanceToSegmentM(p, path[i - 1], path[i]));
+    return best;
+};
+
 export const analyzeOffTask = (
     points: TimedPoint[],
     checks: DeliveryCheck[],
     stops: Stop[],
-    opts: { base?: { lat: number; lng: number }; corridorM?: number; minDetourMs?: number } = {},
+    opts: {
+        base?: { lat: number; lng: number };
+        corridorM?: number;
+        minDetourMs?: number;
+        /**
+         * The route the manager confirmed. A point is off route only when it's away from this line
+         * AND from the straight leg between the drop-offs actually reached. The plan stops bending
+         * roads being flagged; the leg check stops a skipped planned stop turning the ride home
+         * into a "detour".
+         */
+        plannedPath?: Array<{ lat: number; lng: number }>;
+    } = {},
 ): OffTaskReport => {
+    const planned = opts.plannedPath && opts.plannedPath.length >= 2 ? opts.plannedPath : null;
     const corridorM = opts.corridorM ?? CORRIDOR_M;
     const minDetourMs = opts.minDetourMs ?? MIN_DETOUR_MS;
     const pins = checks.filter((c) => c.stop.lat != null && c.stop.lng != null).map((c) => ({ lat: c.stop.lat!, lng: c.stop.lng! }));
@@ -339,10 +362,13 @@ export const analyzeOffTask = (
         };
         points.forEach((p, idx) => {
             if (p.t <= a.leave || p.t >= b.arrive) return;
-            const off = distanceToSegmentM(p, a, b);
+            const legOff = distanceToSegmentM(p, a, b);
+            const planOff = planned ? distanceToPathM(p, planned) : Infinity;
+            const isOff = planned ? planOff > corridorM && legOff > CORRIDOR_M : legOff > corridorM;
+            const off = planned ? Math.min(planOff, legOff) : legOff;
             const gap = run.length && p.t - points[run[run.length - 1]].t > 15 * MINUTE;
             if (gap) close();
-            if (off > corridorM) { run.push(idx); maxOff = Math.max(maxOff, off); }
+            if (isOff) { run.push(idx); maxOff = Math.max(maxOff, off); }
             else close();
         });
         close();

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     toApiTime, parseGpsTime, validateRange, distanceKm, normalizePoints, summarize,
-    positionAt, indexAt, formatDuration, MAX_RANGE_MS, checkDeliveries, analyzeOffTask, distanceToSegmentM,
+    positionAt, indexAt, formatDuration, MAX_RANGE_MS, checkDeliveries, analyzeOffTask, distanceToSegmentM, distanceToPathM,
 } from "./trackUtils";
 
 const MIN = 60_000;
@@ -201,5 +201,57 @@ describe("analyzeOffTask", () => {
     it("measures distance to a segment, not just to its ends", () => {
         expect(distanceToSegmentM({ lat: 5.61, lng: -0.2 }, { lat: 5.6, lng: -0.2 }, { lat: 5.62, lng: -0.2 })).toBeLessThan(1);
         expect(distanceToSegmentM({ lat: 5.61, lng: -0.19 }, { lat: 5.6, lng: -0.2 }, { lat: 5.62, lng: -0.2 })).toBeCloseTo(1108, -1);
+    });
+});
+
+describe("analyzeOffTask with a planned route", () => {
+    // The road from the station (5.600) to drop-off A (5.620) bends ~2.2 km east via 5.61,-0.18.
+    const road = [{ lat: 5.6, lng: -0.2 }, { lat: 5.61, lng: -0.18 }, { lat: 5.62, lng: -0.2 }];
+    const mk = (i: number, lat: number, lng: number, speed: number) => ({ lat, lng, speed, gpsTime: toApiTime(T0 + i * MIN) });
+    // The rider follows that road exactly.
+    const along = normalizePoints([
+        ...Array.from({ length: 6 }, (_, i) => mk(i, 5.6 + i * 0.002, -0.2 + i * 0.004, 30)),
+        ...Array.from({ length: 6 }, (_, i) => mk(6 + i, 5.61 + i * 0.002, -0.18 - i * 0.004, 30)),
+        ...Array.from({ length: 8 }, (_, i) => mk(12 + i, 5.62, -0.2, 0)),
+    ]);
+    const range = { start: T0, end: T0 + 60 * MIN };
+    const checks = checkDeliveries(along, [{ id: "a", parcelId: "A", receiverName: "Drop A", status: "DELIVERED", lat: 5.62, lng: -0.2, completedAt: T0 + 15 * MIN }], range);
+    const base = { lat: 5.6, lng: -0.2 };
+
+    it("doesn't flag riding the planned road, which the straight-line check would", () => {
+        expect(analyzeOffTask(along, checks, [], { base }).detours).toHaveLength(1);
+        expect(analyzeOffTask(along, checks, [], { base, plannedPath: road, corridorM: 500 }).detours).toHaveLength(0);
+    });
+
+    it("still flags leaving the planned road", () => {
+        const off = normalizePoints([
+            ...Array.from({ length: 3 }, (_, i) => mk(i, 5.6 + i * 0.002, -0.2 + i * 0.004, 30)),
+            ...Array.from({ length: 8 }, (_, i) => mk(3 + i, 5.585, -0.17, 0)), // 1.7+ km south-east of the road
+            ...Array.from({ length: 6 }, (_, i) => mk(11 + i, 5.61 + i * 0.002, -0.18 - i * 0.004, 30)),
+            ...Array.from({ length: 6 }, (_, i) => mk(17 + i, 5.62, -0.2, 0)),
+        ]);
+        const c = checkDeliveries(off, [{ id: "a", parcelId: "A", receiverName: "Drop A", status: "DELIVERED", lat: 5.62, lng: -0.2, completedAt: T0 + 20 * MIN }], range);
+        expect(analyzeOffTask(off, c, [], { base, plannedPath: road, corridorM: 500 }).detours).toHaveLength(1);
+    });
+
+    it("doesn't call the ride home a detour when a planned stop was skipped", () => {
+        // Plan: station -> A -> far stop B (never visited) -> station. Rider does A and rides straight back.
+        const plan = [{ lat: 5.6, lng: -0.2 }, { lat: 5.62, lng: -0.2 }, { lat: 5.62, lng: -0.15 }, { lat: 5.6, lng: -0.2 }];
+        const trip = normalizePoints([
+            ...Array.from({ length: 6 }, (_, i) => mk(i, 5.6 + i * 0.004, -0.2, 30)),
+            ...Array.from({ length: 6 }, (_, i) => mk(6 + i, 5.62, -0.2, 0)),
+            ...Array.from({ length: 6 }, (_, i) => mk(12 + i, 5.62 - i * 0.004, -0.2, 30)),
+        ]);
+        const c = checkDeliveries(trip, [
+            { id: "a", parcelId: "A", receiverName: "Drop A", status: "DELIVERED", lat: 5.62, lng: -0.2, completedAt: T0 + 9 * MIN },
+            { id: "b", parcelId: "B", receiverName: "Drop B", status: "DELIVERED", lat: 5.62, lng: -0.15, completedAt: T0 + 10 * MIN },
+        ], range);
+        expect(c[1].kind).toBe("not-visited"); // the skipped stop is caught by the delivery check instead
+        expect(analyzeOffTask(trip, c, [], { base, plannedPath: plan, corridorM: 500 }).detours).toHaveLength(0);
+    });
+
+    it("measures distance to the nearest part of the path", () => {
+        expect(distanceToPathM({ lat: 5.61, lng: -0.18 }, road)).toBeLessThan(1);
+        expect(distanceToPathM({ lat: 5.6, lng: -0.2 }, [])).toBe(Infinity);
     });
 });

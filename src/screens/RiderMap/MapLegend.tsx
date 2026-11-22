@@ -74,7 +74,8 @@ export const LIVE_LEGEND: LegendItem[] = [
 ];
 
 export const HISTORY_LEGEND: LegendItem[] = [
-    { swatch: { kind: "line", color: "#9ca3af" }, label: "Full route for the period" },
+    { swatch: { kind: "line", color: "#2563eb" }, label: "Planned route (when one was set)" },
+    { swatch: { kind: "line", color: "#9ca3af" }, label: "Route the rider rode" },
     { swatch: { kind: "line", color: "#ea690c", width: 5 }, label: "Route covered so far in playback" },
     { swatch: { kind: "dot", color: "#ea690c", size: 14 }, label: "Rider at the playback time" },
     { swatch: { kind: "dot", color: "#16a34a", label: "S" }, label: "Start of the route" },
