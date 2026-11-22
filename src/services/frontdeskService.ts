@@ -180,6 +180,22 @@ interface PageParcelResponse {
     empty: boolean;
 }
 
+/** Planned route sent with an assignment and returned on it (docs/BACKEND_HANDOFF.md Part F). */
+export interface AssignmentRoutePlan {
+    method: "GOOGLE" | "ESTIMATE";
+    /** Parcel ids in visiting order (pinned ones only). */
+    stopOrder: string[];
+    totalKm: number;
+    totalMinutes: number;
+    legs: Array<{ from: string; to: string; km: number; minutes: number }>;
+    /** Route line in Google's encoded polyline format. */
+    encodedPath: string;
+    startLatitude?: number;
+    startLongitude?: number;
+    edited: boolean;
+    plannedAt: number;
+}
+
 interface DeliveryAssignmentRequest {
     riderId: string;
     parcelIds: string[];
@@ -499,11 +515,16 @@ class FrontdeskService {
     /**
      * Assign parcels to a rider
      */
-    async assignParcelsToRider(riderId: string, parcelIds: string[]): Promise<ApiResponse> {
+    /**
+     * Assign parcels to a rider. `parcelIds` are in planned stop order; `routePlan` is the plan
+     * the manager confirmed (new backend field, docs/BACKEND_HANDOFF.md Part F).
+     */
+    async assignParcelsToRider(riderId: string, parcelIds: string[], routePlan?: AssignmentRoutePlan): Promise<ApiResponse> {
         try {
             const response = await this.apiClient.post<{ message: string }>('/assign-parcels', {
                 riderId,
                 parcelIds,
+                ...(routePlan ? { routePlan } : {}),
             });
             return {
                 success: true,

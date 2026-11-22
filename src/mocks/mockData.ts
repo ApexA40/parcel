@@ -6,6 +6,8 @@
  * today's dashboards always have something to show.
  */
 
+import { encodePolyline, estimatePlan, orderStops, type PlanStop } from "../utils/routePlan";
+
 // ── Deterministic RNG ───────────────────────────────────────────
 let seed = 20251121;
 const rand = () => {
@@ -65,10 +67,21 @@ const officeRows: Array<[string, string, string, string, string]> = [
     ["off-takoradi", "Takoradi Market Circle", "TKD", "Market Circle, Takoradi", "loc-takoradi"],
 ];
 
+// Proposed backend fields (handoff Part E1). Accra Central matches where demo routes start.
+const OFFICE_POSITIONS: Record<string, [number, number]> = {
+    "off-accra": [5.5560, -0.2050],
+    "off-eastlegon": [5.6370, -0.1600],
+    "off-kumasi": [6.6930, -1.6240],
+    "off-tema": [5.6700, -0.0170],
+    "off-takoradi": [4.8970, -1.7560],
+};
+
 export const OFFICES = officeRows.map(([id, name, code, address, locationId]) => {
     const loc = LOCATIONS.find((l) => l.id === locationId)!;
     return {
         id, name, code, address,
+        latitude: OFFICE_POSITIONS[id][0],
+        longitude: OFFICE_POSITIONS[id][1],
         phoneNumber: phone(),
         locationName: loc.name,
         managerName: person(),
@@ -430,6 +443,8 @@ export interface MockAssignment {
     payed: boolean;
     paymentMethod?: string;
     returnReason?: string;
+    /** Route plan confirmed when the parcels were assigned (handoff Part F). */
+    routePlan?: Record<string, unknown>;
     parcels: MockParcel[];
 }
 
@@ -481,6 +496,26 @@ deliveredHomeParcels.forEach((p, idx) => {
 
 buildRiderTracks();
 
+// Today's open deliveries for the demo rider get a planned order, as if the manager had
+// confirmed a route when assigning them (straight-line estimate; no Google in demo mode).
+{
+    const open = ASSIGNMENTS.filter((a) => a.riderId === "rider-1" && (a.status === "ASSIGNED" || a.status === "ACCEPTED"));
+    const station = { lat: OFFICE_POSITIONS["off-accra"][0], lng: OFFICE_POSITIONS["off-accra"][1] };
+    const stops: PlanStop[] = open.flatMap((a) => a.parcels)
+        .filter((p) => p.receiverLatitude != null)
+        .map((p) => ({ id: p.parcelId, lat: p.receiverLatitude, lng: p.receiverLongitude, label: p.receiverName }));
+    if (stops.length) {
+        const plan = estimatePlan(orderStops(stops, station, station), station, station);
+        const stored = {
+            method: plan.method, stopOrder: plan.order,
+            totalKm: Math.round(plan.totalKm * 10) / 10, totalMinutes: Math.round(plan.totalMinutes),
+            legs: plan.legs, encodedPath: encodePolyline(plan.path),
+            startLatitude: station.lat, startLongitude: station.lng, edited: false, plannedAt: open[0].assignedAt,
+        };
+        open.forEach((a) => (a.routePlan = stored));
+    }
+}
+
 export const parcelAmount = (p: MockParcel) =>
     (p.inboundCost || 0) + (p.pickUpCost || 0) + (p.deliveryCost || 0) + (p.storageCost || 0);
 
@@ -528,6 +563,7 @@ export const serializeAssignment = (a: MockAssignment) => ({
     payedAt: a.payed ? a.completedAt : undefined,
     createdAt: a.assignedAt,
     updatedAt: a.completedAt ?? a.acceptedAt ?? a.assignedAt,
+    routePlan: a.routePlan,
 });
 
 // ── Driver (inbound) assignments for the driver tracker ─────────

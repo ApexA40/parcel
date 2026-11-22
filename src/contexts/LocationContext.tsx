@@ -9,6 +9,9 @@ interface Station {
     locationName: string;
     managerName: string;
     createdAt: number;
+    /** Station position (proposed backend field, docs/BACKEND_HANDOFF.md Part E1). */
+    latitude?: number | null;
+    longitude?: number | null;
 }
 
 interface Location {

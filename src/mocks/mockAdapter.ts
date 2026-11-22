@@ -67,6 +67,7 @@ on("post", /^\/api-user\/login$/, ({ body }) => {
         office: {
             id: HOME_OFFICE.id, name: HOME_OFFICE.name, companyId: "company-demo", code: HOME_OFFICE.code,
             address: HOME_OFFICE.address, phoneNumber: HOME_OFFICE.phoneNumber, location: HOME_OFFICE.location,
+            latitude: HOME_OFFICE.latitude, longitude: HOME_OFFICE.longitude,
             createdAt: HOME_OFFICE.createdAt, updatedAt: HOME_OFFICE.updatedAt,
         },
     };
@@ -151,7 +152,8 @@ on("post", /^\/api-frontdesk\/assign-parcels$/, ({ body }) => {
     const ids: string[] = body?.parcelIds ?? [];
     const parcels = ids.map(findParcel).filter(Boolean) as MockParcel[];
     parcels.forEach((p) => (p.parcelAssigned = true));
-    ASSIGNMENTS.unshift({ assignmentId: `asg-${Date.now()}`, riderId: body?.riderId ?? "rider-1", status: "ASSIGNED", assignedAt: Date.now(), payed: false, parcels });
+    // Proposed: the confirmed route plan is stored with the assignment (handoff Part F).
+    ASSIGNMENTS.unshift({ assignmentId: `asg-${Date.now()}`, riderId: body?.riderId ?? "rider-1", status: "ASSIGNED", assignedAt: Date.now(), payed: false, parcels, routePlan: body?.routePlan });
     return ok(`${parcels.length} parcel(s) assigned`);
 });
 const markPaid: Handler = ({ body }) => {
