@@ -11,7 +11,7 @@ Items are grouped by priority:
 - **Part E** covers off-task detection (detours and stops away from the day's deliveries). It needs station coordinates and extends Part D.
 - **Part F** covers route plans: the best stop order worked out when parcels are assigned, saved with the assignment and given to the rider.
 - **Part G** lists every screen that still runs on placeholder or browser-only data, and what each needs from the backend.
-- **Part H** is the plan for fuel management (requests, dispensing, receipts, consumption, limits).
+- **Part H** is the plan for fuel management (requests, dispensing, receipts, consumption, limits), including fuel accountability: what each rider should use for their planned routes against what they used.
 - **Part I** is the plan for motorbike fleet maintenance (bikes, service schedules, repairs, defects, documents).
 - **Part J** covers the per-station pickup charge (frontend done; needs the fields and one endpoint).
 - **Part K** covers reconciliation with actual amounts and variance reasons (frontend done; needs storage).
@@ -597,10 +597,76 @@ Keep `PUT /api-frontdesk/fuel-request/{id}` (generic update) working during the 
 - **Odometer:** if the odometer distance since the last fill differs from the GPS distance by more than 20%, flag `ODOMETER_MISMATCH`.
 - **Maintenance link:** feed `odometerKm` into maintenance (Part I) as the bike's latest odometer.
 
-### H5. What the frontend will build once this exists
+### H5. Fuel accountability against routes
 
-- **Rider app:** request fuel, see the approval and code status, and a "Fuel dispensed" step with litres, price, odometer, code and a receipt photo.
-- **Manager:** an approvals queue with flags, a confirm or pay step, and per-bike consumption charts.
+**Goal:** know how much fuel each rider *should* use for the work they were given, compare it with what they actually used, and make them account for the difference.
+
+**Three numbers per rider and bike:**
+
+| | Source |
+|---|---|
+| **Planned km** | `routePlan.totalDistanceKm` saved with each assignment (Part F). For assignments without a plan, use the straight-line legs between station and drop-offs × the road factor (1.3). |
+| **Actual km** | GPS distance from the bike's tracker (same source as `/riders/track`), split into **on-duty** (between the first assignment's `acceptedAt` and the last `completedAt` of the day, plus the ride back to the station) and **off-duty** (everything else). |
+| **Litres used** | `dispensedLitres` on confirmed fuel requests (H2). |
+
+**Expected fuel:**
+
+- **Per bike rate:** `kmPerLitre` is learnt per bike, not taken from the manufacturer. Use the median of `gpsKmSinceLastFill / litres` over that bike's last 5 confirmed fills (after a 2-week calibration period; until then use `expectedKmPerLitre` for the model). A sudden drop in a bike's rate is also a maintenance alert (Part I).
+- **Allowance per assignment:** `fuelAllowanceLitres = plannedKm / kmPerLitre`. Store it on the assignment when it's created, and return it to the rider app.
+- **Measured between fills, not per day.** We know what goes into the tank, not what's left each evening, so reconcile per **fill window** (from one confirmed fill to the next), and roll windows up per week and month.
+
+**Per fill window, compute and store a `FuelAccountability` record:**
+
+| Field | Meaning |
+|---|---|
+| `riderId`, `vehicleId`, `fromFillId`, `toFillId`, `from`, `to` | The window. |
+| `plannedKm` | Sum of planned km for assignments in the window. |
+| `actualOnDutyKm`, `offDutyKm` | GPS distance, split as above. |
+| `detourKm` | `actualOnDutyKm − plannedKm` (not below 0). Link the detour events from Part E. |
+| `kmPerLitre` | The bike's rate used. |
+| `expectedLitres` | `(actualOnDutyKm + offDutyKm) / kmPerLitre`. |
+| `plannedLitres` | `plannedKm / kmPerLitre` (what the work should have needed). |
+| `actualLitres` | Litres of the fill that opens the window (fuel consumed during it). |
+| `unexplainedLitres` | `actualLitres − expectedLitres × (1 + tolerance)`, not below 0. |
+| `detourLitres`, `offDutyLitres` | `detourKm / kmPerLitre`, `offDutyKm / kmPerLitre`. |
+| `costGhc` | Litres × the fill's `pricePerLitre`, per bucket above. |
+| `status` | `OK`, `NEEDS_EXPLANATION`, `EXPLAINED`, `ACCEPTED`, `CHARGED`. |
+| `explanations[]` | {bucket (`DETOUR`, `OFF_DUTY`, `UNEXPLAINED`), reason, note, by, at}. |
+| `decision` | {by, at, outcome (`ACCEPTED` or `CHARGED`), amountGhc, note}. |
+
+**Rules:**
+
+- `tolerance` is a policy setting (`FuelPolicy.accountabilityTolerancePct`, default 15%) for traffic, idling and load.
+- **Needs explanation:** a window is `NEEDS_EXPLANATION` when `unexplainedLitres > 0`, or `detourLitres` or `offDutyLitres` exceed policy thresholds (`maxDetourLitresPerWindow`, `maxOffDutyKmPerWeek`). Notify the rider and the manager (G3).
+- **Explaining:** the rider gives a reason per bucket. Reasons:
+  - Customer not available
+  - Re-routed by manager
+  - Road closed / traffic
+  - Extra pickup
+  - Bike fault
+  - Personal use
+  - Other (a note is required)
+- **Deciding:** the manager accepts or charges. If charged, the amount joins the rider's shortfall balance (Part K3), so it can be deducted or repaid.
+- Re-route reasons that the manager confirms should be counted as planned km next time, so the allowance stays fair.
+
+**Endpoints:**
+
+| Method and path | Who | Purpose |
+|---|---|---|
+| `GET /api-rider/fuel-allowance?date=` | Rider | Today's planned km and allowance in litres, km ridden so far, and the current window's status. |
+| `GET /api-rider/fuel-accountability?status=` | Rider | Their windows; anything waiting for an explanation first. |
+| `PUT /api-rider/fuel-accountability/{id}/explain` | Rider | `{explanations: [{bucket, reason, note}]}`. |
+| `GET /api-frontdesk/fuel-accountability?riderId=&vehicleId=&status=&from=&to=` | Manager | Windows with all the numbers above. |
+| `PUT /api-frontdesk/fuel-accountability/{id}/decision` | Manager | `{outcome, amountGhc, note}`. |
+| `GET /api-admin/fuel-accountability/summary?officeId=&from=&to=&groupBy=rider\|vehicle\|week` | Admin | Totals: planned vs actual km, planned vs actual litres, unexplained litres and cost, charged amounts. |
+| `GET/PUT /api-admin/fuel-policy` | Admin | Adds `accountabilityTolerancePct`, `maxDetourLitresPerWindow`, `maxOffDutyKmPerWeek`. |
+
+**When to compute:** when a fill is `CONFIRMED`, close the previous window. Recompute it if a late GPS sync or a corrected fill arrives before a decision is made. After a decision, keep it fixed.
+
+### H6. What the frontend will build once this exists
+
+- **Rider app:** request fuel, see the approval and code status, and a "Fuel dispensed" step with litres, price, odometer, code and a receipt photo. Today's fuel allowance on the home screen, and a list of fill windows to explain (H5).
+- **Manager:** an approvals queue with flags, a confirm or pay step, and per-bike consumption charts. A fuel accountability list (planned vs actual km and litres, reasons) with accept or charge (H5).
 - **Admin:** fuel policy settings, and fuel spend in Financial Reports.
 
 ---
@@ -865,6 +931,7 @@ Once A3 is in place, the frontend team should:
 - [ ] G4 `riderCommissionRate` setting and server-side rider earnings.
 - [ ] G5 `DELETE /api-admin/office/{id}` (and location delete from Part C); station `code` in `OfficeUpdateRequest`.
 - [ ] H Fuel management: statuses, dispense confirmation, receipts, policy, consumption, summary.
+- [ ] H5 Fuel accountability: per-bike km per litre, allowance per assignment, fill-window records (planned vs actual km and litres), rider explanations, manager decisions, summary.
 - [ ] I Fleet maintenance: vehicles, assignments, service plans and schedules, records, defects, documents, costs, GPS odometer.
 
 Questions about the frontend side: the relevant code is in `src/components/DeliveryLocationPicker.tsx`, `src/components/RoutePlanPanel.tsx`, `src/utils/routePlan.ts`, `src/utils/reconciliation.ts`, `src/screens/ParcelRegistration/`, `src/screens/ParcelSelection/`, `src/screens/Reconciliation/`, `src/screens/BranchSettings/`, `src/screens/RiderMap/` (rules in `trackUtils.ts`) and `src/services/adminService.ts`.
