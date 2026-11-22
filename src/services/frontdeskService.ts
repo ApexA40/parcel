@@ -63,6 +63,13 @@ interface ParcelRequest {
     riderId?: string;
     itemCost?: number;
     itemOwnerPaid?: boolean;
+
+    // Pinned delivery location (home delivery). New backend fields: see docs/BACKEND_HANDOFF.md
+    receiverLatitude?: number;
+    receiverLongitude?: number;
+    receiverLocationName?: string;
+    receiverPlaceId?: string;
+    receiverLocationSource?: "SEARCH" | "MAP_PIN";
 }
 
 interface ParcelUpdateRequest {
@@ -147,6 +154,12 @@ interface ParcelResponse {
     followUpAt?: number;
     deliveryDate?: number;
     officeName?: string;
+    // Pinned delivery location (new backend fields)
+    receiverLatitude?: number;
+    receiverLongitude?: number;
+    receiverLocationName?: string;
+    receiverPlaceId?: string;
+    receiverLocationSource?: "SEARCH" | "MAP_PIN";
 }
 
 interface PageParcelResponse {

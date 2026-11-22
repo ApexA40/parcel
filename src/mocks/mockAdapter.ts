@@ -335,6 +335,12 @@ export const mockAdapter: AxiosAdapter = async (config) => {
     }
 
     await new Promise((r) => setTimeout(r, 120 + Math.random() * 180)); // feel like a network
+    // Demo-only: keep recent writes visible for manual checks and browser tests.
+    if (method !== "get") {
+        const log = ((window as any).__mockRequests ??= []) as unknown[];
+        log.push({ method, path, body });
+        if (log.length > 50) log.shift();
+    }
 
     const respond = (status: number, data: unknown): AxiosResponse => ({
         data, status, statusText: status === 200 ? "OK" : "Error", headers: {}, config, request: {},

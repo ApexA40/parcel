@@ -24,6 +24,24 @@ const startOfToday = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
 const FIRST = ["Kwame", "Ama", "Kofi", "Akosua", "Yaw", "Abena", "Kojo", "Efua", "Kwabena", "Adwoa", "Kwesi", "Esi", "Nana", "Afia", "Fiifi", "Akua", "Selorm", "Dzifa", "Elikem", "Mawuli"];
 const LAST = ["Mensah", "Owusu", "Boateng", "Asante", "Osei", "Addo", "Agyeman", "Appiah", "Darko", "Ofori", "Quaye", "Tetteh", "Amoah", "Badu", "Nkrumah", "Sarpong"];
 const AREAS = ["East Legon, Accra", "Osu, Accra", "Madina, Accra", "Spintex Road, Accra", "Dansoman, Accra", "Achimota, Accra", "Labone, Accra", "Adenta, Accra", "Kasoa", "Airport Residential, Accra", "Cantonments, Accra", "Teshie, Accra", "Haatso, Accra", "Dzorwulu, Accra"];
+// Rough centres and well-known landmarks, used for pinned delivery locations in demo data.
+const AREA_PLACES: Record<string, { lat: number; lng: number; landmarks: string[] }> = {
+    "East Legon, Accra": { lat: 5.6370, lng: -0.1610, landmarks: ["A&C Mall", "American House", "Shiashie Junction"] },
+    "Osu, Accra": { lat: 5.5560, lng: -0.1820, landmarks: ["Danquah Circle", "Osu Castle", "Koala Supermarket"] },
+    "Madina, Accra": { lat: 5.6680, lng: -0.1650, landmarks: ["Madina Market", "Zongo Junction", "UPSA"] },
+    "Spintex Road, Accra": { lat: 5.6250, lng: -0.1100, landmarks: ["Palace Mall", "Coca-Cola Roundabout", "Baatsonaa Total"] },
+    "Dansoman, Accra": { lat: 5.5480, lng: -0.2660, landmarks: ["Dansoman Roundabout", "Sakaman Junction", "Shell Dansoman"] },
+    "Achimota, Accra": { lat: 5.6200, lng: -0.2250, landmarks: ["Achimota Mall", "Achimota School", "Neoplan Station"] },
+    "Labone, Accra": { lat: 5.5650, lng: -0.1700, landmarks: ["Labone Junction", "Kofi Annan Peacekeeping Centre"] },
+    "Adenta, Accra": { lat: 5.7080, lng: -0.1600, landmarks: ["Adenta Barrier", "SDA Junction"] },
+    "Kasoa": { lat: 5.5340, lng: -0.4240, landmarks: ["Kasoa Toll Booth", "Kasoa Market"] },
+    "Airport Residential, Accra": { lat: 5.6030, lng: -0.1780, landmarks: ["Marina Mall", "Airport Shell"] },
+    "Cantonments, Accra": { lat: 5.5800, lng: -0.1720, landmarks: ["US Embassy", "37 Military Hospital"] },
+    "Teshie, Accra": { lat: 5.5850, lng: -0.1050, landmarks: ["Teshie Tsuibleoo", "Teshie First Junction"] },
+    "Haatso, Accra": { lat: 5.6620, lng: -0.1950, landmarks: ["Haatso Station", "Atomic Junction"] },
+    "Dzorwulu, Accra": { lat: 5.6080, lng: -0.1990, landmarks: ["Dzorwulu Junction", "Fiesta Royale"] },
+};
+
 const STREETS = ["Lagos Ave", "Boundary Rd", "Oxford St", "Liberation Rd", "Ring Rd East", "Mission St", "Palm St", "Kwame Nkrumah Ave", "Independence Ave", "Akosombo Rd"];
 const ITEMS = ["Phone accessories", "Clothing", "Documents", "Shoes", "Laptop", "Cosmetics", "Food items", "Books", "Kitchen appliance", "Electronics", "Bag", "Hair products", "Medication", "Gift box", "Spare parts"];
 const VEHICLES = ["GR-2341-22", "AS-1187-21", "GT-9921-23", "GW-4410-20", "GN-7765-24", "WR-3302-22"];
@@ -122,57 +140,121 @@ const RIDER_ROUTES: Record<string, { lat: number; lng: number; radius: number; m
 const utcStamp = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
 
 /**
- * Sample GPS history for /api-admin/riders/track: a workday per rider per day, one point a
- * minute from about 08:30, riding at 15-40 km/h between drop-offs around Accra and stopping
- * 8-20 minutes at each. Deterministic per rider and day, so replays look the same.
+ * Sample GPS history for /api-admin/riders/track. Built once per rider and day from that day's
+ * finished deliveries: the rider leaves the station, rides to each drop-off in order (15-35 km/h,
+ * one point a minute), waits 8-20 minutes, and returns. Delivery times are then aligned with the
+ * visits. On busy days one delivery is marked done without the rider going there, so the
+ * delivery check has something to catch.
  */
-export const riderTrackPoints = (riderId: string, begin: number, end: number) => {
-    const route = RIDER_ROUTES[riderId];
-    if (!route || route.noFix) return [];
+type TrackPoint = { lat: number; lng: number; speed: number; gpsTime: string; direction: number; altitude: number; posType: number };
+const TRACKS = new Map<string, TrackPoint[]>(); // key: riderId|dayStartMs
+
+export const buildRiderTracks = () => {
     const DAY = 24 * 60 * 60_000;
-    const until = Math.min(end, Date.now() - (route.minutesBehind ?? 0) * 60_000);
-    const points: Array<{ lat: number; lng: number; speed: number; gpsTime: string; direction: number; altitude: number; posType: number }> = [];
+    const station = { lat: 5.5560, lng: -0.2050 }; // Accra Central
+    const finished = ASSIGNMENTS.filter((a) => a.completedAt && (a.status === "DELIVERED" || a.status === "RETURNED"));
+    const byRiderDay = new Map<string, MockAssignment[]>();
+    finished.forEach((a) => {
+        const route = RIDER_ROUTES[a.riderId];
+        if (!route || route.noFix) return;
+        const key = `${a.riderId}|${Math.floor(a.completedAt! / DAY) * DAY}`;
+        byRiderDay.set(key, [...(byRiderDay.get(key) ?? []), a]);
+    });
 
-    for (let day = Math.floor(begin / DAY) * DAY; day <= until; day += DAY) {
-        let seed = (day / DAY) * 31 + riderId.length * 977 + riderId.charCodeAt(riderId.length - 1);
+    byRiderDay.forEach((list, key) => {
+        const [riderId, dayStr] = key.split("|");
+        const day = Number(dayStr);
+        const route = RIDER_ROUTES[riderId];
+        let seed = (day / DAY) * 31 + riderId.charCodeAt(riderId.length - 1) * 977;
         const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-        const station = { lat: 5.5560, lng: -0.2050 }; // Accra Central
-        const stopsToday = 6 + Math.floor(rnd() * 4);
-        let pos = { ...station };
-        let t = day + (8 * 60 + 30 + Math.floor(rnd() * 20)) * 60_000;
-        const legs = [...Array.from({ length: stopsToday }, () => ({
-            lat: route.lat + (rnd() - 0.5) * 0.06,
-            lng: route.lng + (rnd() - 0.5) * 0.06,
-        })), station];
+        list.sort((x, y) => x.completedAt! - y.completedAt!);
+        const skip = list.length >= 3 ? list.findIndex((a, i) => i >= 2 && a.status === "DELIVERED") : -1;
 
-        legs.forEach((target, li) => {
-            const km = Math.hypot((target.lat - pos.lat) * 111, (target.lng - pos.lng) * 111);
+        const stopFor = (a: MockAssignment) => {
+            const p = a.parcels[0];
+            return p.receiverLatitude != null
+                ? { lat: p.receiverLatitude as number, lng: p.receiverLongitude as number }
+                : { lat: route.lat + (rnd() - 0.5) * 0.05, lng: route.lng + (rnd() - 0.5) * 0.05 };
+        };
+        const visits = list.map((a, i) => ({ a, target: stopFor(a), skipped: i === skip, dwell: 8 + Math.floor(rnd() * 13) }));
+
+        // Plan legs first so today's day can be placed to finish before "now".
+        const legMinutes: number[] = [];
+        let pos = station;
+        [...visits.filter((v) => !v.skipped).map((v) => v.target), station].forEach((t) => {
+            const km = Math.hypot((t.lat - pos.lat) * 111, (t.lng - pos.lng) * 111);
+            legMinutes.push(Math.max(3, Math.round((km / 25) * 60 * 1.3)));
+            pos = t;
+        });
+        const total = legMinutes.reduce((x, y) => x + y, 0) + visits.filter((v) => !v.skipped).reduce((x, v) => x + v.dwell, 0);
+        const isToday = day + DAY > Date.now();
+        let t = isToday
+            ? Math.max(day + 6 * 60 * 60_000, Date.now() - (route.minutesBehind ?? 0) * 60_000 - 10 * 60_000 - total * 60_000)
+            : day + (8 * 60 + 20 + Math.floor(rnd() * 25)) * 60_000;
+        t = Math.floor(t / 60_000) * 60_000;
+        // Parcels are handed over before the rider leaves the station.
+        list.forEach((a) => {
+            a.assignedAt = Math.min(a.assignedAt, t - 20 * 60_000);
+            a.acceptedAt = Math.min(a.acceptedAt ?? a.assignedAt, t - 10 * 60_000);
+        });
+
+        const pts: TrackPoint[] = [];
+        const ride = (from: { lat: number; lng: number }, to: { lat: number; lng: number }, minutes: number) => {
             const cruise = 18 + rnd() * 17;
-            const minutes = Math.max(2, Math.round((km / cruise) * 60 * 1.3)); // roads aren't straight
-            const heading = (Math.atan2(target.lng - pos.lng, target.lat - pos.lat) * 180) / Math.PI;
+            const heading = (Math.atan2(to.lng - from.lng, to.lat - from.lat) * 180) / Math.PI;
             for (let m = 0; m < minutes; m++) {
                 const f = m / minutes;
-                const wobble = Math.sin(m * 1.7) * 0.0006;
-                points.push({
-                    lat: pos.lat + (target.lat - pos.lat) * f + wobble,
-                    lng: pos.lng + (target.lng - pos.lng) * f - wobble,
+                const wobble = Math.sin(m * 1.7) * 0.0005 * Math.sin(f * Math.PI);
+                pts.push({
+                    lat: from.lat + (to.lat - from.lat) * f + wobble, lng: from.lng + (to.lng - from.lng) * f - wobble,
                     speed: Math.round(cruise * (0.6 + 0.8 * Math.abs(Math.sin(m * 0.9)))),
-                    direction: Math.round((heading + 360) % 360),
-                    altitude: 40 + Math.round(rnd() * 30),
-                    gpsTime: utcStamp(t),
-                    posType: 1,
+                    direction: Math.round((heading + 360) % 360), altitude: 40 + Math.round(rnd() * 30), gpsTime: utcStamp(t), posType: 1,
                 });
                 t += 60_000;
             }
-            pos = { ...target };
-            const dwell = li === legs.length - 1 ? 1 : 8 + Math.floor(rnd() * 13);
-            for (let m = 0; m < dwell; m++) {
-                points.push({ lat: pos.lat, lng: pos.lng, speed: 0, direction: 0, altitude: 45, gpsTime: utcStamp(t), posType: 1 });
+        };
+        const wait = (at: { lat: number; lng: number }, minutes: number) => {
+            for (let m = 0; m < minutes; m++) {
+                pts.push({ lat: at.lat, lng: at.lng, speed: 0, direction: 0, altitude: 45, gpsTime: utcStamp(t), posType: 1 });
                 t += 60_000;
             }
+        };
+
+        pos = station;
+        let leg = 0;
+        let lastVisitEnd = t;
+        visits.forEach((v) => {
+            if (v.skipped) return;
+            ride(pos, v.target, legMinutes[leg++]);
+            const arrived = t;
+            wait(v.target, v.dwell);
+            pos = v.target;
+            const done = arrived + Math.round(v.dwell * 0.6) * 60_000;
+            v.a.completedAt = done;
+            v.a.parcels.forEach((p) => (p.deliveryDate = done));
+            lastVisitEnd = t;
         });
-    }
-    return points.filter((p) => {
+        ride(pos, station, legMinutes[leg]);
+        // The skipped delivery is "marked delivered" while the rider is somewhere else.
+        visits.filter((v) => v.skipped).forEach((v) => {
+            v.a.completedAt = lastVisitEnd - 5 * 60_000;
+            v.a.parcels.forEach((p) => (p.deliveryDate = v.a.completedAt));
+        });
+        // Never leave a delivery time in the future (very early in the day the plan may not fit).
+        const latest = Date.now() - 5 * 60_000;
+        list.forEach((a) => { if (a.completedAt! > latest) a.completedAt = latest; });
+        TRACKS.set(key, pts);
+    });
+};
+
+export const riderTrackPoints = (riderId: string, begin: number, end: number) => {
+    const route = RIDER_ROUTES[riderId];
+    if (!route || route.noFix) return [];
+    const until = Math.min(end, Date.now() - (route.minutesBehind ?? 0) * 60_000);
+    const DAY = 24 * 60 * 60_000;
+    const out: TrackPoint[] = [];
+    for (let day = Math.floor(begin / DAY) * DAY; day <= until; day += DAY) out.push(...(TRACKS.get(`${riderId}|${day}`) ?? []));
+    return out.filter((p) => {
         const ms = Date.parse(p.gpsTime.replace(" ", "T") + "Z");
         return ms >= begin && ms <= until;
     });
@@ -244,6 +326,11 @@ const makeParcel = (i: number, stage: Stage, createdAt: number, office = HOME_OF
     const shelf = pick(SHELVES.filter((s) => s.office.id === office.id));
     const driverName = person();
     const pod = rand() < 0.25;
+    const area = pick(AREAS);
+    const place = AREA_PLACES[area];
+    // ~1 in 8 home-delivery parcels predate the location feature and have no pin.
+    const pinned = homeDelivery && rand() > 0.12;
+    const landmark = pick(place.landmarks);
     return {
         parcelId: `PF${String(240000 + i * 37).padStart(6, "0")}`,
         senderName: person(),
@@ -251,7 +338,12 @@ const makeParcel = (i: number, stage: Stage, createdAt: number, office = HOME_OF
         receiverName: person(),
         recieverPhoneNumber: phone(),
         alternativePhoneNumber: rand() < 0.3 ? phone() : undefined,
-        receiverAddress: homeDelivery ? `${int(1, 60)} ${pick(STREETS)}, ${pick(AREAS)}` : undefined,
+        receiverAddress: homeDelivery ? `${int(1, 60)} ${pick(STREETS)}, ${area}` : undefined,
+        // Proposed backend fields (docs/BACKEND_HANDOFF.md)
+        receiverLatitude: pinned ? +(place.lat + (rand() - 0.5) * 0.012).toFixed(6) : undefined,
+        receiverLongitude: pinned ? +(place.lng + (rand() - 0.5) * 0.012).toFixed(6) : undefined,
+        receiverLocationName: pinned ? `Near ${landmark}` : undefined,
+        receiverLocationSource: pinned ? (rand() < 0.7 ? "SEARCH" : "MAP_PIN") : undefined,
         parcelDescription: pick(ITEMS),
         driverName,
         driverPhoneNumber: phone(),
@@ -371,13 +463,19 @@ deliveredHomeParcels.forEach((p, idx) => {
     });
 });
 
+buildRiderTracks();
+
 export const parcelAmount = (p: MockParcel) =>
     (p.inboundCost || 0) + (p.pickUpCost || 0) + (p.deliveryCost || 0) + (p.storageCost || 0);
 
 // Field lists copied from the backend OpenAPI spec (/shortly/v3/api-docs).
 // Responses are trimmed to these so the mock can't hide a field the real API lacks.
-const PARCEL_FIELDS = ["parcelId", "barCode", "parcelDescription", "inboundCost", "deliveryCost", "storageCost", "hasCalled", "pickedUp", "driverId", "officeId", "companyId", "paymentMethod", "driverName", "driverPhoneNumber", "vehicleNumber", "senderName", "senderPhoneNumber", "receiverName", "receiverAddress", "recieverPhoneNumber", "alternativePhoneNumber", "shelfName", "inboudPayed", "shelfId", "homeDelivery", "returnCount", "riderId", "riderInfo", "typeofParcel", "from", "to", "fromOfficeId", "toOfficeId", "hasArrivedAtOffice", "parcelTransfer", "pickupAddress", "pickupContactName", "pickupContactPhoneNumber", "pickupInstructions", "deliveryAddress", "deliveryContactName", "deliveryContactPhoneNumber", "specialInstructions", "pickUpCost", "parcelStatus", "imageUrls", "vendorName", "vendorId", "vendorDeliveryFee", "numberOfItems", "itemQuantity", "parcelWeight", "createdAt", "updatedAt", "callerName", "callerPhoneNumber", "notes", "hasCallCenterSpokenToClient", "callOutCome", "callCenterRemark", "pod", "delivered", "parcelAssigned", "itemCost", "vendorPayed", "fragile", "itemOwnerPaid"];
-const PARCEL_INFO_FIELDS = ["parcelId", "receiverName", "receiverPhoneNumber", "alternativePhoneNumber", "receiverAddress", "senderName", "senderPhoneNumber", "parcelAmount", "parcelWeight", "payed", "returned", "delivered", "paymentMethod", "inboundCost", "deliveryCost", "imageUrls", "storageCost", "pickUpCost", "pickedUp", "homeDelivery", "vehicleNumber", "driverName", "driverPhoneNumber", "driverId", "officeId", "shelfName", "inboudPayed", "shelfId", "typeofParcel", "pickupAddress", "pickupContactName", "pickupContactPhoneNumber", "pickupInstructions", "deliveryAddress", "deliveryContactName", "deliveryContactPhoneNumber", "specialInstructions", "pod", "itemCost", "fragile"];
+const PARCEL_FIELDS = ["parcelId", "barCode", "parcelDescription", "inboundCost", "deliveryCost", "storageCost", "hasCalled", "pickedUp", "driverId", "officeId", "companyId", "paymentMethod", "driverName", "driverPhoneNumber", "vehicleNumber", "senderName", "senderPhoneNumber", "receiverName", "receiverAddress", "recieverPhoneNumber", "alternativePhoneNumber", "shelfName", "inboudPayed", "shelfId", "homeDelivery", "returnCount", "riderId", "riderInfo", "typeofParcel", "from", "to", "fromOfficeId", "toOfficeId", "hasArrivedAtOffice", "parcelTransfer", "pickupAddress", "pickupContactName", "pickupContactPhoneNumber", "pickupInstructions", "deliveryAddress", "deliveryContactName", "deliveryContactPhoneNumber", "specialInstructions", "pickUpCost", "parcelStatus", "imageUrls", "vendorName", "vendorId", "vendorDeliveryFee", "numberOfItems", "itemQuantity", "parcelWeight", "createdAt", "updatedAt", "callerName", "callerPhoneNumber", "notes", "hasCallCenterSpokenToClient", "callOutCome", "callCenterRemark", "pod", "delivered", "parcelAssigned", "itemCost", "vendorPayed", "fragile", "itemOwnerPaid",
+    // Proposed: pinned delivery location (docs/BACKEND_HANDOFF.md)
+    "receiverLatitude", "receiverLongitude", "receiverLocationName", "receiverPlaceId", "receiverLocationSource"];
+const PARCEL_INFO_FIELDS = ["parcelId", "receiverName", "receiverPhoneNumber", "alternativePhoneNumber", "receiverAddress", "senderName", "senderPhoneNumber", "parcelAmount", "parcelWeight", "payed", "returned", "delivered", "paymentMethod", "inboundCost", "deliveryCost", "imageUrls", "storageCost", "pickUpCost", "pickedUp", "homeDelivery", "vehicleNumber", "driverName", "driverPhoneNumber", "driverId", "officeId", "shelfName", "inboudPayed", "shelfId", "typeofParcel", "pickupAddress", "pickupContactName", "pickupContactPhoneNumber", "pickupInstructions", "deliveryAddress", "deliveryContactName", "deliveryContactPhoneNumber", "specialInstructions", "pod", "itemCost", "fragile",
+    // Proposed: pinned delivery location (docs/BACKEND_HANDOFF.md)
+    "receiverLatitude", "receiverLongitude", "receiverLocationName"];
 export const USER_FIELDS = ["userId", "name", "officeId", "companyId", "phoneNumber", "email", "availability", "status", "officeIds", "role", "departmentRole", "deviceImei", "createdAt", "updatedAt"];
 
 export const only = (obj: Record<string, any>, fields: string[]) =>

@@ -11,6 +11,7 @@ import { ACCRA_CENTER, loadGoogleMaps } from "../../utils/googleMaps";
 import { runPool } from "../../utils/asyncPool";
 import { parseGpsTime } from "./trackUtils";
 import { RouteHistoryPanel } from "./RouteHistoryPanel";
+import { HISTORY_LEGEND, LIVE_LEGEND, MapLegend } from "./MapLegend";
 
 const REFRESH_MS = 30_000;
 /** A fix newer than this counts as "live". */
@@ -360,6 +361,11 @@ export const RiderMap = (): JSX.Element => {
                     <Card className="order-1 lg:order-2 border border-[#d1d1d1] bg-white overflow-hidden">
                         <div className="relative h-[360px] lg:h-[calc(100vh-260px)] lg:min-h-[480px]">
                             <div ref={mapEl} className="absolute inset-0" />
+                            {mapReady && !mapError && (
+                                historyRider
+                                    ? <MapLegend title="Route history" items={HISTORY_LEGEND} />
+                                    : <MapLegend title="Riders" items={LIVE_LEGEND} />
+                            )}
                             {mapError && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-50 text-center p-6">
                                     <MapPin className="w-8 h-8 text-gray-300" />
