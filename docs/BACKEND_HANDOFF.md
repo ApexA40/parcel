@@ -54,7 +54,13 @@ All five fields are nullable:
   }
   ```
 
-- **`PUT /api-frontdesk/parcel/{id}`** (`ParcelUpdateRequest`): accept the same five fields, so a location can be added or corrected later.
+- **`PUT /api-frontdesk/parcel/{id}`** (`ParcelUpdateRequest`): accept the same five fields, so a location can be added or corrected later. The frontend sends them from Parcel Search (Set / Change / Remove delivery pin, Request Home Delivery) and from Edit Parcel. It sends them **only when the pin changed**, and sends all five as **`null` to remove a pin**:
+
+  ```json
+  { "receiverLatitude": null, "receiverLongitude": null, "receiverLocationName": null, "receiverPlaceId": null, "receiverLocationSource": null }
+  ```
+
+  So on update, a field that is **absent** means "leave as is", and an explicit **`null`** means "clear it". If your update code ignores nulls, removing a pin won't work.
 
 Validation:
 
@@ -348,7 +354,7 @@ Thresholds should be configurable. Nothing in the frontend depends on alerts yet
 Once A3 is in place, the frontend team should:
 
 - ~~**Rider app:** pass the new fields through `riderService.getAssignments` and point Directions at the pin.~~ **Done.** The rider app reads `receiverLatitude`, `receiverLongitude` and `receiverLocationName` from `GET /api-rider/assignments` (`ParcelInfo`). Directions open Google Maps routing to the pin, and fall back to searching the address text when there's no pin. **This only works once A3 returns these fields on `ParcelInfo` for the rider endpoint.**
-- **Parcel Search / Edit Parcel:** show the location, and let staff add or correct a pin on existing parcels (uses `PUT /api-frontdesk/parcel/{id}`, A2).
+- ~~**Parcel Search / Edit Parcel:** let staff add or correct a pin on existing parcels.~~ **Done.** Parcel Search shows the pin in parcel details, with Add / Change / Remove, and Request Home Delivery asks for one. Edit Parcel has the pin field, which is required when switching Home Delivery on. Both use `PUT /api-frontdesk/parcel/{id}` (A2, including `null` to remove).
 
 ---
 

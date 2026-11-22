@@ -97,6 +97,12 @@ interface ParcelUpdateRequest {
     homeDelivery?: boolean;
     images?: string[];
     parcelWeight?: number;
+    // Pinned delivery location; null clears it (docs/BACKEND_HANDOFF.md, Part A2)
+    receiverLatitude?: number | null;
+    receiverLongitude?: number | null;
+    receiverLocationName?: string | null;
+    receiverPlaceId?: string | null;
+    receiverLocationSource?: "SEARCH" | "MAP_PIN" | null;
 }
 
 interface ParcelResponse {
@@ -154,12 +160,12 @@ interface ParcelResponse {
     followUpAt?: number;
     deliveryDate?: number;
     officeName?: string;
-    // Pinned delivery location (new backend fields)
-    receiverLatitude?: number;
-    receiverLongitude?: number;
-    receiverLocationName?: string;
-    receiverPlaceId?: string;
-    receiverLocationSource?: "SEARCH" | "MAP_PIN";
+    // Pinned delivery location (new backend fields); null when cleared
+    receiverLatitude?: number | null;
+    receiverLongitude?: number | null;
+    receiverLocationName?: string | null;
+    receiverPlaceId?: string | null;
+    receiverLocationSource?: "SEARCH" | "MAP_PIN" | null;
 }
 
 interface PageParcelResponse {

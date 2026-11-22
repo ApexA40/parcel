@@ -17,6 +17,44 @@ export interface DeliveryLocation {
     source: "SEARCH" | "MAP_PIN";
 }
 
+/** The parcel fields that hold a pinned drop-off (docs/BACKEND_HANDOFF.md, Part A). */
+export interface ParcelLocationFields {
+    receiverLatitude?: number | null;
+    receiverLongitude?: number | null;
+    receiverLocationName?: string | null;
+    receiverPlaceId?: string | null;
+    receiverLocationSource?: "SEARCH" | "MAP_PIN" | null;
+}
+
+/** A parcel's saved pin, or null when it has none. */
+export const locationFromParcel = (p?: ParcelLocationFields & { receiverAddress?: string | null } | null): DeliveryLocation | null =>
+    p && p.receiverLatitude != null && p.receiverLongitude != null
+        ? {
+            lat: p.receiverLatitude,
+            lng: p.receiverLongitude,
+            name: p.receiverLocationName || "Pinned location",
+            address: p.receiverAddress || undefined,
+            placeId: p.receiverPlaceId || undefined,
+            source: p.receiverLocationSource || "MAP_PIN",
+        }
+        : null;
+
+/** Fields for PUT /api-frontdesk/parcel/{id}. Passing null clears the pin. */
+export const locationToUpdate = (loc: DeliveryLocation | null): Required<ParcelLocationFields> =>
+    loc
+        ? {
+            receiverLatitude: loc.lat,
+            receiverLongitude: loc.lng,
+            receiverLocationName: loc.name,
+            receiverPlaceId: loc.placeId ?? null,
+            receiverLocationSource: loc.source,
+        }
+        : { receiverLatitude: null, receiverLongitude: null, receiverLocationName: null, receiverPlaceId: null, receiverLocationSource: null };
+
+/** True when two pins are the same point (to skip no-op saves). */
+export const sameLocation = (a: DeliveryLocation | null, b: DeliveryLocation | null) =>
+    (!a && !b) || (!!a && !!b && a.lat === b.lat && a.lng === b.lng && a.name === b.name);
+
 interface Prediction {
     place_id: string;
     description: string;
