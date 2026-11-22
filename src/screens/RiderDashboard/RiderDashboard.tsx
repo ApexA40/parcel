@@ -10,7 +10,9 @@ import {
     Navigation,
     RefreshCw,
     Download,
+    Route,
 } from "lucide-react";
+import { mapsRouteLinks, formatMinutes } from "../../utils/routePlan";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { formatPhoneNumber, formatCurrency } from "../../utils/dataHelpers";
@@ -275,13 +277,43 @@ export const RiderDashboard = (): JSX.Element => {
     // Filter assignments by parcel-level status
     // Backend assignment.status is unreliable, so we rely on parcel flags
     const activeAssignments = useMemo(() => {
-        return assignments.filter(a => {
+        const open = assignments.filter(a => {
             const isDelivered = !!a.parcel?.delivered;
             const isCancelled = !!a.parcel?.cancelled;
             const isReturned = !!a.parcel?.returned;
             return !isDelivered && !isCancelled && !isReturned;
         });
+        // Follow the planned route: planned stops in plan order (older plans first), then the rest as they came.
+        const rank = (a: RiderAssignmentResponse) => {
+            const idx = a.routePlan?.stopOrder?.indexOf(a.parcel.parcelId) ?? -1;
+            // Unpinned last, so card numbers match the "Stops 1–4" route parts.
+            return idx >= 0 ? [0, a.routePlan?.plannedAt ?? a.assignedAt ?? 0, idx] : hasPin(a.parcel) ? [1, 0, 0] : [2, 0, 0];
+        };
+        return open
+            .map((a, i) => ({ a, i, r: rank(a) }))
+            .sort((x, y) => x.r[0] - y.r[0] || x.r[1] - y.r[1] || x.r[2] - y.r[2] || x.i - y.i)
+            .map((x) => x.a);
     }, [assignments]);
+
+    // "Start route": remaining pinned stops in planned order, as Google Maps links.
+    const routeStops = useMemo(() => activeAssignments.filter((a) => hasPin(a.parcel)), [activeAssignments]);
+    const routeLinks = useMemo(() => {
+        const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+        return mapsRouteLinks(
+            routeStops.map((a) => ({ lat: a.parcel.receiverLatitude!, lng: a.parcel.receiverLongitude! })),
+            { mobile: isMobile }
+        );
+    }, [routeStops]);
+    // One plan can come back on several assignments (one per parcel), so de-duplicate by content.
+    const plans = useMemo(() => {
+        const seen = new Map<string, NonNullable<RiderAssignmentResponse["routePlan"]>>();
+        activeAssignments.forEach((a) => {
+            const pl = a.routePlan;
+            if (pl) seen.set(`${pl.plannedAt ?? ""}|${pl.stopOrder.join(",")}`, pl);
+        });
+        return Array.from(seen.values());
+    }, [activeAssignments]);
+    const unpinnedOpen = activeAssignments.length - routeStops.length;
 
     // Calculate total amount to collect from active assignments
     const totalAmountToCollect = useMemo(() => {
@@ -442,6 +474,44 @@ export const RiderDashboard = (): JSX.Element => {
                     )}
                 </div>
             </div>
+
+            {tab === "active" && routeStops.length > 0 && (
+                <section className="rounded-2xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/[0.04]">
+                    <div className="flex items-center gap-3">
+                        <span className="h-8 w-8 shrink-0 rounded-xl bg-orange-50 text-[#ea690c] flex items-center justify-center">
+                            <Route className="w-[18px] h-[18px]" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-sm">
+                                {plans.length > 0 ? "Planned route" : "Your route"} · {routeStops.length} stop{routeStops.length === 1 ? "" : "s"} left
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                {plans.length === 1 && plans[0]
+                                    ? `Whole plan ${plans[0].totalKm.toFixed(1)} km · about ${formatMinutes(plans[0].totalMinutes)} riding`
+                                    : plans.length > 1 ? `${plans.length} plans from different assignments` : "In the order shown below"}
+                                {unpinnedOpen > 0 && ` · ${unpinnedOpen} without a pin at the end`}
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        className={`mt-2.5 grid gap-2 ${routeLinks.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
+                        title={routeLinks.length > 1 ? "Google Maps takes a few stops per trip, so the route opens in parts." : undefined}
+                    >
+                        {routeLinks.map((l) => (
+                            <a
+                                key={l.from}
+                                href={l.href}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="h-9 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                            >
+                                <Navigation className="w-4 h-4" />
+                                {routeLinks.length === 1 ? "Start route" : `Stops ${l.from}–${l.to}`}
+                            </a>
+                        ))}
+                    </div>
+                </section>
+            )}
 
             {loading && assignments.length === 0 ? (
                 <CardSkeleton />

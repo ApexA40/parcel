@@ -68,6 +68,15 @@ export interface RiderAssignmentResponse {
     officeId?: string;
     payed?: boolean;
     paymentMethod?: string | null;
+    /** Route the manager confirmed when assigning (docs/BACKEND_HANDOFF.md Part F). */
+    routePlan?: {
+        method: "GOOGLE" | "ESTIMATE";
+        stopOrder: string[];
+        totalKm: number;
+        totalMinutes: number;
+        encodedPath?: string;
+        plannedAt?: number;
+    } | null;
 }
 
 interface UpdateAssignmentStatusRequest {
@@ -241,6 +250,7 @@ class RiderService {
                             officeId: item.officeId,
                             payed: item.payed,
                             paymentMethod: item.payementMethod || item.paymentMethod,
+                            routePlan: item.routePlan ?? null,
                         } as RiderAssignmentResponse);
                     });
                 } else if (item.assignmentId && item.parcel) {
@@ -260,6 +270,7 @@ class RiderService {
                         officeId: item.officeId,
                         payed: item.payed,
                         paymentMethod: item.paymentMethod,
+                        routePlan: item.routePlan ?? null,
                     } as RiderAssignmentResponse);
                 } else {
                     // Very old format: just a parcel, need to map it
