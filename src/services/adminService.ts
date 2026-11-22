@@ -60,6 +60,57 @@ export interface AdminReconciliationPage {
   last: boolean;
 }
 
+/** GET /api-admin/revenue-dashboard (RevenueDashboardResponse in the backend spec). */
+export interface RevenueDashboard {
+  totalRevenue: number;
+  collected: number;
+  outstanding: number;
+  collectionRate: number;
+  avgPerParcel: number;
+  driverPayments: number;
+  revenueVsCollectedTrend?: Array<{ date: string; revenue: number; collected: number; outstanding: number }>;
+  revenueByStation?: Array<{ officeId: string; stationName: string; parcels: number; revenue: number; collected: number; outstanding: number; collectionRate: number }>;
+  paymentMethodTrend?: Array<{ date: string; cash: number; momo: number; other: number }>;
+  revenueByType?: { pod: number; nonPod: number };
+  paymentMethods?: Array<{ method: string; amount: number; count: number }>;
+  revenueByDayOfWeek?: Array<{ day: string; revenue: number }>;
+}
+
+/** One row of riderLeaderboard in GET /api-admin/rider-performance-dashboard. */
+export interface RiderLeaderboardEntry {
+  rank: number;
+  riderId: string;
+  riderName: string;
+  deliveries: number;
+  failed: number;
+  revenue: number;
+  outstanding: number;
+  rating: number;
+  avgTimeHours: number;
+}
+
+export interface RiderPerformanceDashboard {
+  earningsTrend?: Array<{ date: string; revenue: number; collected: number }>;
+  monthlyEarnings?: Array<{ month: string; parcels: number; revenue: number; collected: number }>;
+  riderLeaderboard?: RiderLeaderboardEntry[];
+}
+
+/** Optional filters shared by the admin dashboards. Dates are epoch milliseconds; the API defaults to the last 30 days. */
+export interface DashboardFilters {
+  officeId?: string;
+  startDate?: number;
+  endDate?: number;
+}
+
+const dashboardParams = (f: DashboardFilters) => {
+  const params = new URLSearchParams();
+  if (f.officeId) params.append("officeId", f.officeId);
+  if (f.startDate !== undefined) params.append("startDate", String(f.startDate));
+  if (f.endDate !== undefined) params.append("endDate", String(f.endDate));
+  const q = params.toString();
+  return q ? `?${q}` : "";
+};
+
 interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
@@ -171,7 +222,24 @@ class AdminService {
       };
     }
   }
+
+  async getRevenueDashboard(filters: DashboardFilters = {}): Promise<ApiResponse<RevenueDashboard>> {
+    try {
+      const response = await this.apiClient.get<RevenueDashboard>(`/revenue-dashboard${dashboardParams(filters)}`);
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      return { success: false, message: error.response?.data?.message || "Failed to load revenue figures." };
+    }
+  }
+
+  async getRiderPerformanceDashboard(filters: DashboardFilters = {}): Promise<ApiResponse<RiderPerformanceDashboard>> {
+    try {
+      const response = await this.apiClient.get<RiderPerformanceDashboard>(`/rider-performance-dashboard${dashboardParams(filters)}`);
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      return { success: false, message: error.response?.data?.message || "Failed to load rider performance." };
+    }
+  }
 }
 
 export default new AdminService();
-

@@ -177,6 +177,56 @@ on("get", /^\/api-admin\/users$/, ({ params }) => {
 on("get", /^\/api-admin\/user-actions$/, ({ params }) => page(USER_ACTIONS, params));
 on("get", /^\/api-admin\/reconciliations\/by-date$/, ({ params }) => reconciledOn(params));
 
+// Dashboards: figures are derived from the sample parcels and assignments so they add up.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const dashboardWindow = (params: URLSearchParams) => {
+    const end = Number(params.get("endDate")) || Date.now();
+    const start = Number(params.get("startDate")) || end - 30 * DAY_MS; // API default: last 30 days
+    const office = params.get("officeId");
+    return { start, end, inScope: (officeId: string) => !office || officeId === office };
+};
+const amountOf = (p: MockParcel) => (p.inboundCost || 0) + (p.pickUpCost || 0) + (p.deliveryCost || 0) + (p.storageCost || 0);
+
+on("get", /^\/api-admin\/revenue-dashboard$/, ({ params }) => {
+    const { start, end, inScope } = dashboardWindow(params);
+    const inRange = (t?: number) => (t ?? 0) >= start && (t ?? 0) <= end;
+    const parcels = PARCELS.filter((p) => inScope(officeIdOf(p)) && inRange(p.createdAt));
+    const done = ASSIGNMENTS.filter((a) => a.status === "DELIVERED" && inScope(HOME_OFFICE.id) && inRange(a.completedAt));
+    const pickedUp = parcels.filter((p) => p.pickedUp);
+    const totalRevenue = parcels.reduce((s, p) => s + amountOf(p), 0);
+    const collected = done.reduce((s, a) => s + a.parcels.reduce((t, p) => t + amountOf(p), 0), 0) + pickedUp.reduce((s, p) => s + amountOf(p), 0);
+    const outstanding = done.filter((a) => !a.payed).reduce((s, a) => s + a.parcels.reduce((t, p) => t + amountOf(p), 0), 0);
+    const driverPayments = parcels.filter((p) => p.inboudPayed).reduce((s, p) => s + (p.inboundCost || 0), 0);
+    const pod = parcels.filter((p) => p.pod).reduce((s, p) => s + amountOf(p), 0);
+    return {
+        totalRevenue, collected, outstanding, driverPayments,
+        collectionRate: totalRevenue ? Math.round((collected / totalRevenue) * 1000) / 10 : 0,
+        avgPerParcel: parcels.length ? Math.round((totalRevenue / parcels.length) * 100) / 100 : 0,
+        revenueVsCollectedTrend: [], revenueByStation: [], paymentMethodTrend: [],
+        revenueByType: { pod, nonPod: totalRevenue - pod },
+        paymentMethods: [], revenueByDayOfWeek: [],
+    };
+});
+
+on("get", /^\/api-admin\/rider-performance-dashboard$/, ({ params }) => {
+    const { start, end, inScope } = dashboardWindow(params);
+    const finished = ASSIGNMENTS.filter((a) => inScope(HOME_OFFICE.id) && (a.completedAt ?? 0) >= start && (a.completedAt ?? 0) <= end);
+    const rows = RIDERS.map((r) => {
+        const mine = finished.filter((a) => a.riderId === r.userId);
+        const delivered = mine.filter((a) => a.status === "DELIVERED");
+        const sum = (list: typeof mine) => list.reduce((s, a) => s + a.parcels.reduce((t, p) => t + amountOf(p), 0), 0);
+        return {
+            riderId: r.userId, riderName: r.name,
+            deliveries: delivered.length,
+            failed: mine.filter((a) => a.status === "RETURNED").length,
+            revenue: sum(delivered),
+            outstanding: sum(delivered.filter((a) => !a.payed)),
+            rating: 4.6, avgTimeHours: 2.1,
+        };
+    }).sort((a, b) => b.revenue - a.revenue).map((r, i) => ({ rank: i + 1, ...r }));
+    return { earningsTrend: [], monthlyEarnings: [], riderLeaderboard: rows };
+});
+
 // ── Call center ─────────────────────────────────────────────────
 on("get", /^\/api-call-center\/stats$/, () => ({ totalDeliveredYesterday: 23, reached: 15, unreachable: 3, notCalled: 5 }));
 on("get", /^\/api-call-center\/parcels\/uncalled$/, ({ params }) => parcelPage(homeParcels().filter((p) => !p.hasCalled && !p.delivered).sort(byNewest), params));
