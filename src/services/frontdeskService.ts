@@ -744,6 +744,10 @@ class FrontdeskService {
         assignmentId: string;
         reconciledAt: number | string;
         payedAmount: number | string;
+        /** Proposed (handoff Part K): what the system expected, the total difference and per-parcel lines. */
+        expectedAmount?: number;
+        varianceAmount?: number;
+        lines?: Array<{ parcelId: string; systemAmount: number; collectedAmount: number; variance: number; varianceReason?: string; varianceNote?: string }>;
     }>): Promise<ApiResponse> {
         try {
             // Convert to format expected by API (strings for payedAmount and reconciledAt)
@@ -751,6 +755,7 @@ class FrontdeskService {
                 assignmentId: item.assignmentId,
                 reconciledAt: String(item.reconciledAt),
                 payedAmount: String(item.payedAmount),
+                ...(item.lines ? { expectedAmount: item.expectedAmount, varianceAmount: item.varianceAmount, lines: item.lines } : {}),
             }));
 
             // If only one item, send as single object (matching Postman format)

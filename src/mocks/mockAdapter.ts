@@ -157,8 +157,16 @@ on("post", /^\/api-frontdesk\/assign-parcels$/, ({ body }) => {
     return ok(`${parcels.length} parcel(s) assigned`);
 });
 const markPaid: Handler = ({ body }) => {
-    const ids: string[] = (Array.isArray(body) ? body : [body]).map((x: any) => (typeof x === "string" ? x : x?.assignmentId));
-    ASSIGNMENTS.forEach((a) => ids.includes(a.assignmentId) && (a.payed = true));
+    const items = (Array.isArray(body) ? body : [body]);
+    const ids: string[] = items.map((x: any) => (typeof x === "string" ? x : x?.assignmentId));
+    ASSIGNMENTS.forEach((a) => {
+        const item: any = items.find((x: any) => x?.assignmentId === a.assignmentId);
+        if (!ids.includes(a.assignmentId)) return;
+        a.payed = true;
+        // Proposed (handoff Part K): keep what the manager actually received, per parcel.
+        if (item?.payedAmount !== undefined) a.amountPayed = Number(item.payedAmount);
+        if (Array.isArray(item?.lines)) a.reconciliationLines = item.lines;
+    });
     DRIVER_ASSIGNMENTS.forEach((d) => ids.includes(d.id) && (d.payed = true));
     return ok("Payments reconciled");
 };

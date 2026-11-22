@@ -464,6 +464,9 @@ export interface MockAssignment {
     returnReason?: string;
     /** Route plan confirmed when the parcels were assigned (handoff Part F). */
     routePlan?: Record<string, unknown>;
+    /** What the manager recorded at reconciliation (handoff Part K). */
+    amountPayed?: number;
+    reconciliationLines?: Array<Record<string, unknown>>;
     parcels: MockParcel[];
 }
 
@@ -535,6 +538,23 @@ buildRiderTracks();
     }
 }
 
+// Some past reconciliations where the manager recorded a difference (handoff Part K).
+{
+    const reasons = ["Customer paid less", "Rider short on cash", "Discount approved", "Overpaid / tip"];
+    ASSIGNMENTS.filter((a) => a.payed && a.status === "DELIVERED").forEach((a, i) => {
+        const lines = a.parcels.map((p) => {
+            const system = (p.inboundCost || 0) + (p.pickUpCost || 0) + (p.deliveryCost || 0) + (p.storageCost || 0);
+            const diff = i % 4 === 0 ? (reasons[i % reasons.length] === "Overpaid / tip" ? 5 : -5) : 0;
+            return {
+                parcelId: p.parcelId, systemAmount: system, collectedAmount: system + diff, variance: diff,
+                ...(diff ? { varianceReason: reasons[i % reasons.length], varianceNote: i % 8 === 0 ? "Recipient said they'd pay the rest at the station" : undefined } : {}),
+            };
+        });
+        a.reconciliationLines = lines;
+        a.amountPayed = lines.reduce((s, l) => s + l.collectedAmount, 0);
+    });
+}
+
 export const parcelAmount = (p: MockParcel) =>
     (p.inboundCost || 0) + (p.pickUpCost || 0) + (p.deliveryCost || 0) + (p.storageCost || 0);
 
@@ -578,7 +598,8 @@ export const serializeAssignment = (a: MockAssignment) => ({
     inboundCost: a.parcels.reduce((s, p) => s + (p.inboundCost || 0), 0),
     deliveryCost: a.parcels.reduce((s, p) => s + (p.deliveryCost || 0), 0),
     returnReason: a.returnReason,
-    amountPayed: a.payed ? a.parcels.reduce((s, p) => s + parcelAmount(p), 0) : undefined,
+    amountPayed: a.amountPayed ?? (a.payed ? a.parcels.reduce((s, p) => s + parcelAmount(p), 0) : undefined),
+    reconciliationLines: a.reconciliationLines,
     payedAt: a.payed ? a.completedAt : undefined,
     createdAt: a.assignedAt,
     updatedAt: a.completedAt ?? a.acceptedAt ?? a.assignedAt,
