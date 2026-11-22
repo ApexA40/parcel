@@ -4,7 +4,7 @@
  */
 import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import {
-    ADDRESSES, ASSIGNMENTS, DEMO_ACCOUNTS, DRIVER_ASSIGNMENTS, FUEL_REQUESTS, HOME_OFFICE,
+    ADDRESSES, ASSIGNMENTS, OFFICES, DEMO_ACCOUNTS, DRIVER_ASSIGNMENTS, FUEL_REQUESTS, HOME_OFFICE,
     INCOMING_TRANSFERS, OUTGOING_TRANSFERS, PARCELS, RIDERS, SHELVES, USERS, USER_ACTIONS,
     locationsWithOffices, serializeAssignment, serializeParcel, only, USER_FIELDS, riderLocationNow, riderTrackPoints, MockParcel,
 } from "./mockData";
@@ -169,6 +169,21 @@ on("post", /^\/api-frontdesk\/addresses$/, ({ body }) => {
     ADDRESSES.push(a);
     return a;
 });
+
+// Station settings (pickup charge is a proposed field, handoff Part J).
+const applyStationUpdate = (officeId: string, body: any) => {
+    const office = OFFICES.find((x) => x.id === officeId);
+    if (!office) throw { status: 404, message: "Office not found" };
+    if (body?.name) office.name = body.name;
+    if (body?.address !== undefined) office.address = body.address;
+    if (body?.pickupChargeEnabled !== undefined) {
+        (office as any).pickupChargeEnabled = !!body.pickupChargeEnabled;
+        (office as any).pickupChargeAmount = body.pickupChargeEnabled ? Number(body.pickupChargeAmount) || 0 : null;
+    }
+    return ok("Station updated");
+};
+on("put", /^\/api-admin\/office\/([^/]+)$/, ({ match, body }) => applyStationUpdate(match[1], body));
+on("put", /^\/api-frontdesk\/office\/pickup-charge$/, ({ body }) => applyStationUpdate(HOME_OFFICE.id, body));
 
 // ── Admin ───────────────────────────────────────────────────────
 on("get", /^\/api-admin\/parcels$/, ({ params }) => parcelPage(filterParcels(params, false), params));

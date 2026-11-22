@@ -76,12 +76,18 @@ const OFFICE_POSITIONS: Record<string, [number, number]> = {
     "off-takoradi": [4.8970, -1.7560],
 };
 
+const PICKUP_CHARGES: Record<string, number | undefined> = {
+    "off-accra": 10, "off-eastlegon": 0, "off-kumasi": 15, "off-tema": 0, "off-takoradi": undefined,
+};
+
 export const OFFICES = officeRows.map(([id, name, code, address, locationId]) => {
     const loc = LOCATIONS.find((l) => l.id === locationId)!;
     return {
         id, name, code, address,
         latitude: OFFICE_POSITIONS[id][0],
         longitude: OFFICE_POSITIONS[id][1],
+        // Proposed (handoff Part J): pickup-request charge per station. Takoradi isn't configured yet.
+        ...(PICKUP_CHARGES[id] !== undefined ? { pickupChargeEnabled: PICKUP_CHARGES[id]! > 0, pickupChargeAmount: PICKUP_CHARGES[id]! > 0 ? PICKUP_CHARGES[id] : null } : {}),
         phoneNumber: phone(),
         locationName: loc.name,
         managerName: person(),

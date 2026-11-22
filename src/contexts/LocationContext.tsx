@@ -12,6 +12,9 @@ interface Station {
     /** Station position (proposed backend field, docs/BACKEND_HANDOFF.md Part E1). */
     latitude?: number | null;
     longitude?: number | null;
+    /** Default charge for pickup requests at this station (proposed, handoff Part J). */
+    pickupChargeEnabled?: boolean | null;
+    pickupChargeAmount?: number | null;
 }
 
 interface Location {

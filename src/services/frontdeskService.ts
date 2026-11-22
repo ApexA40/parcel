@@ -540,6 +540,19 @@ class FrontdeskService {
     }
 
     /**
+     * Manager: set the pickup-request charge for their own station.
+     * Proposed endpoint PUT /api-frontdesk/office/pickup-charge (handoff Part J).
+     */
+    async updateStationPickupCharge(enabled: boolean, amount: number | null): Promise<ApiResponse> {
+        try {
+            await this.apiClient.put('/office/pickup-charge', { pickupChargeEnabled: enabled, pickupChargeAmount: amount });
+            return { success: true, message: 'Pickup charge saved' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Failed to save the pickup charge.' };
+        }
+    }
+
+    /**
      * Remove parcel from home delivery list (set homeDelivery to false)
      * Endpoint: PUT /parcel/:parcelId
      */
