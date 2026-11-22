@@ -83,6 +83,9 @@ interface ApiUser {
     phoneNumber: string;
     email?: string;
     status: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "DELETED";
+    /** IMEI of the GPS tracker assigned to a rider, if any. */
+    deviceImei?: string;
+    officeId?: string;
     office?: {
         id: string;
         name: string;

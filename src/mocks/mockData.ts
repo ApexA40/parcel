@@ -151,6 +151,7 @@ export const riderLocationNow = (riderId: string) => {
 export const USERS = [
     ...Object.entries(DEMO_ACCOUNTS).map(([phoneNumber, a], i) => ({
         userId: `user-${i + 1}`, name: a.name, phoneNumber, email: a.email, role: a.role,
+        deviceImei: RIDERS.find((r) => r.phoneNumber === phoneNumber)?.deviceImei as string | undefined,
     })),
     ...RIDERS.slice(1).map((r) => ({ userId: r.userId, name: r.name, phoneNumber: r.phoneNumber, email: r.email, role: "RIDER", deviceImei: r.deviceImei })),
     ...Array.from({ length: 8 }, (_, i) => ({

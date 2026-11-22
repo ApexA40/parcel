@@ -236,6 +236,18 @@ on("get", /^\/api-admin\/riders\/location$/, ({ params }) => {
     throw { status: res.status, message: res.status === 422 ? "Rider has no GPS device assigned" : "Rider not found" };
 });
 
+// Assign a GPS tracker. Like the real API, answers are plain strings.
+on("put", /^\/api-admin\/riders\/device$/, ({ body }) => {
+    const phone = String(body?.phoneNumber ?? "");
+    const user = USERS.find((u) => u.phoneNumber === phone);
+    const rider = RIDERS.find((r) => r.phoneNumber === phone);
+    if (!user && !rider) throw { status: 404, message: "Rider not found" };
+    if (!rider) throw { status: 400, message: "User is not a rider" };
+    rider.deviceImei = String(body?.deviceImei ?? "");
+    if (user) (user as { deviceImei?: string }).deviceImei = rider.deviceImei;
+    return "Device assigned successfully";
+});
+
 // ── Call center ─────────────────────────────────────────────────
 on("get", /^\/api-call-center\/stats$/, () => ({ totalDeliveredYesterday: 23, reached: 15, unreachable: 3, notCalled: 5 }));
 on("get", /^\/api-call-center\/parcels\/uncalled$/, ({ params }) => parcelPage(homeParcels().filter((p) => !p.hasCalled && !p.delivered).sort(byNewest), params));
@@ -321,7 +333,7 @@ export const mockAdapter: AxiosAdapter = async (config) => {
         } catch (e: any) {
             if (typeof e?.status !== "number") throw e;
             const err: any = new Error(`Request failed with status code ${e.status}`);
-            err.response = respond(e.status, { message: e.message });
+            err.response = respond(e.status, config.url?.includes("/riders/device") ? e.message : { message: e.message });
             err.config = config;
             throw err;
         }

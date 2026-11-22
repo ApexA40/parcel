@@ -274,6 +274,24 @@ class AdminService {
       };
     }
   }
+
+  /**
+   * Assign or replace the GPS tracker for a rider (PUT /api-admin/riders/device).
+   * The API answers 400 "User is not a rider" and 404 "Rider not found" as plain strings.
+   */
+  async assignRiderDevice(phoneNumber: string, deviceImei: string): Promise<ApiResponse<string>> {
+    try {
+      const response = await this.apiClient.put<string>("/riders/device", { phoneNumber, deviceImei });
+      return { success: true, message: typeof response.data === "string" ? response.data : "Device assigned successfully" };
+    } catch (error: any) {
+      const body = error.response?.data;
+      const fallback =
+        error.response?.status === 404 ? "Rider not found" :
+        error.response?.status === 400 ? "User is not a rider" :
+        "Failed to assign the GPS device.";
+      return { success: false, message: typeof body === "string" && body ? body : body?.message || fallback };
+    }
+  }
 }
 
 export default new AdminService();
