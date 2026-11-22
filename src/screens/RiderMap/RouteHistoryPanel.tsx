@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Pause, Play, RotateCcw, Loader, MapPin, CheckCircle2, XCircle, MapPinOff, AlertTriangle, Clock } from "lucide-react";
+import { ArrowLeft, Pause, Play, RotateCcw, Loader, MapPin, CheckCircle2, XCircle, MapPinOff, AlertTriangle, Clock, Route, ShieldCheck } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import adminService from "../../services/adminService";
 import frontdeskService from "../../services/frontdeskService";
 import {
-    DeliveryCheck, DeliveryStop, TimedPoint, VISIT_RADIUS_M, checkDeliveries, formatDistance, formatDuration,
+    CORRIDOR_M, DeliveryCheck, DeliveryStop, EXPLAINED_STOP_M, MIN_DETOUR_MS, OffTaskReport, Stop, TimedPoint, VISIT_RADIUS_M,
+    analyzeOffTask, checkDeliveries, formatDistance, formatDuration,
     indexAt, normalizePoints, positionAt, summarize, toApiTime, validateRange,
 } from "./trackUtils";
 
@@ -27,6 +28,9 @@ const toStops = (assignments: any[]): DeliveryStop[] =>
     );
 
 const PIN_PATH = "M12 1.5C7.6 1.5 4 5 4 9.4 4 15.3 12 22.5 12 22.5S20 15.3 20 9.4C20 5 16.4 1.5 12 1.5z";
+const DETOUR_COLOR = "#dc2626";
+const OFF_TASK_STOP_COLOR = "#7c3aed";
+
 const CHECK_COLOR = { visited: "#16a34a", "not-visited": "#dc2626", pending: "#6b7280", "no-data": "#6b7280", "no-location": "#6b7280" } as const;
 
 type Preset = "today" | "yesterday" | "custom";
@@ -137,6 +141,11 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
         });
         return t;
     }, [checks]);
+    const offTask = useMemo<OffTaskReport | null>(
+        () => (points && summary && stops ? analyzeOffTask(points, checks, summary.stops) : null),
+        [points, summary, stops, checks]
+    );
+    const isOffTaskStop = (st: Stop) => !!offTask?.unexplainedStops.some((u) => u.start === st.start);
     const first = points?.[0]?.t ?? 0;
     const last = points?.[points.length - 1]?.t ?? 0;
     const here = points ? positionAt(points, current) : null;
@@ -185,11 +194,6 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
             });
         s.fixed.push(pin(path[0], "#16a34a", "S", `Start ${clock(points[0].t)}`));
         s.fixed.push(pin(path[path.length - 1], "#111827", "E", `End ${clock(points[points.length - 1].t)}`));
-        summary?.stops.forEach((st) => {
-            const m = pin({ lat: st.lat, lng: st.lng }, "#d97706", "", `Stopped ${formatDuration(st.end - st.start)} (${clock(st.start)}–${clock(st.end)})`, 7);
-            m.addListener("click", () => { setPlaying(false); setCurrent(st.start); });
-            s.fixed.push(m);
-        });
         s.rider = new g.maps.Marker({
             map, position: path[0], title: rider.name, zIndex: 10,
             icon: { path: g.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#ea690c", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 },
@@ -206,6 +210,32 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
             shapes.current = { fixed: [] };
         };
     }, [map, points, summary, rider.name]);
+
+    // Stops (amber) and off-task stops (purple), plus red detour sections over the route.
+    useEffect(() => {
+        const g = (window as any).google;
+        if (!g || !map || !points || !summary) return;
+        const made: any[] = [];
+        summary.stops.forEach((st) => {
+            const off = isOffTaskStop(st);
+            const m = new g.maps.Marker({
+                map, position: { lat: st.lat, lng: st.lng }, zIndex: off ? 6 : 4,
+                title: `${off ? "Stop not at a drop-off" : "Stopped"} ${formatDuration(st.end - st.start)} (${clock(st.start)}–${clock(st.end)})`,
+                icon: { path: g.maps.SymbolPath.CIRCLE, scale: off ? 9 : 7, fillColor: off ? OFF_TASK_STOP_COLOR : "#d97706", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+                label: off ? { text: "?", color: "#fff", fontSize: "10px", fontWeight: "700" } : undefined,
+            });
+            m.addListener("click", () => { setPlaying(false); setCurrent(st.start); });
+            made.push(m);
+        });
+        offTask?.detours.forEach((d) => {
+            const path = points.slice(Math.max(0, d.from - 1), Math.min(points.length, d.to + 2)).map((p) => ({ lat: p.lat, lng: p.lng }));
+            const line = new g.maps.Polyline({ map, path, strokeColor: DETOUR_COLOR, strokeOpacity: 0.95, strokeWeight: 6, zIndex: 3 });
+            line.addListener?.("click", () => { setPlaying(false); setCurrent(d.start); });
+            made.push(line);
+        });
+        return () => made.forEach((m) => m.setMap(null));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [map, points, summary, offTask]);
 
     // Drop-off pins, coloured by whether the GPS reached them.
     useEffect(() => {
@@ -440,6 +470,83 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
                         ))}
                     </div>
 
+                    {/* Off-task: detours and stops away from the day's work */}
+                    {offTask && (
+                        <div className="p-3 border-b border-[#ececec]">
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-semibold text-neutral-700">Off-task</p>
+                                {offTask.judged && offTask.detours.length === 0 && offTask.unexplainedStops.length === 0 ? (
+                                    <p className="flex items-center gap-1 text-[11px] font-medium text-green-700"><ShieldCheck className="w-3.5 h-3.5" /> Stayed on task</p>
+                                ) : (
+                                    <p className="text-[11px] text-[#5d5d5d]">
+                                        {offTask.detours.length > 0 && <span className="text-red-600 font-medium">{offTask.detours.length} detour{offTask.detours.length === 1 ? "" : "s"}</span>}
+                                        {offTask.detours.length > 0 && offTask.unexplainedStops.length > 0 && " · "}
+                                        {offTask.unexplainedStops.length > 0 && <span className="text-violet-700 font-medium">{offTask.unexplainedStops.length} stop{offTask.unexplainedStops.length === 1 ? "" : "s"} away from drop-offs</span>}
+                                    </p>
+                                )}
+                            </div>
+
+                            {offTask.judged ? (
+                                <div className="grid grid-cols-3 gap-2 mb-2 text-center">
+                                    {[
+                                        ["Direct route", `${offTask.directKm.toFixed(1)} km`],
+                                        ["Covered", `${summary.distanceKm.toFixed(1)} km`],
+                                        ["Off route", offTask.offRouteMs ? `${formatDuration(offTask.offRouteMs)} · ${offTask.offRouteKm.toFixed(1)} km` : "0 min"],
+                                    ].map(([k, v]) => (
+                                        <div key={k} className="rounded-md bg-gray-50 px-1.5 py-1.5">
+                                            <p className="text-[10px] text-[#9a9a9a]">{k}</p>
+                                            <p className={`text-xs font-semibold ${k === "Off route" && offTask.offRouteMs ? "text-red-600" : "text-neutral-800"}`}>{v}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-[#9a9a9a] mb-2">{offTask.reason} Detours can't be measured, but stops away from drop-offs are still listed.</p>
+                            )}
+
+                            {(offTask.detours.length > 0 || offTask.unexplainedStops.length > 0) && (
+                                <ul className="space-y-1 max-h-[220px] overflow-y-auto">
+                                    {[
+                                        ...offTask.detours.map((d) => ({ at: d.start, kind: "detour" as const, d })),
+                                        ...offTask.unexplainedStops.map((st) => ({ at: st.start, kind: "stop" as const, st })),
+                                    ].sort((a, b) => a.at - b.at).map((it) => it.kind === "detour" ? (
+                                        <li key={`d${it.d.start}`}>
+                                            <button
+                                                onClick={() => { setPlaying(false); setCurrent(it.d.start); const p = points[Math.round((it.d.from + it.d.to) / 2)]; map?.panTo({ lat: p.lat, lng: p.lng }); }}
+                                                className="w-full flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 text-left"
+                                            >
+                                                <Route className="w-4 h-4 mt-0.5 text-red-600 shrink-0" />
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-sm text-neutral-800 tabular-nums">Detour {clock(it.d.start)}–{clock(it.d.end)}</span>
+                                                    <span className="block text-[11px] text-[#9a9a9a] truncate">{it.d.leg}</span>
+                                                    <span className="block text-xs text-red-700">Up to {formatDistance(it.d.maxOffM)} off route · {it.d.km.toFixed(1)} km ridden</span>
+                                                </span>
+                                                <span className="text-[11px] text-[#9a9a9a] shrink-0">{formatDuration(it.d.end - it.d.start)}</span>
+                                            </button>
+                                        </li>
+                                    ) : (
+                                        <li key={`s${it.st.start}`}>
+                                            <button
+                                                onClick={() => { setPlaying(false); setCurrent(it.st.start); map?.panTo({ lat: it.st.lat, lng: it.st.lng }); }}
+                                                className="w-full flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 text-left"
+                                            >
+                                                <span className="mt-0.5 h-4 w-4 rounded-full bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">?</span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-sm text-neutral-800 tabular-nums">Stopped {clock(it.st.start)}–{clock(it.st.end)}</span>
+                                                    <span className="block text-xs text-violet-700">Not at a drop-off, the start or the end</span>
+                                                </span>
+                                                <span className="text-[11px] text-[#9a9a9a] shrink-0">{formatDuration(it.st.end - it.st.start)}</span>
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            <p className="text-[11px] text-[#9a9a9a] mt-2">
+                                Detour = over {formatDistance(CORRIDOR_M)} from the straight line between consecutive drop-offs for {formatDuration(MIN_DETOUR_MS)}+.
+                                Roads aren't straight, so check flagged stretches on the map. Stops within {EXPLAINED_STOP_M} m of a drop-off, the start or the end count as on task.
+                            </p>
+                        </div>
+                    )}
+
                     {deliveriesSection}
 
                     {/* Stops */}
@@ -457,8 +564,9 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
                                             onClick={() => { setPlaying(false); setCurrent(st.start); map?.panTo({ lat: st.lat, lng: st.lng }); }}
                                             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 text-left"
                                         >
-                                            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
+                                            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${isOffTaskStop(st) ? "bg-violet-600" : "bg-amber-500"}`} />
                                             <span className="text-sm text-neutral-800 tabular-nums">{clock(st.start)}–{clock(st.end)}</span>
+                                            {isOffTaskStop(st) && <span className="text-[10px] font-medium text-violet-700">off-task</span>}
                                             <span className="ml-auto text-xs text-[#5d5d5d]">{formatDuration(st.end - st.start)}</span>
                                         </button>
                                     </li>

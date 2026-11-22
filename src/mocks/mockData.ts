@@ -186,7 +186,11 @@ export const buildRiderTracks = () => {
             legMinutes.push(Math.max(3, Math.round((km / 25) * 60 * 1.3)));
             pos = t;
         });
-        const total = legMinutes.reduce((x, y) => x + y, 0) + visits.filter((v) => !v.skipped).reduce((x, v) => x + v.dwell, 0);
+        // Busy days include one off-task side trip after the second drop-off (see detour below).
+        const real = visits.filter((v) => !v.skipped);
+        const detour = real.length >= 3 ? { out: 9 + Math.floor(rnd() * 4), stay: 20 + Math.floor(rnd() * 11), dir: rnd() < 0.5 ? 1 : -1 } : null;
+        const total = legMinutes.reduce((x, y) => x + y, 0) + real.reduce((x, v) => x + v.dwell, 0)
+            + (detour ? detour.out * 2 + detour.stay : 0);
         const isToday = day + DAY > Date.now();
         let t = isToday
             ? Math.max(day + 6 * 60 * 60_000, Date.now() - (route.minutesBehind ?? 0) * 60_000 - 10 * 60_000 - total * 60_000)
@@ -223,9 +227,21 @@ export const buildRiderTracks = () => {
         pos = station;
         let leg = 0;
         let lastVisitEnd = t;
+        let reached = 0;
         visits.forEach((v) => {
             if (v.skipped) return;
+            if (detour && reached === 2) {
+                // Off-task: ride ~3-4 km away at right angles to the next leg, wait, come back.
+                const dLat = v.target.lat - pos.lat, dLng = v.target.lng - pos.lng;
+                const len = Math.hypot(dLat, dLng) || 1;
+                const side = { lat: pos.lat + (-dLng / len) * 0.033 * detour.dir, lng: pos.lng + (dLat / len) * 0.033 * detour.dir };
+                const back = { ...pos };
+                ride(pos, side, detour.out);
+                wait(side, detour.stay);
+                ride(side, back, detour.out);
+            }
             ride(pos, v.target, legMinutes[leg++]);
+            reached++;
             const arrived = t;
             wait(v.target, v.dwell);
             pos = v.target;

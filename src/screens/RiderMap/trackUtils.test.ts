@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     toApiTime, parseGpsTime, validateRange, distanceKm, normalizePoints, summarize,
-    positionAt, indexAt, formatDuration, MAX_RANGE_MS, checkDeliveries,
+    positionAt, indexAt, formatDuration, MAX_RANGE_MS, checkDeliveries, analyzeOffTask, distanceToSegmentM,
 } from "./trackUtils";
 
 const MIN = 60_000;
@@ -148,5 +148,58 @@ describe("checkDeliveries", () => {
     it("treats unfinished deliveries the rider hasn't reached as pending, not failed", () => {
         const [r] = checkDeliveries(pts, [stop({ lat: 5.63, lng: -0.2, status: "ACCEPTED" })], range);
         expect(r.kind).toBe("pending");
+    });
+});
+
+describe("analyzeOffTask", () => {
+    // Station at 5.600 → drop-off A at 5.620 (due north, ~2.2 km). Halfway there the rider rides
+    // ~3.3 km east for 6 minutes and waits there 10 minutes, then continues to A and waits.
+    const mk = (i: number, lat: number, lng: number, speed: number) => ({ lat, lng, speed, gpsTime: toApiTime(T0 + i * MIN) });
+    const route = [
+        ...Array.from({ length: 5 }, (_, i) => mk(i, 5.600 + i * 0.002, -0.2, 25)),          // 0-4 north
+        ...Array.from({ length: 3 }, (_, i) => mk(5 + i, 5.610, -0.19 + i * 0.01, 30)),       // 5-7 east (out to -0.17)
+        ...Array.from({ length: 10 }, (_, i) => mk(8 + i, 5.610, -0.17, 0)),                  // 8-17 parked off route
+        ...Array.from({ length: 3 }, (_, i) => mk(18 + i, 5.610, -0.18 - i * 0.01, 30)),      // 18-20 back west
+        ...Array.from({ length: 5 }, (_, i) => mk(21 + i, 5.612 + i * 0.002, -0.2, 25)),      // 21-25 north to A
+        ...Array.from({ length: 8 }, (_, i) => mk(26 + i, 5.620, -0.2, 0)),                   // 26-33 at A
+        mk(34, 5.6201, -0.2, 0),
+    ];
+    const pts = normalizePoints(route);
+    const range = { start: T0, end: T0 + 60 * MIN };
+    const checks = checkDeliveries(pts, [{ id: "a", parcelId: "A", receiverName: "Drop A", status: "DELIVERED", lat: 5.62, lng: -0.2, completedAt: T0 + 30 * MIN }], range);
+    const report = analyzeOffTask(pts, checks, summarize(pts).stops, { base: { lat: 5.6, lng: -0.2 } });
+
+    it("finds the detour on the station → drop-off leg", () => {
+        expect(checks[0].kind).toBe("visited");
+        expect(report.judged).toBe(true);
+        expect(report.detours).toHaveLength(1);
+        const d = report.detours[0];
+        expect(d.leg).toBe("Station → Drop A");
+        expect(d.maxOffM).toBeGreaterThan(3000);
+        expect(d.end - d.start).toBeGreaterThanOrEqual(10 * MIN);
+        // Counted from the last on-route point to the next one (here 4 legs of ~1.1 km).
+        expect(d.km).toBeGreaterThan(4);
+        expect(d.km).toBeLessThan(5);
+    });
+
+    it("flags the stop off route but not the one at the drop-off", () => {
+        expect(report.unexplainedStops).toHaveLength(1);
+        expect(report.unexplainedStops[0].lng).toBeCloseTo(-0.17, 3);
+    });
+
+    it("reports direct distance as station → drop-off → station", () => {
+        expect(report.directKm).toBeCloseTo(2 * distanceKm({ lat: 5.6, lng: -0.2 }, { lat: 5.62, lng: -0.2 }), 3);
+    });
+
+    it("ignores short blips and stays unjudged without reached drop-offs", () => {
+        const blip = normalizePoints([mk(0, 5.6, -0.2, 20), mk(1, 5.605, -0.17, 20), mk(2, 5.61, -0.2, 20), mk(3, 5.62, -0.2, 0), mk(10, 5.62, -0.2, 0)]);
+        const c = checkDeliveries(blip, [{ id: "a", parcelId: "A", status: "DELIVERED", lat: 5.62, lng: -0.2, completedAt: T0 + 5 * MIN }], range);
+        expect(analyzeOffTask(blip, c, [], { base: { lat: 5.6, lng: -0.2 } }).detours).toHaveLength(0);
+        expect(analyzeOffTask(blip, [], []).judged).toBe(false);
+    });
+
+    it("measures distance to a segment, not just to its ends", () => {
+        expect(distanceToSegmentM({ lat: 5.61, lng: -0.2 }, { lat: 5.6, lng: -0.2 }, { lat: 5.62, lng: -0.2 })).toBeLessThan(1);
+        expect(distanceToSegmentM({ lat: 5.61, lng: -0.19 }, { lat: 5.6, lng: -0.2 }, { lat: 5.62, lng: -0.2 })).toBeCloseTo(1108, -1);
     });
 });

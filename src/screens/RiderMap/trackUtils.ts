@@ -230,3 +230,134 @@ export const checkDeliveries = (
     });
 
 export const formatDistance = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+
+// ── Off-task check: detours between deliveries and unexplained stops ─────
+
+/** A point the rider was supposed to be at: start, a reached drop-off, or end. */
+export interface Anchor {
+    lat: number;
+    lng: number;
+    arrive: number;
+    leave: number;
+    label: string;
+}
+
+export interface Detour {
+    start: number;
+    end: number;
+    /** Furthest distance from the leg's straight line, in metres. */
+    maxOffM: number;
+    /** Distance ridden while off route, in km. */
+    km: number;
+    /** e.g. "Akua Badu → Efua Appiah" */
+    leg: string;
+    /** Indexes into the points array, inclusive, for drawing. */
+    from: number;
+    to: number;
+}
+
+export interface OffTaskReport {
+    /** False when there's nothing to compare against (no reached drop-offs). */
+    judged: boolean;
+    reason?: string;
+    anchors: Anchor[];
+    detours: Detour[];
+    unexplainedStops: Stop[];
+    /** Straight-line distance start → reached drop-offs → end. */
+    directKm: number;
+    offRouteMs: number;
+    offRouteKm: number;
+}
+
+/** How far from the straight line between two drop-offs still counts as "on the way". */
+export const CORRIDOR_M = 1500;
+/** Off-route stretches shorter than this are ignored (GPS drift, one-way streets). */
+export const MIN_DETOUR_MS = 3 * MINUTE;
+/** A stop within this distance of a drop-off, the start or the end is explained. */
+export const EXPLAINED_STOP_M = 200;
+
+/** Distance in metres from p to the segment a→b (flat-earth approximation, fine at city scale). */
+export const distanceToSegmentM = (p: { lat: number; lng: number }, a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const kx = Math.cos((a.lat * Math.PI) / 180) * 111_320;
+    const ky = 110_540;
+    const px = (p.lng - a.lng) * kx, py = (p.lat - a.lat) * ky;
+    const bx = (b.lng - a.lng) * kx, by = (b.lat - a.lat) * ky;
+    const len2 = bx * bx + by * by;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, (px * bx + py * by) / len2));
+    return Math.hypot(px - t * bx, py - t * by);
+};
+
+export const analyzeOffTask = (
+    points: TimedPoint[],
+    checks: DeliveryCheck[],
+    stops: Stop[],
+    opts: { base?: { lat: number; lng: number }; corridorM?: number; minDetourMs?: number } = {},
+): OffTaskReport => {
+    const corridorM = opts.corridorM ?? CORRIDOR_M;
+    const minDetourMs = opts.minDetourMs ?? MIN_DETOUR_MS;
+    const pins = checks.filter((c) => c.stop.lat != null && c.stop.lng != null).map((c) => ({ lat: c.stop.lat!, lng: c.stop.lng! }));
+
+    const empty: OffTaskReport = { judged: false, anchors: [], detours: [], unexplainedStops: [], directKm: 0, offRouteMs: 0, offRouteKm: 0 };
+    if (points.length === 0) return { ...empty, reason: "No GPS points in this period." };
+
+    const first = points[0], last = points[points.length - 1];
+    const startAt = opts.base ?? first, endAt = opts.base ?? last;
+    const explainedAt = [...pins, startAt, endAt, first, last];
+    const unexplainedStops = stops.filter((s) => !explainedAt.some((q) => distanceKm(s, q) * 1000 <= EXPLAINED_STOP_M));
+
+    const visited = checks
+        .filter((c): c is Extract<DeliveryCheck, { kind: "visited" }> => c.kind === "visited")
+        .sort((a, b) => a.arrivedAt - b.arrivedAt);
+    if (visited.length === 0) {
+        return { ...empty, unexplainedStops, reason: "No reached drop-offs to compare the route against." };
+    }
+
+    const anchors: Anchor[] = [
+        { lat: startAt.lat, lng: startAt.lng, arrive: first.t, leave: first.t, label: opts.base ? "Station" : "Start" },
+        ...visited.map((v) => ({ lat: v.stop.lat!, lng: v.stop.lng!, arrive: v.arrivedAt, leave: v.leftAt, label: v.stop.receiverName ?? v.stop.parcelId })),
+        { lat: endAt.lat, lng: endAt.lng, arrive: last.t, leave: last.t, label: opts.base ? "Station" : "End" },
+    ];
+
+    const detours: Detour[] = [];
+    for (let i = 0; i < anchors.length - 1; i++) {
+        const a = anchors[i], b = anchors[i + 1];
+        let run: number[] = [];
+        let maxOff = 0;
+        const close = () => {
+            if (run.length) {
+                const from = run[0], to = run[run.length - 1];
+                if (points[to].t - points[from].t >= minDetourMs) {
+                    // Count the ride out and back: from the last on-route point to the next one.
+                    const lo = Math.max(0, from - 1), hi = Math.min(points.length - 1, to + 1);
+                    let km = 0;
+                    for (let k = lo + 1; k <= hi; k++) km += distanceKm(points[k - 1], points[k]);
+                    detours.push({ start: points[from].t, end: points[to].t, maxOffM: maxOff, km, leg: `${a.label} → ${b.label}`, from, to });
+                }
+            }
+            run = [];
+            maxOff = 0;
+        };
+        points.forEach((p, idx) => {
+            if (p.t <= a.leave || p.t >= b.arrive) return;
+            const off = distanceToSegmentM(p, a, b);
+            const gap = run.length && p.t - points[run[run.length - 1]].t > 15 * MINUTE;
+            if (gap) close();
+            if (off > corridorM) { run.push(idx); maxOff = Math.max(maxOff, off); }
+            else close();
+        });
+        close();
+    }
+
+    let directKm = 0;
+    for (let i = 1; i < anchors.length; i++) directKm += distanceKm(anchors[i - 1], anchors[i]);
+
+    return {
+        judged: true,
+        anchors,
+        detours,
+        unexplainedStops,
+        directKm,
+        offRouteMs: detours.reduce((s, d) => s + (d.end - d.start), 0),
+        offRouteKm: detours.reduce((s, d) => s + d.km, 0),
+    };
+};

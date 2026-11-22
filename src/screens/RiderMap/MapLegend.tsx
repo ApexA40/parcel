@@ -36,7 +36,8 @@ const SwatchIcon = ({ s }: { s: Swatch }) => {
 
 /** Key for what the lines and markers on the Rider Map mean. Collapsible so it never hides much of the map. */
 export const MapLegend = ({ title, items }: { title: string; items: LegendItem[] }) => {
-    const [open, setOpen] = useState(true);
+    // Starts collapsed on small screens, where it would cover much of the map.
+    const [open, setOpen] = useState(() => typeof window === "undefined" || window.innerWidth >= 1024);
     if (!open) {
         return (
             <button
@@ -48,7 +49,7 @@ export const MapLegend = ({ title, items }: { title: string; items: LegendItem[]
         );
     }
     return (
-        <div className="absolute left-3 bottom-3 z-10 max-w-[230px] rounded-lg bg-white/95 p-3 shadow-md ring-1 ring-black/5 backdrop-blur">
+        <div className="absolute left-3 bottom-3 z-10 max-w-[230px] max-h-[calc(100%-1.5rem)] overflow-y-auto rounded-lg bg-white/95 p-3 shadow-md ring-1 ring-black/5 backdrop-blur">
             <div className="flex items-center justify-between gap-3 mb-2">
                 <p className="text-xs font-semibold text-neutral-800">{title}</p>
                 <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-neutral-700" aria-label="Hide map key">
@@ -78,7 +79,9 @@ export const HISTORY_LEGEND: LegendItem[] = [
     { swatch: { kind: "dot", color: "#ea690c", size: 14 }, label: "Rider at the playback time" },
     { swatch: { kind: "dot", color: "#16a34a", label: "S" }, label: "Start of the route" },
     { swatch: { kind: "dot", color: "#111827", label: "E" }, label: "End of the route" },
+    { swatch: { kind: "line", color: "#dc2626", width: 6 }, label: "Detour away from the day's deliveries" },
     { swatch: { kind: "dot", color: "#d97706", size: 10 }, label: "Stop longer than 5 min" },
+    { swatch: { kind: "dot", color: "#7c3aed", label: "?", size: 14 }, label: "Stop away from any drop-off" },
     { swatch: { kind: "pin", color: "#16a34a" }, label: "Drop-off the rider reached" },
     { swatch: { kind: "pin", color: "#dc2626" }, label: "Drop-off not reached" },
     { swatch: { kind: "pin", color: "#6b7280" }, label: "Not finished yet, or no GPS" },
