@@ -6,7 +6,7 @@ import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from "ax
 import {
     ADDRESSES, ASSIGNMENTS, DEMO_ACCOUNTS, DRIVER_ASSIGNMENTS, FUEL_REQUESTS, HOME_OFFICE,
     INCOMING_TRANSFERS, OUTGOING_TRANSFERS, PARCELS, RIDERS, SHELVES, USERS, USER_ACTIONS,
-    locationsWithOffices, serializeAssignment, serializeParcel, only, USER_FIELDS, MockParcel,
+    locationsWithOffices, serializeAssignment, serializeParcel, only, USER_FIELDS, riderLocationNow, MockParcel,
 } from "./mockData";
 import API_BASE_URL from "../config/api";
 
@@ -227,6 +227,15 @@ on("get", /^\/api-admin\/rider-performance-dashboard$/, ({ params }) => {
     return { earningsTrend: [], monthlyEarnings: [], riderLeaderboard: rows };
 });
 
+// Rider GPS: 422 when no device is assigned, 404 for unknown phone numbers.
+on("get", /^\/api-admin\/riders\/location$/, ({ params }) => {
+    const phone = params.get("phoneNumber") ?? "";
+    const rider = RIDERS.find((r) => r.phoneNumber === phone);
+    const res = riderLocationNow(rider?.userId ?? "");
+    if (res.status === 200) return res.body;
+    throw { status: res.status, message: res.status === 422 ? "Rider has no GPS device assigned" : "Rider not found" };
+});
+
 // ── Call center ─────────────────────────────────────────────────
 on("get", /^\/api-call-center\/stats$/, () => ({ totalDeliveredYesterday: 23, reached: 15, unreachable: 3, notCalled: 5 }));
 on("get", /^\/api-call-center\/parcels\/uncalled$/, ({ params }) => parcelPage(homeParcels().filter((p) => !p.hasCalled && !p.delivered).sort(byNewest), params));
@@ -306,7 +315,16 @@ export const mockAdapter: AxiosAdapter = async (config) => {
         if (r.method !== method) continue;
         const match = path.match(r.pattern);
         if (!match) continue;
-        const data = r.handler({ params, body, match, config });
+        let data: unknown;
+        try {
+            data = r.handler({ params, body, match, config });
+        } catch (e: any) {
+            if (typeof e?.status !== "number") throw e;
+            const err: any = new Error(`Request failed with status code ${e.status}`);
+            err.response = respond(e.status, { message: e.message });
+            err.config = config;
+            throw err;
+        }
         if (data === undefined) {
             const err: any = new Error(`Mock: not found ${method.toUpperCase()} ${path}`);
             err.response = respond(404, { message: "Not found" });

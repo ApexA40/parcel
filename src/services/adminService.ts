@@ -95,6 +95,23 @@ export interface RiderPerformanceDashboard {
   riderLeaderboard?: RiderLeaderboardEntry[];
 }
 
+/** GET /api-admin/riders/location (RiderLocationResponse in the backend spec). */
+export interface RiderLocation {
+  riderId: string;
+  riderName: string;
+  riderPhoneNumber: string;
+  deviceImei?: string;
+  lat?: number;
+  lng?: number;
+  speed?: number;
+  deviceStatus?: string;
+  accStatus?: string;
+  /** Time of the GPS fix; the tracking API uses UTC "yyyy-MM-dd HH:mm:ss". */
+  gpsTime?: string;
+  /** False when the device has no valid position. */
+  located?: boolean;
+}
+
 /** Optional filters shared by the admin dashboards. Dates are epoch milliseconds; the API defaults to the last 30 days. */
 export interface DashboardFilters {
   officeId?: string;
@@ -238,6 +255,23 @@ class AdminService {
       return { success: true, data: response.data };
     } catch (error: any) {
       return { success: false, message: error.response?.data?.message || "Failed to load rider performance." };
+    }
+  }
+
+  /**
+   * Current GPS position of one rider. `status` carries the HTTP code so callers can tell
+   * "no GPS device" (422) and "rider not found" (404) apart from tracking errors (502).
+   */
+  async getRiderLocation(phoneNumber: string): Promise<ApiResponse<RiderLocation> & { status?: number }> {
+    try {
+      const response = await this.apiClient.get<RiderLocation>(`/riders/location?phoneNumber=${encodeURIComponent(phoneNumber)}`);
+      return { success: true, status: response.status, data: response.data };
+    } catch (error: any) {
+      return {
+        success: false,
+        status: error.response?.status,
+        message: error.response?.data?.message || "Failed to load rider location.",
+      };
     }
   }
 }

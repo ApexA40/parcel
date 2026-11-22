@@ -103,14 +103,56 @@ export const RIDERS = [
     role: "RIDER" as const,
     status: "ACTIVE" as const,
     riderStatus: i === 3 ? "OFFLINE" : i === 1 ? "ON_TRIP" : "READY",
+    // Fiifi Quaye (index 3) has no GPS tracker, so /riders/location answers 422 for him.
+    deviceImei: i === 3 ? undefined : `35${String(8810000000000 + i * 7919).slice(0, 13)}`,
 }));
+
+/**
+ * Sample GPS behaviour for /api-admin/riders/location. Each rider circles a point in Accra,
+ * so positions change between refreshes. Elikem's tracker last reported 2 hours ago and
+ * Kojo's tracker is on but has no fix.
+ */
+const RIDER_ROUTES: Record<string, { lat: number; lng: number; radius: number; minutesBehind?: number; noFix?: boolean }> = {
+    "rider-1": { lat: 5.6145, lng: -0.1720, radius: 0.012 },
+    "rider-2": { lat: 5.5800, lng: -0.2200, radius: 0.010 },
+    "rider-3": { lat: 5.6500, lng: -0.1650, radius: 0.008, noFix: true },
+    "rider-5": { lat: 5.6350, lng: -0.2350, radius: 0.006, minutesBehind: 120 },
+};
+
+const utcStamp = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
+
+export const riderLocationNow = (riderId: string) => {
+    const r = RIDERS.find((x) => x.userId === riderId);
+    if (!r) return { status: 404 as const };
+    if (!r.deviceImei) return { status: 422 as const };
+    const route = RIDER_ROUTES[riderId];
+    const at = Date.now() - (route?.minutesBehind ?? 0) * 60_000;
+    const angle = (at / 60_000 / 12) * Math.PI * 2 + riderId.length; // one lap every 12 minutes
+    const base = {
+        riderId: r.userId, riderName: r.name, riderPhoneNumber: r.phoneNumber, deviceImei: r.deviceImei,
+        deviceStatus: route?.minutesBehind ? "OFFLINE" : "ONLINE",
+    };
+    if (!route || route.noFix) return { status: 200 as const, body: { ...base, located: false, accStatus: "OFF" } };
+    return {
+        status: 200 as const,
+        body: {
+            ...base,
+            lat: +(route.lat + Math.sin(angle) * route.radius).toFixed(6),
+            lng: +(route.lng + Math.cos(angle) * route.radius).toFixed(6),
+            speed: route.minutesBehind ? 0 : 18 + Math.round(Math.abs(Math.sin(angle * 3)) * 22),
+            accStatus: route.minutesBehind ? "OFF" : "ON",
+            gpsTime: utcStamp(at),
+            located: true,
+        },
+    };
+};
 
 // ── Users (admin user management) ───────────────────────────────
 export const USERS = [
     ...Object.entries(DEMO_ACCOUNTS).map(([phoneNumber, a], i) => ({
         userId: `user-${i + 1}`, name: a.name, phoneNumber, email: a.email, role: a.role,
     })),
-    ...RIDERS.slice(1).map((r) => ({ userId: r.userId, name: r.name, phoneNumber: r.phoneNumber, email: r.email, role: "RIDER" })),
+    ...RIDERS.slice(1).map((r) => ({ userId: r.userId, name: r.name, phoneNumber: r.phoneNumber, email: r.email, role: "RIDER", deviceImei: r.deviceImei })),
     ...Array.from({ length: 8 }, (_, i) => ({
         userId: `user-x${i}`, name: person(), phoneNumber: phone(),
         email: undefined as string | undefined, role: pick(["FRONTDESK", "MANAGER", "CALLCENTER", "FRONTDESK"]),
@@ -278,7 +320,7 @@ export const parcelAmount = (p: MockParcel) =>
 // Responses are trimmed to these so the mock can't hide a field the real API lacks.
 const PARCEL_FIELDS = ["parcelId", "barCode", "parcelDescription", "inboundCost", "deliveryCost", "storageCost", "hasCalled", "pickedUp", "driverId", "officeId", "companyId", "paymentMethod", "driverName", "driverPhoneNumber", "vehicleNumber", "senderName", "senderPhoneNumber", "receiverName", "receiverAddress", "recieverPhoneNumber", "alternativePhoneNumber", "shelfName", "inboudPayed", "shelfId", "homeDelivery", "returnCount", "riderId", "riderInfo", "typeofParcel", "from", "to", "fromOfficeId", "toOfficeId", "hasArrivedAtOffice", "parcelTransfer", "pickupAddress", "pickupContactName", "pickupContactPhoneNumber", "pickupInstructions", "deliveryAddress", "deliveryContactName", "deliveryContactPhoneNumber", "specialInstructions", "pickUpCost", "parcelStatus", "imageUrls", "vendorName", "vendorId", "vendorDeliveryFee", "numberOfItems", "itemQuantity", "parcelWeight", "createdAt", "updatedAt", "callerName", "callerPhoneNumber", "notes", "hasCallCenterSpokenToClient", "callOutCome", "callCenterRemark", "pod", "delivered", "parcelAssigned", "itemCost", "vendorPayed", "fragile", "itemOwnerPaid"];
 const PARCEL_INFO_FIELDS = ["parcelId", "receiverName", "receiverPhoneNumber", "alternativePhoneNumber", "receiverAddress", "senderName", "senderPhoneNumber", "parcelAmount", "parcelWeight", "payed", "returned", "delivered", "paymentMethod", "inboundCost", "deliveryCost", "imageUrls", "storageCost", "pickUpCost", "pickedUp", "homeDelivery", "vehicleNumber", "driverName", "driverPhoneNumber", "driverId", "officeId", "shelfName", "inboudPayed", "shelfId", "typeofParcel", "pickupAddress", "pickupContactName", "pickupContactPhoneNumber", "pickupInstructions", "deliveryAddress", "deliveryContactName", "deliveryContactPhoneNumber", "specialInstructions", "pod", "itemCost", "fragile"];
-export const USER_FIELDS = ["userId", "name", "officeId", "companyId", "phoneNumber", "email", "availability", "status", "officeIds", "role", "departmentRole", "createdAt", "updatedAt"];
+export const USER_FIELDS = ["userId", "name", "officeId", "companyId", "phoneNumber", "email", "availability", "status", "officeIds", "role", "departmentRole", "deviceImei", "createdAt", "updatedAt"];
 
 export const only = (obj: Record<string, any>, fields: string[]) =>
     Object.fromEntries(fields.filter((f) => obj[f] !== undefined).map((f) => [f, obj[f]]));
