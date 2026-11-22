@@ -1,10 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Pause, Play, RotateCcw, Loader, MapPin } from "lucide-react";
+import { ArrowLeft, Pause, Play, RotateCcw, Loader, MapPin, CheckCircle2, XCircle, MapPinOff, AlertTriangle, Clock } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import adminService from "../../services/adminService";
+import frontdeskService from "../../services/frontdeskService";
 import {
-    TimedPoint, formatDuration, indexAt, normalizePoints, positionAt, summarize, toApiTime, validateRange,
+    DeliveryCheck, DeliveryStop, TimedPoint, VISIT_RADIUS_M, checkDeliveries, formatDistance, formatDuration,
+    indexAt, normalizePoints, positionAt, summarize, toApiTime, validateRange,
 } from "./trackUtils";
+
+const FINISHED = ["DELIVERED", "RETURNED", "COMPLETED", "CANCELLED"];
+
+/** One stop per parcel from GET /api-frontdesk/rider/{riderId}/assignments. */
+const toStops = (assignments: any[]): DeliveryStop[] =>
+    assignments.flatMap((a) =>
+        (a.parcels ?? (a.parcel ? [a.parcel] : [])).map((p: any) => ({
+            id: `${a.assignmentId}:${p.parcelId}`,
+            parcelId: p.parcelId,
+            receiverName: p.receiverName,
+            locationName: p.receiverLocationName ?? p.receiverAddress,
+            lat: p.receiverLatitude ?? undefined,
+            lng: p.receiverLongitude ?? undefined,
+            assignedAt: a.assignedAt ?? undefined,
+            completedAt: FINISHED.includes(a.status) ? a.completedAt ?? undefined : undefined,
+            status: p.returned ? "RETURNED" : p.delivered ? "DELIVERED" : a.status,
+        }))
+    );
+
+const PIN_PATH = "M12 1.5C7.6 1.5 4 5 4 9.4 4 15.3 12 22.5 12 22.5S20 15.3 20 9.4C20 5 16.4 1.5 12 1.5z";
+const CHECK_COLOR = { visited: "#16a34a", "not-visited": "#dc2626", pending: "#6b7280", "no-data": "#6b7280", "no-location": "#6b7280" } as const;
 
 type Preset = "today" | "yesterday" | "custom";
 const SPEEDS = [1, 10, 60] as const;
@@ -23,7 +46,7 @@ const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "2-dig
 const clockSec = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 interface Props {
-    rider: { name: string; phoneNumber: string };
+    rider: { userId: string; name: string; phoneNumber: string };
     /** The shared google.maps.Map, or null while it loads / if it can't. */
     map: any;
     onClose: () => void;
@@ -43,6 +66,8 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
     const [current, setCurrent] = useState(0); // playback time, epoch ms
     const [playing, setPlaying] = useState(false);
     const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(60);
+    const [stops, setStops] = useState<DeliveryStop[] | null>(null);
+    const [stopsError, setStopsError] = useState<string | null>(null);
 
     const range = useMemo(() => {
         const now = Date.now();
@@ -58,8 +83,23 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
         setLoading(true);
         setError(null);
         setPlaying(false);
-        const res = await adminService.getRiderTrack(rider.phoneNumber, toApiTime(range.start), toApiTime(range.end));
+        const [res, del] = await Promise.all([
+            adminService.getRiderTrack(rider.phoneNumber, toApiTime(range.start), toApiTime(range.end)),
+            frontdeskService.getRiderAssignments(rider.userId),
+        ]);
         setLoading(false);
+        if (del.success && Array.isArray(del.data)) {
+            // Deliveries finished in the range, plus ones still open that were assigned before it ended.
+            setStops(toStops(del.data).filter((s) =>
+                s.completedAt != null
+                    ? s.completedAt >= range.start && s.completedAt <= range.end
+                    : (s.assignedAt ?? 0) <= range.end && !FINISHED.includes(s.status)
+            ).sort((a, b) => (a.completedAt ?? Infinity) - (b.completedAt ?? Infinity)));
+            setStopsError(null);
+        } else {
+            setStops(null);
+            setStopsError(del.message || "Couldn't load this rider's deliveries.");
+        }
         if (!res.success) {
             setPoints(null);
             setError(
@@ -74,7 +114,7 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
         const pts = normalizePoints(res.data?.trackPoints);
         setPoints(pts);
         setCurrent(pts[0]?.t ?? 0);
-    }, [rider.phoneNumber, range.start, range.end, rangeError]);
+    }, [rider.phoneNumber, rider.userId, range.start, range.end, rangeError]);
 
     // Presets load straight away; custom ranges wait for the Load button.
     useEffect(() => {
@@ -84,6 +124,19 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
     }, [preset, rider.phoneNumber]);
 
     const summary = useMemo(() => (points ? summarize(points) : null), [points]);
+    const checks = useMemo<DeliveryCheck[]>(
+        () => (points && stops ? checkDeliveries(points, stops, range) : []),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [points, stops]
+    );
+    const tally = useMemo(() => {
+        const t = { visited: 0, "not-visited": 0, pending: 0, "no-location": 0, "no-data": 0, markedAway: 0 };
+        checks.forEach((c) => {
+            t[c.kind]++;
+            if ((c.kind === "visited" || c.kind === "not-visited") && c.markedAwayM) t.markedAway++;
+        });
+        return t;
+    }, [checks]);
     const first = points?.[0]?.t ?? 0;
     const last = points?.[points.length - 1]?.t ?? 0;
     const here = points ? positionAt(points, current) : null;
@@ -154,6 +207,32 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
         };
     }, [map, points, summary, rider.name]);
 
+    // Drop-off pins, coloured by whether the GPS reached them.
+    useEffect(() => {
+        const g = (window as any).google;
+        if (!g || !map || checks.length === 0) return;
+        const made = checks
+            .filter((c) => c.stop.lat != null && c.stop.lng != null)
+            .map((c) => {
+                const m = new g.maps.Marker({
+                    map, position: { lat: c.stop.lat, lng: c.stop.lng }, zIndex: 5,
+                    title: `${c.stop.receiverName ?? c.stop.parcelId}: ${c.kind === "visited" ? "reached" : c.kind === "not-visited" ? "not reached" : c.kind === "pending" ? "not finished" : "no GPS"}`,
+                    icon: { path: PIN_PATH, fillColor: CHECK_COLOR[c.kind], fillOpacity: 1, strokeColor: "#fff", strokeWeight: 1.5, scale: 1.3, anchor: new g.maps.Point(12, 22.5) },
+                });
+                m.addListener("click", () => jumpTo(c));
+                return m;
+            });
+        return () => made.forEach((m) => m.setMap(null));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [map, checks]);
+
+    const jumpTo = (c: DeliveryCheck) => {
+        setPlaying(false);
+        if (c.kind === "visited") setCurrent(c.arrivedAt);
+        else if (c.kind === "not-visited") setCurrent(c.closestAt);
+        if (c.stop.lat != null && c.stop.lng != null) map?.panTo({ lat: c.stop.lat, lng: c.stop.lng });
+    };
+
     // Move the rider marker every frame; extend the orange line only when a new point is passed.
     useEffect(() => {
         const s = shapes.current;
@@ -165,6 +244,71 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
             s.travelled?.setPath(points.slice(0, idx + 1).map((p) => ({ lat: p.lat, lng: p.lng })));
         }
     }, [points, here, current]);
+
+    // Shown both with and without GPS points, so deliveries are never hidden.
+    const deliveriesSection = (
+        <>
+                    {/* Deliveries vs movement */}
+                    <div className="p-3 border-b border-[#ececec]">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-semibold text-neutral-700">Deliveries · {checks.length}</p>
+                            {checks.length > 0 && (
+                                <p className="text-[11px] text-[#5d5d5d]">
+                                    <span className="text-green-700 font-medium">{tally.visited} reached</span>
+                                    {tally["not-visited"] > 0 && <> · <span className="text-red-600 font-medium">{tally["not-visited"]} not reached</span></>}
+                                    {tally.pending > 0 && <> · {tally.pending} not finished</>}
+                                    {tally["no-location"] > 0 && <> · {tally["no-location"]} no pin</>}
+                                    {tally["no-data"] > 0 && <> · {tally["no-data"]} no GPS</>}
+                                </p>
+                            )}
+                        </div>
+                        {stopsError ? (
+                            <p className="text-xs text-red-600">{stopsError}</p>
+                        ) : checks.length === 0 ? (
+                            <p className="text-xs text-[#9a9a9a]">No deliveries in this period.</p>
+                        ) : (
+                            <ul className="space-y-1 max-h-[260px] overflow-y-auto">
+                                {checks.map((c) => {
+                                    const st = c.stop;
+                                    const when = st.completedAt ? clock(st.completedAt) : null;
+                                    const marked = st.status === "RETURNED" ? "Returned" : when ?? "Open";
+                                    return (
+                                        <li key={st.id}>
+                                            <button onClick={() => jumpTo(c)} className="w-full flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 text-left">
+                                                {c.kind === "visited" ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-green-600 shrink-0" />
+                                                    : c.kind === "not-visited" ? <XCircle className="w-4 h-4 mt-0.5 text-red-600 shrink-0" />
+                                                    : c.kind === "pending" ? <Clock className="w-4 h-4 mt-0.5 text-gray-400 shrink-0" />
+                                                    : <MapPinOff className="w-4 h-4 mt-0.5 text-gray-400 shrink-0" />}
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-sm text-neutral-800 truncate">{st.receiverName ?? st.parcelId}</span>
+                                                    <span className="block text-[11px] text-[#9a9a9a] truncate">{st.locationName ?? "No address"}</span>
+                                                    <span className="block text-xs text-[#5d5d5d] truncate">
+                                                        {c.kind === "visited" && <>Arrived {clock(c.arrivedAt)} · {formatDuration(Math.max(60_000, c.leftAt - c.arrivedAt))}</>}
+                                                        {c.kind === "not-visited" && <span className="text-red-700">Not reached · closest {formatDistance(c.closestM)}</span>}
+                                                        {c.kind === "pending" && <>Not reached yet{c.closestM != null && Number.isFinite(c.closestM) ? ` · closest ${formatDistance(c.closestM)}` : ""}</>}
+                                                        {c.kind === "no-location" && "No pin saved for this parcel"}
+                                                        {c.kind === "no-data" && "No GPS points during this delivery"}
+                                                    </span>
+                                                    {(c.kind === "visited" || c.kind === "not-visited") && c.markedAwayM && (
+                                                        <span className="flex items-center gap-1 text-[11px] text-amber-700 whitespace-nowrap">
+                                                            <AlertTriangle className="w-3 h-3" /> Marked {st.status === "RETURNED" ? "returned" : "delivered"} {formatDistance(c.markedAwayM)} away
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <span className="text-[11px] text-[#9a9a9a] shrink-0 text-right tabular-nums" title={st.completedAt ? `Marked ${st.status === "RETURNED" ? "returned" : "delivered"} at ${when}` : "Not marked done yet"}>{marked}</span>
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+                        <p className="text-[11px] text-[#9a9a9a] mt-2">
+                            Reached = GPS came within {VISIT_RADIUS_M} m of the pinned drop-off between assignment and 30 min after it was marked.
+                        </p>
+                    </div>
+
+        </>
+    );
 
     // ── UI ──────────────────────────────────────────────────────
     const presetBtn = (key: Preset, label: string) => (
@@ -229,10 +373,13 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
                     <Button onClick={load} variant="outline" className="border border-[#d1d1d1]">Try again</Button>
                 </div>
             ) : points && points.length === 0 ? (
-                <div className="p-8 text-center text-sm text-[#5d5d5d]">
-                    <MapPin className="w-6 h-6 text-gray-300 mx-auto mb-2" />
-                    No GPS points were recorded in this period.
-                </div>
+                <>
+                    <div className="p-6 text-center text-sm text-[#5d5d5d] border-b border-[#ececec]">
+                        <MapPin className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+                        No GPS points were recorded in this period.
+                    </div>
+                    {deliveriesSection}
+                </>
             ) : points && summary ? (
                 <>
                     {/* Player */}
@@ -292,6 +439,8 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
                             </div>
                         ))}
                     </div>
+
+                    {deliveriesSection}
 
                     {/* Stops */}
                     <div className="p-3">

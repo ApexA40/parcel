@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     toApiTime, parseGpsTime, validateRange, distanceKm, normalizePoints, summarize,
-    positionAt, indexAt, formatDuration, MAX_RANGE_MS,
+    positionAt, indexAt, formatDuration, MAX_RANGE_MS, checkDeliveries,
 } from "./trackUtils";
 
 const MIN = 60_000;
@@ -102,5 +102,51 @@ describe("formatDuration", () => {
         expect(formatDuration(14 * MIN)).toBe("14 min");
         expect(formatDuration(125 * MIN)).toBe("2 h 5 min");
         expect(formatDuration(120 * MIN)).toBe("2 h");
+    });
+});
+
+describe("checkDeliveries", () => {
+    // Rider drives north from 5.600 to 5.610 over 10 minutes, then waits at 5.610 for 10 minutes.
+    const pts = normalizePoints(raw).filter((p) => p.t <= T0 + 20 * MIN);
+    const range = { start: T0, end: T0 + 60 * MIN };
+    const stop = (over: Partial<import("./trackUtils").DeliveryStop>) => ({ id: "a", parcelId: "P1", status: "DELIVERED", ...over });
+
+    it("marks a drop-off the rider waited at as visited, with arrival and departure", () => {
+        const [r] = checkDeliveries(pts, [stop({ lat: 5.61, lng: -0.2, completedAt: T0 + 15 * MIN })], range);
+        expect(r.kind).toBe("visited");
+        if (r.kind !== "visited") return;
+        expect(r.arrivedAt).toBe(T0 + 9 * MIN); // 5.609 is ~111 m away, inside 150 m
+        expect(r.leftAt).toBe(T0 + 20 * MIN);
+        expect(r.markedAwayM).toBeUndefined();
+    });
+
+    it("reports a drop-off the GPS never reached, with the closest approach", () => {
+        const [r] = checkDeliveries(pts, [stop({ lat: 5.63, lng: -0.2, completedAt: T0 + 15 * MIN })], range);
+        expect(r.kind).toBe("not-visited");
+        if (r.kind !== "not-visited") return;
+        expect(r.closestM).toBeGreaterThan(2000);
+        expect(r.closestM).toBeLessThan(2300);
+        expect(r.markedAwayM).toBeGreaterThan(2000); // marked done ~2.2 km away
+    });
+
+    it("flags a visit that was marked done somewhere else", () => {
+        // Visited at the start (5.600), but marked done at minute 15 while waiting at 5.610 (~1.1 km away).
+        const [r] = checkDeliveries(pts, [stop({ lat: 5.6, lng: -0.2, completedAt: T0 + 15 * MIN })], range);
+        expect(r.kind).toBe("visited");
+        expect(r.kind === "visited" && r.markedAwayM! > 1000).toBe(true);
+    });
+
+    it("handles parcels without a pin and periods without GPS", () => {
+        const [a, b] = checkDeliveries(pts, [
+            stop({}),
+            stop({ id: "b", lat: 5.61, lng: -0.2, assignedAt: T0 + 40 * MIN, completedAt: T0 + 45 * MIN }),
+        ], range);
+        expect(a.kind).toBe("no-location");
+        expect(b.kind).toBe("no-data");
+    });
+
+    it("treats unfinished deliveries the rider hasn't reached as pending, not failed", () => {
+        const [r] = checkDeliveries(pts, [stop({ lat: 5.63, lng: -0.2, status: "ACCEPTED" })], range);
+        expect(r.kind).toBe("pending");
     });
 });

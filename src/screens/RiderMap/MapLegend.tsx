@@ -79,4 +79,7 @@ export const HISTORY_LEGEND: LegendItem[] = [
     { swatch: { kind: "dot", color: "#16a34a", label: "S" }, label: "Start of the route" },
     { swatch: { kind: "dot", color: "#111827", label: "E" }, label: "End of the route" },
     { swatch: { kind: "dot", color: "#d97706", size: 10 }, label: "Stop longer than 5 min" },
+    { swatch: { kind: "pin", color: "#16a34a" }, label: "Drop-off the rider reached" },
+    { swatch: { kind: "pin", color: "#dc2626" }, label: "Drop-off not reached" },
+    { swatch: { kind: "pin", color: "#6b7280" }, label: "Not finished yet, or no GPS" },
 ];

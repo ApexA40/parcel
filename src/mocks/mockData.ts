@@ -444,7 +444,7 @@ assignedParcels.forEach((p, idx) => {
 deliveredHomeParcels.forEach((p, idx) => {
     const rider = idx % 2 === 0 ? RIDERS[0] : RIDERS[1 + (idx % 4)];
     // First few of rider-1's are today so "today collected" has a value
-    const dayOffset = idx < 6 ? 0 : int(1, 9);
+    const dayOffset = idx < 6 ? 0 : idx < 16 ? 1 : int(2, 9);
     const assignedAt = startOfToday - dayOffset * DAY + int(8, 11) * HOUR;
     const completedAt = Math.min(assignedAt + int(1, 5) * HOUR, now - 5 * 60 * 1000);
     p.riderId = rider.userId;

@@ -160,3 +160,73 @@ export const formatDuration = (ms: number) => {
     const h = Math.floor(m / 60);
     return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
 };
+
+// ── Delivery check: did the rider's GPS reach each drop-off? ─────────────
+
+export interface DeliveryStop {
+    id: string;
+    parcelId: string;
+    receiverName?: string;
+    locationName?: string;
+    lat?: number;
+    lng?: number;
+    assignedAt?: number;
+    /** When the delivery was marked done (or returned). */
+    completedAt?: number;
+    status: string;
+}
+
+export type DeliveryCheck =
+    | { kind: "visited"; stop: DeliveryStop; arrivedAt: number; leftAt: number; closestM: number; markedAwayM?: number }
+    | { kind: "not-visited"; stop: DeliveryStop; closestM: number; closestAt: number; markedAwayM?: number }
+    | { kind: "pending"; stop: DeliveryStop; closestM?: number }
+    | { kind: "no-location"; stop: DeliveryStop }
+    | { kind: "no-data"; stop: DeliveryStop };
+
+/** Within this distance of the drop-off counts as "at the customer". */
+export const VISIT_RADIUS_M = 150;
+/** Marking a delivery done further than this from the drop-off is flagged. */
+export const MARKED_AWAY_M = 300;
+/** Look this long past the "delivered" time for an arrival (GPS can lag). */
+const GRACE_MS = 30 * MINUTE;
+
+export const checkDeliveries = (
+    points: TimedPoint[],
+    stops: DeliveryStop[],
+    range: { start: number; end: number },
+    radiusM = VISIT_RADIUS_M,
+): DeliveryCheck[] =>
+    stops.map((stop): DeliveryCheck => {
+        if (stop.lat == null || stop.lng == null || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) return { kind: "no-location", stop };
+        const from = Math.max(range.start, stop.assignedAt ?? range.start);
+        const to = Math.min(range.end, (stop.completedAt ?? range.end) + GRACE_MS);
+        const inWindow = points.filter((p) => p.t >= from && p.t <= to);
+        const finished = stop.completedAt != null;
+        if (inWindow.length === 0) return finished ? { kind: "no-data", stop } : { kind: "pending", stop };
+
+        const target = { lat: stop.lat, lng: stop.lng };
+        let closestM = Infinity, closestAt = inWindow[0].t, arrivedAt: number | null = null, leftAt = 0;
+        inWindow.forEach((p) => {
+            const d = distanceKm(p, target) * 1000;
+            if (d < closestM) { closestM = d; closestAt = p.t; }
+            if (d <= radiusM) {
+                if (arrivedAt === null) arrivedAt = p.t;
+                leftAt = p.t;
+            }
+        });
+
+        // Where was the rider when they marked it done?
+        let markedAwayM: number | undefined;
+        if (stop.completedAt && stop.completedAt >= points[0].t && stop.completedAt <= points[points.length - 1].t) {
+            const at = positionAt(points, stop.completedAt);
+            const d = at ? distanceKm(at, target) * 1000 : 0;
+            if (d > MARKED_AWAY_M) markedAwayM = d;
+        }
+
+        if (arrivedAt !== null) return { kind: "visited", stop, arrivedAt, leftAt, closestM, markedAwayM };
+        // Not marked done yet and not reached yet: still in progress, not a failure.
+        if (!finished) return { kind: "pending", stop, closestM };
+        return { kind: "not-visited", stop, closestM, closestAt, markedAwayM };
+    });
+
+export const formatDistance = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
