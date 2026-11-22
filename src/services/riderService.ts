@@ -38,6 +38,10 @@ interface RiderParcelResponse {
     inboudPayed?: string;
     shelfId?: string;
     homeDelivery?: boolean;
+    // Pinned drop-off chosen at intake (docs/BACKEND_HANDOFF.md, Part A)
+    receiverLatitude?: number;
+    receiverLongitude?: number;
+    receiverLocationName?: string;
     pod?: boolean;
     delivered?: boolean;
     cancelled?: boolean;
@@ -193,6 +197,9 @@ class RiderService {
                     senderPhoneNumber: parcelItem.senderPhoneNumber,
                     receiverName: parcelItem.receiverName,
                     receiverAddress: parcelItem.receiverAddress,
+                    receiverLatitude: parcelItem.receiverLatitude ?? undefined,
+                    receiverLongitude: parcelItem.receiverLongitude ?? undefined,
+                    receiverLocationName: parcelItem.receiverLocationName ?? undefined,
                     recieverPhoneNumber: receiverPhone, // Map receiverPhoneNumber to recieverPhoneNumber (typo in interface)
                     shelfName: parcelItem.shelfName,
                     shelfId: parcelItem.shelfId,

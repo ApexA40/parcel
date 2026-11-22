@@ -11,8 +11,28 @@ export const parcelTotal = (p?: RiderParcelResponse | null) =>
 
 export const telHref = (phone?: string) => (phone ? `tel:${phone.replace(/\s/g, "")}` : undefined);
 
-export const mapsHref = (address?: string) =>
-    address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address}, Ghana`)}` : undefined;
+const hasPin = (p?: Pick<RiderParcelResponse, "receiverLatitude" | "receiverLongitude"> | null) =>
+    p?.receiverLatitude != null && p?.receiverLongitude != null &&
+    Number.isFinite(p.receiverLatitude) && Number.isFinite(p.receiverLongitude);
+
+/**
+ * Directions for a delivery. With a pinned drop-off, Google Maps routes straight to the
+ * coordinates (opens the Maps app on phones); otherwise it searches the address text.
+ */
+export const directionsHref = (p?: RiderParcelResponse | null) => {
+    if (hasPin(p)) {
+        return `https://www.google.com/maps/dir/?api=1&destination=${p!.receiverLatitude},${p!.receiverLongitude}&travelmode=driving`;
+    }
+    return p?.receiverAddress
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.receiverAddress}, Ghana`)}`
+        : undefined;
+};
+
+/** Where the parcel is going, for display: pinned landmark first, then the address text. */
+export const destinationLabel = (p?: RiderParcelResponse | null) =>
+    (hasPin(p) && p!.receiverLocationName) || p?.receiverAddress || undefined;
+
+export { hasPin };
 
 export const timeOf = (ts?: number) =>
     ts ? new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
@@ -153,11 +173,19 @@ export const ParcelDetails = ({ assignment }: { assignment: RiderAssignmentRespo
                     )}
                 </Row>
                 <Row icon={<MapPinIcon className="w-4 h-4" />} label="Delivery address">
-                    {p.receiverAddress || "No address given"}
-                    {p.receiverAddress && (
-                        <a href={mapsHref(p.receiverAddress)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gray-700 font-semibold underline decoration-gray-300 underline-offset-2 mt-0.5">
-                            <Navigation className="w-3.5 h-3.5" /> Open in Maps
+                    {hasPin(p) && p.receiverLocationName && (
+                        <span className="block">{p.receiverLocationName}</span>
+                    )}
+                    <span className={hasPin(p) && p.receiverLocationName ? "block text-gray-500 font-normal" : undefined}>
+                        {p.receiverAddress || (hasPin(p) ? "" : "No address given")}
+                    </span>
+                    {directionsHref(p) && (
+                        <a href={directionsHref(p)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gray-700 font-semibold underline decoration-gray-300 underline-offset-2 mt-0.5">
+                            <Navigation className="w-3.5 h-3.5" /> {hasPin(p) ? "Directions to the pin" : "Search address in Maps"}
                         </a>
+                    )}
+                    {!hasPin(p) && p.receiverAddress && (
+                        <span className="block text-[11px] text-gray-400 font-normal mt-0.5">No map pin for this parcel; directions use the address text.</span>
                     )}
                 </Row>
                 <Row icon={<PackageIcon className="w-4 h-4" />} label="Item">

@@ -347,7 +347,7 @@ Thresholds should be configurable. Nothing in the frontend depends on alerts yet
 
 Once A3 is in place, the frontend team should:
 
-- **Rider app:** pass the new fields through `riderService.getAssignments` (its `mapParcelFromNewFormat` keeps only known fields). Then point the rider app's Directions button at `receiverLatitude/Longitude` instead of the address text.
+- ~~**Rider app:** pass the new fields through `riderService.getAssignments` and point Directions at the pin.~~ **Done.** The rider app reads `receiverLatitude`, `receiverLongitude` and `receiverLocationName` from `GET /api-rider/assignments` (`ParcelInfo`). Directions open Google Maps routing to the pin, and fall back to searching the address text when there's no pin. **This only works once A3 returns these fields on `ParcelInfo` for the rider endpoint.**
 - **Parcel Search / Edit Parcel:** show the location, and let staff add or correct a pin on existing parcels (uses `PUT /api-frontdesk/parcel/{id}`, A2).
 
 ---

@@ -20,7 +20,7 @@ import { generateAssignmentsPDF } from "../../utils/pdfGenerator";
 import { useStation } from "../../contexts/StationContext";
 import {
     BottomSheet, CardSkeleton, EmptyState, IconAction, ParcelDetails, StatusPill,
-    mapsHref, parcelTotal, telHref, timeOf,
+    destinationLabel, directionsHref, hasPin, parcelTotal, telHref, timeOf,
 } from "../../components/rider/RiderUI";
 
 type UIStatus = "assigned" | "accepted" | "picked-up" | "out-for-delivery" | "delivered" | "delivery-failed";
@@ -468,15 +468,15 @@ export const RiderDashboard = (): JSX.Element => {
                                             <span className="shrink-0 font-semibold text-sm">{formatCurrency(parcelTotal(p))}</span>
                                         </div>
                                         <p className="flex items-center gap-1.5 text-sm text-gray-600 mt-1 pl-[34px]">
-                                            <MapPinIcon className="w-3.5 h-3.5 shrink-0 text-gray-400" />
-                                            <span className="truncate">{p.receiverAddress || "No address given"}</span>
+                                            <MapPinIcon className={`w-3.5 h-3.5 shrink-0 ${hasPin(p) ? "text-[#ea690c]" : "text-gray-400"}`} />
+                                            <span className="truncate">{destinationLabel(p) || "No address given"}</span>
                                         </p>
 
                                         <div className="flex items-center gap-2 mt-2.5">
                                             <IconAction href={telHref(p.recieverPhoneNumber)} label="Call recipient">
                                                 <Phone className="w-[18px] h-[18px]" />
                                             </IconAction>
-                                            <IconAction href={mapsHref(p.receiverAddress)} label="Directions">
+                                            <IconAction href={directionsHref(p)} label={hasPin(p) ? "Directions to the drop-off pin" : "Search the address in Maps"}>
                                                 <Navigation className="w-[18px] h-[18px]" />
                                             </IconAction>
                                             <button
