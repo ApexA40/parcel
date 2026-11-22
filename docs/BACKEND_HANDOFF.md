@@ -8,6 +8,7 @@ Items are grouped by priority:
 - **Part B** is about access and request volume for the rider map pages.
 - **Part C** lists calls the frontend makes that are missing from the API description.
 - **Part D** is recommended: server-side delivery checks for reports and audits.
+- **Part E** covers off-task detection (detours and stops away from the day's deliveries). It needs station coordinates and extends Part D.
 
 To see the exact request and response shapes the frontend expects, run the frontend with `npm run dev:mock`. That mode answers every call from sample data in `src/mocks/`, using only the fields listed here. The field whitelists are in `src/mocks/mockData.ts` (`PARCEL_FIELDS`, `PARCEL_INFO_FIELDS`, `USER_FIELDS`).
 
@@ -238,6 +239,8 @@ Use the same time format and limits as `/riders/track`. Response:
 
 `result` is one of `REACHED`, `NOT_REACHED`, `NOT_FINISHED`, `NO_PIN`, `NO_GPS`.
 
+The same response should also carry the off-task block from Part E (`offTask`).
+
 Please use the rules in the table above so the numbers match what staff see on the map. When this endpoint exists, the frontend will use it instead of computing in the browser.
 
 ### D3. Daily summary for all riders (recommended)
@@ -245,10 +248,98 @@ Please use the rules in the table above so the numbers match what staff see on t
 ```
 GET /api-admin/riders/delivery-check/summary?officeId={optional}&date={yyyy-MM-dd}
 → 200 [ { "riderId", "riderName", "deliveries", "reached", "notReached", "noPin", "markedAway",
-          "distanceKm", "movingMinutes", "stoppedMinutes" }, ... ]
+          "distanceKm", "movingMinutes", "stoppedMinutes",
+          "directKm", "detours", "offRouteMinutes", "offRouteKm", "offTaskStops", "offTaskStopMinutes" }, ... ]
 ```
 
 The frontend can add this as a table on the Rider Map, or as a column on Delivery Analytics, once it exists. Pre-computing it nightly is fine.
+
+---
+
+## Part E: Off-task detection (detours and stops away from deliveries)
+
+### Why
+
+Part D tells you whether the rider reached each drop-off. It doesn't show a rider who does all their deliveries but also rides somewhere unrelated in between, such as a 40-minute side trip or a long stop that isn't at a customer or the station. Part E catches that.
+
+The frontend already does this in the browser for one rider and one period: Rider Map → route history → **Off-task**. The rules are in `src/screens/RiderMap/trackUtils.ts` (`analyzeOffTask`), with unit tests in `trackUtils.test.ts`. Please use the same rules on the server so reports match the screen.
+
+### E1. Station coordinates (required for accurate legs)
+
+Offices (`Office` / `OfficeResponse` in `/api/offices/locations`) have no coordinates today. Please add:
+
+| Field | Type | Notes |
+|---|---|---|
+| `latitude` | double, nullable | Station location. |
+| `longitude` | double, nullable | Station location. |
+
+Accept them on `POST /api-admin/office` and `PUT /api-admin/office/{id}`, and return them wherever an office is returned.
+
+Until these exist, the frontend uses the first and last GPS points of the period as the start and end. That works when riders start and finish at the station, but it misses a detour on the way out or back. The server version should use the rider's office coordinates.
+
+### E2. Rules
+
+1. **Legs.** Build the day's anchors in order:
+   - the station,
+   - each drop-off the rider **reached** (Part D, within 150 m), ordered by arrival time,
+   - the station again.
+
+   Each pair of consecutive anchors is a leg. A leg's time window runs from the rider leaving the first anchor (last GPS point within 150 m) to arriving at the next (first point within 150 m). Drop-offs that weren't reached aren't anchors: the rider is judged on the way to the next place they actually went.
+
+2. **Detours.** For every GPS point inside a leg's window, compute its distance to the straight line between the leg's two anchors. Use a point-to-segment distance; a flat projection is fine at city scale. Consecutive points further than **1,500 m** form a detour. Keep detours lasting at least **3 minutes**, and end a detour at any gap of more than 15 minutes between points. For each detour report:
+   - start and end time,
+   - the leg (`"Akosua Ofori → Efua Appiah"`),
+   - the furthest distance from the line, in metres,
+   - the km ridden from the last on-route point before it to the first on-route point after it.
+
+3. **Off-task stops.** Using the same stop rule as Part D (below 3 km/h for 5+ minutes), a stop is **off-task** if it isn't within **200 m** of any of the rider's drop-off pins for the period (reached or not), the station, or the first or last GPS point.
+
+4. **Daily figures:**
+   - `directKm`: straight-line distance along the anchors (station → reached drop-offs → station).
+   - `distanceKm`: distance actually covered (sum between consecutive GPS points).
+   - `offRouteMinutes` and `offRouteKm`: totals over detours.
+   - `offTaskStops` and `offTaskStopMinutes`.
+
+5. **When it can't be judged.** If the rider reached no pinned drop-offs in the period, there are no legs. Return `judged: false` with a reason. Off-task stops can still be listed.
+
+Make the thresholds configurable per company if possible (150 m, 1,500 m, 3 min, 200 m, 5 min, 3 km/h). Roads aren't straight, so some companies will want a wider corridor.
+
+### E3. Response block
+
+Add this to the `GET /api-admin/riders/delivery-check` response (Part D2):
+
+```json
+"offTask": {
+  "judged": true,
+  "reason": null,
+  "directKm": 91.6,
+  "distanceKm": 99.9,
+  "offRouteMinutes": 39,
+  "offRouteKm": 4.7,
+  "detours": [
+    {
+      "start": 1763721660000, "end": 1763724000000,
+      "fromLabel": "Akosua Ofori", "toLabel": "Efua Appiah",
+      "maxOffRouteM": 3600, "kmRidden": 4.7
+    }
+  ],
+  "offTaskStops": [
+    { "start": 1763722020000, "end": 1763723640000, "lat": 5.5712, "lng": -0.3020, "minutes": 27 }
+  ]
+}
+```
+
+The durations and distances match a demo-data day: the rider leaves the Akosua Ofori → Efua Appiah leg at 10:41, rides 3.6 km off to the side, waits 27 minutes, and comes back at 11:20. The timestamps and coordinates in the example are illustrative.
+
+### E4. Suggested alerts (optional)
+
+Once the daily figures exist, they can drive alerts to managers, for example:
+
+- a detour over 30 minutes,
+- an off-task stop over 20 minutes during working hours,
+- `distanceKm` more than 1.5× `directKm` for the day.
+
+Thresholds should be configurable. Nothing in the frontend depends on alerts yet.
 
 ---
 
@@ -273,5 +364,8 @@ Once A3 is in place, the frontend team should:
 - [ ] C Confirm or add the four missing endpoints. Confirm `PUT` for rider-status and driver pay.
 - [ ] D1 Store the rider's position when a delivery is marked. *(recommended)*
 - [ ] D2 / D3 Delivery check endpoints. *(recommended)*
+- [ ] E1 Station (office) `latitude` / `longitude`.
+- [ ] E2 / E3 Off-task block (detours, off-task stops, daily figures) in the delivery-check responses. *(recommended)*
+- [ ] E4 Alerts. *(optional)*
 
-Questions about the frontend side: the relevant code is in `src/components/DeliveryLocationPicker.tsx`, `src/screens/ParcelRegistration/`, `src/screens/RiderMap/` and `src/services/adminService.ts`.
+Questions about the frontend side: the relevant code is in `src/components/DeliveryLocationPicker.tsx`, `src/screens/ParcelRegistration/`, `src/screens/RiderMap/` (rules in `trackUtils.ts`) and `src/services/adminService.ts`.
