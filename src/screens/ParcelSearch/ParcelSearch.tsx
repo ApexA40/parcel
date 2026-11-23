@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { SearchIcon, FilterIcon, Download, X, Edit, Loader, Eye, Home, MoreHorizontal, ChevronDown, PrinterIcon, ImageIcon, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import { SearchIcon, FilterIcon, Download, X, Edit, Loader, Eye, Home, MoreHorizontal, ChevronDown, PrinterIcon, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Barcode from "react-barcode";
 import { Card, CardContent } from "../../components/ui/card";
@@ -8,24 +8,15 @@ import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { useStation } from "../../contexts/StationContext";
 import { useShelf } from "../../contexts/ShelfContext";
-import { formatPhoneNumber, phoneMatchesSearch, validatePhoneNumber, normalizePhoneNumber } from "../../utils/dataHelpers";
+import { formatPhoneNumber, validatePhoneNumber, normalizePhoneNumber } from "../../utils/dataHelpers";
 import frontdeskService, { ParcelResponse } from "../../services/frontdeskService";
-import { searchParcelsByPhone } from "../../services/customerService";
 import { useToast } from "../../components/ui/toast";
 import authService from "../../services/authService";
 import { useFrontdeskParcel } from "../../contexts/FrontdeskParcelContext";
 import {
     DeliveryLocationPicker, type DeliveryLocation, locationFromParcel, locationToUpdate, sameLocation,
 } from "../../components/DeliveryLocationPicker";
-
-/** True when the query looks like a phone number rather than a name/ID search. */
-const looksLikePhoneQuery = (value: string): boolean => {
-    const cleaned = value.trim().replace(/[\s-]/g, "");
-    if (cleaned.length < 3) return false;
-    const digitCount = (cleaned.match(/\d/g) || []).length;
-    // Mostly digits (allow a leading +) and not just a short numeric fragment of a name/ID
-    return digitCount >= 3 && digitCount / cleaned.length >= 0.7;
-};
+import { PrintLabelModal } from "../../components/PrintLabelModal";
 
 export const ParcelSearch = (): JSX.Element => {
     const { currentStation, currentUser, userRole } = useStation();
@@ -42,18 +33,13 @@ export const ParcelSearch = (): JSX.Element => {
     } = useFrontdeskParcel();
     const [searchParams, setSearchParams] = useState({
         recipientName: "",
-        phoneNumber: "",
-        parcelId: "",
         status: "",
         startDate: "",
         endDate: "",
         shelfLocation: "",
-        driverName: "",
     });
     const [generalSearch, setGeneralSearch] = useState("");
     const [debouncedGeneralSearch, setDebouncedGeneralSearch] = useState("");
-    const [phoneSearchResults, setPhoneSearchResults] = useState<ParcelResponse[] | null>(null);
-    const [phoneSearching, setPhoneSearching] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [selectedParcel, setSelectedParcel] = useState<ParcelResponse | null>(null);
     const [editingShelf, setEditingShelf] = useState(false);
@@ -74,7 +60,6 @@ export const ParcelSearch = (): JSX.Element => {
     const [editingPin, setEditingPin] = useState(false);
     const [savingPin, setSavingPin] = useState(false);
     const [showActionMenu, setShowActionMenu] = useState(false);
-    const [showCosts, setShowCosts] = useState(false);
     const [activeDelivery, setActiveDelivery] = useState<any>(null);
     const [activeDeliveryLoading, setActiveDeliveryLoading] = useState(false);
     const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -116,10 +101,11 @@ export const ParcelSearch = (): JSX.Element => {
         return new Date(y, m - 1, d);
     };
 
-    // Load parcels on mount - only show loading UI if no cache exists
+    // Load parcels on mount - skip if context already has data cached
     useEffect(() => {
-        const hasCache = parcels.length > 0;
-        loadParcelsIfNeeded({}, pagination.page, pagination.size, !hasCache);
+        if (parcels.length === 0) {
+            loadParcelsIfNeeded({}, 0, 200, true);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -146,157 +132,74 @@ export const ParcelSearch = (): JSX.Element => {
 
     // Debounce the general search box before deciding whether to hit the server
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedGeneralSearch(generalSearch), 350);
+        const timer = setTimeout(() => setDebouncedGeneralSearch(generalSearch), 700);
         return () => clearTimeout(timer);
     }, [generalSearch]);
 
-    // Server-side phone search: the backend only exposes a phone-number lookup
-    // (GET /api-user/parcel-search), so a query that looks like a phone number
-    // is searched across the *entire* system instead of just the loaded page.
-    // Name/ID/description queries fall back to filtering the loaded page below,
-    // since no matching backend endpoint exists for those yet.
+    // Server-side search: send the debounced query to the backend via the `search` param
+    // which does a contains match on receiver name, parcel ID, phone, etc.
+    // Falls back to showing all parcels when the search is cleared.
+    // Requires at least 2 characters to avoid hammering the backend on every keystroke.
     useEffect(() => {
-        const query = debouncedGeneralSearch.trim();
-        if (!looksLikePhoneQuery(query)) {
-            setPhoneSearchResults(null);
-            setPhoneSearching(false);
-            return;
-        }
-
-        let cancelled = false;
-        setPhoneSearching(true);
-
-        searchParcelsByPhone(query).then((result) => {
-            if (cancelled) return;
-            if (result.success) {
-                const cacheById = new Map(parcels.map((p) => [p.parcelId, p]));
-                const merged = (result.data || []).map((cp): ParcelResponse => {
-                    const cached = cacheById.get(cp.parcelId);
-                    if (cached) return cached;
-                    return {
-                        parcelId: cp.parcelId,
-                        receiverName: cp.receiverName || undefined,
-                        recieverPhoneNumber: cp.recieverPhoneNumber || undefined,
-                        receiverAddress: cp.receiverAddress || undefined,
-                        senderName: cp.senderName || undefined,
-                        senderPhoneNumber: cp.senderPhoneNumber || undefined,
-                        parcelDescription: cp.parcelDescription || undefined,
-                        shelfName: cp.shelfName || undefined,
-                        officeId: cp.officeId || undefined,
-                        delivered: cp.delivered,
-                        pod: cp.pod,
-                        parcelAssigned: cp.parcelAssigned,
-                        homeDelivery: cp.homeDelivery,
-                        deliveryCost: cp.deliveryCost,
-                        pickUpCost: cp.pickUpCost,
-                        inboundCost: cp.inboundCost,
-                        paymentMethod: cp.paymentMethod || undefined,
-                        inboudPayed: cp.inboudPayed,
-                        typeofParcel: cp.typeofParcel,
-                        createdAt: cp.createdAt,
-                        updatedAt: cp.updatedAt,
-                    };
-                });
-                setPhoneSearchResults(merged);
-            } else {
-                setPhoneSearchResults([]);
-                if (result.message) showToast(result.message, "error");
+        const raw = debouncedGeneralSearch.trim();
+        // Normalize phone numbers before sending to server:
+        // "0531656697" or "531656697" → "+233531656697"
+        const looksLikePhone = /^[0-9+\s]+$/.test(raw) && raw.replace(/\D/g, "").length >= 7;
+        let query = raw;
+        if (looksLikePhone) {
+            const digits = raw.replace(/\D/g, "");
+            if (digits.startsWith("0")) {
+                query = "+233" + digits.substring(1);
+            } else if (digits.startsWith("233")) {
+                query = "+" + digits;
+            } else if (!raw.startsWith("+")) {
+                query = "+233" + digits;
             }
-            setPhoneSearching(false);
-        });
-
-        return () => { cancelled = true; };
+        }
+        if (query.length >= 2) {
+            loadParcelsIfNeeded({ search: query }, 0, 200, true);
+        } else if (query.length === 0) {
+            loadParcelsIfNeeded({}, 0, 200, true);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedGeneralSearch]);
 
-    // Filter parcels based on search parameters (client-side filtering)
+    // Client-side filtering applied on top of whatever parcels the server returned.
     const filteredParcels = useMemo(() => {
-        const isPhoneSearchActive = phoneSearchResults !== null;
-        let filtered = isPhoneSearchActive ? [...phoneSearchResults] : [...parcels];
+        let filtered = [...parcels];
 
-        // General search (searches across multiple fields with OR logic) —
-        // only applies to the loaded page; server-side phone search already
-        // narrowed the result set above.
-        if (!isPhoneSearchActive && generalSearch.trim()) {
-            const searchTerm = generalSearch.trim().toLowerCase();
-            filtered = filtered.filter((p) => {
-                // Check parcel ID
-                if (p.parcelId?.toLowerCase().includes(searchTerm)) return true;
-
-                // Check recipient name
-                if (p.receiverName?.toLowerCase().includes(searchTerm)) return true;
-
-                // Check sender name
-                if (p.senderName?.toLowerCase().includes(searchTerm)) return true;
-
-                // Check phone numbers (handles various formats)
-                if (phoneMatchesSearch(p.recieverPhoneNumber, searchTerm)) return true;
-                if (phoneMatchesSearch(p.senderPhoneNumber, searchTerm)) return true;
-                if (phoneMatchesSearch(p.driverPhoneNumber, searchTerm)) return true;
-
-                // Check driver name
-                if (p.driverName?.toLowerCase().includes(searchTerm)) return true;
-
-                // Check parcel description
-                if (p.parcelDescription?.toLowerCase().includes(searchTerm)) return true;
-
-                return false;
-            });
-        }
-
-        // Specific filters (work together with AND logic)
-        // Filter by parcel ID (only if not using general search)
-        if (!generalSearch.trim() && searchParams.parcelId) {
-            const searchTerm = searchParams.parcelId.toLowerCase();
-            filtered = filtered.filter((p) =>
-                p.parcelId?.toLowerCase().includes(searchTerm)
-            );
-        }
-
-        // Filter by recipient name (only if not using general search)
-        if (!generalSearch.trim() && searchParams.recipientName) {
-            const searchTerm = searchParams.recipientName.toLowerCase();
-            filtered = filtered.filter((p) =>
-                p.receiverName?.toLowerCase().includes(searchTerm)
-            );
-        }
-
-        // Filter by phone number - handles various formats (only if not using general search)
-        if (!generalSearch.trim() && searchParams.phoneNumber) {
-            const searchTerm = searchParams.phoneNumber.trim();
-            filtered = filtered.filter((p) =>
-                phoneMatchesSearch(p.recieverPhoneNumber, searchTerm) ||
-                phoneMatchesSearch(p.senderPhoneNumber, searchTerm) ||
-                phoneMatchesSearch(p.driverPhoneNumber, searchTerm)
-            );
-        }
-
-        // Filter by shelf location
-        if (searchParams.shelfLocation) {
-            filtered = filtered.filter((p) =>
-                (p.shelfName || p.shelfNumber) === searchParams.shelfLocation
-            );
-        }
-
-        // Filter by status
         if (searchParams.status) {
             filtered = filtered.filter((p) => {
                 if (searchParams.status === "delivered") return p.delivered;
-                if (searchParams.status === "assigned") return p.parcelAssigned;
+                if (searchParams.status === "pickedUp") return p.pickedUp && !p.delivered;
                 if (searchParams.status === "pod") return p.pod;
-                if (searchParams.status === "registered") return !p.delivered && !p.parcelAssigned && !p.pod;
+                if (searchParams.status === "assigned") return p.parcelAssigned && !p.pod && !p.pickedUp && !p.delivered;
+                if (searchParams.status === "called") return p.hasCalled && !p.parcelAssigned && !p.pod && !p.pickedUp && !p.delivered;
+                if (searchParams.status === "registered") return !p.delivered && !p.pickedUp && !p.pod && !p.parcelAssigned && !p.hasCalled;
                 return true;
             });
         }
 
-        // NEW: Filter by createdAt using startDate and endDate (YYYY-MM-DD inputs)
+        if (searchParams.shelfLocation) {
+            filtered = filtered.filter((p) =>
+                p.shelfName === searchParams.shelfLocation || p.shelfNumber === searchParams.shelfLocation
+            );
+        }
+
+        if (searchParams.recipientName) {
+            const term = searchParams.recipientName.toLowerCase();
+            filtered = filtered.filter((p) =>
+                p.receiverName?.toLowerCase().includes(term)
+            );
+        }
+
         if (searchParams.startDate) {
             const start = parseDateInput(searchParams.startDate);
             if (start) {
-                const startMs = new Date(start).setHours(0, 0, 0, 0);
+                const startMs = start.setHours(0, 0, 0, 0);
                 filtered = filtered.filter((p) => {
-                    const created = typeof p.createdAt === "number" ? p.createdAt : Number(p.createdAt || 0);
-                    return created && created >= startMs;
+                    const ts = p.createdAt ?? p.registeredDate;
+                    return ts && Number(ts) >= startMs;
                 });
             }
         }
@@ -304,30 +207,26 @@ export const ParcelSearch = (): JSX.Element => {
         if (searchParams.endDate) {
             const end = parseDateInput(searchParams.endDate);
             if (end) {
-                const endMs = new Date(end).setHours(23, 59, 59, 999);
+                const endMs = end.setHours(23, 59, 59, 999);
                 filtered = filtered.filter((p) => {
-                    const created = typeof p.createdAt === "number" ? p.createdAt : Number(p.createdAt || 0);
-                    return created && created <= endMs;
+                    const ts = p.createdAt ?? p.registeredDate;
+                    return ts && Number(ts) <= endMs;
                 });
             }
         }
 
         return filtered;
-    }, [parcels, searchParams, generalSearch, phoneSearchResults]);
+    }, [parcels, searchParams]);
 
     const handleClearFilters = () => {
         setGeneralSearch("");
         setDebouncedGeneralSearch("");
-        setPhoneSearchResults(null);
         setSearchParams({
             recipientName: "",
-            phoneNumber: "",
-            parcelId: "",
             status: "",
             startDate: "",
             endDate: "",
             shelfLocation: "",
-            driverName: "",
         });
     };
 
@@ -346,7 +245,7 @@ export const ParcelSearch = (): JSX.Element => {
             if (response.success) {
                 showToast("Shelf location updated successfully", "success");
                 // Refresh parcels
-                await refreshParcels({}, pagination.page, pagination.size);
+                await refreshParcels();
                 setEditingShelf(false);
                 setSelectedParcel(null);
             } else {
@@ -383,7 +282,7 @@ export const ParcelSearch = (): JSX.Element => {
                 setDeliveryAddress("");
                 setDeliveryCostInput("");
                 setDeliveryPin(null);
-                await refreshParcels({}, pagination.page, pagination.size);
+                await refreshParcels();
                 setSelectedParcel(null);
             } else {
                 showToast(response.message || "Failed to request delivery", "error");
@@ -431,7 +330,7 @@ export const ParcelSearch = (): JSX.Element => {
                 showToast("Parcel marked as picked up", "success");
                 setShowPickupModal(false);
                 setPickupParcel(null);
-                await refreshParcels({}, pagination.page, pagination.size);
+                await refreshParcels();
             } else {
                 showToast(response.message || "Failed to update parcel status", "error");
             }
@@ -519,7 +418,7 @@ export const ParcelSearch = (): JSX.Element => {
                                         }}
                                         className="pl-10 pr-8 border border-[#d1d1d1]"
                                     />
-                                    {phoneSearching && (
+                                    {loading && generalSearch.trim() && (
                                         <Loader className="absolute right-3 top-3 w-4 h-4 text-[#ea690c] animate-spin" />
                                     )}
                                 </div>
@@ -546,24 +445,6 @@ export const ParcelSearch = (): JSX.Element => {
                             {showFilters && (
                                 <div className="mt-4 pt-4 border-t border-[#d1d1d1]">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {/* Phone Number Filter */}
-                                        <div>
-                                            <label className="block text-sm font-semibold text-neutral-800 mb-2">
-                                                Phone Number
-                                            </label>
-                                            <Input
-                                                placeholder="+233..."
-                                                value={searchParams.phoneNumber}
-                                                onChange={(e) =>
-                                                    setSearchParams((prev) => ({
-                                                        ...prev,
-                                                        phoneNumber: e.target.value,
-                                                    }))
-                                                }
-                                                className="border border-[#d1d1d1]"
-                                            />
-                                        </div>
-
                                         {/* Status Filter */}
                                         <div>
                                             <label className="block text-sm font-semibold text-neutral-800 mb-2">
@@ -581,9 +462,11 @@ export const ParcelSearch = (): JSX.Element => {
                                             >
                                                 <option value="">All Status</option>
                                                 <option value="registered">Registered</option>
+                                                <option value="called">Called</option>
                                                 <option value="assigned">Assigned</option>
-                                                <option value="delivered">Delivered</option>
                                                 <option value="pod">POD</option>
+                                                <option value="pickedUp">Picked Up</option>
+                                                <option value="delivered">Delivered</option>
                                             </select>
                                         </div>
 
@@ -689,10 +572,10 @@ export const ParcelSearch = (): JSX.Element => {
                     <div className="flex flex-col flex-1 min-h-0 gap-3">
                             <div className="flex items-center justify-between text-xs text-[#5d5d5d] mb-2">
                                 <span className="flex items-center gap-2">
-                                    {phoneSearchResults !== null ? (
+                                    {generalSearch.trim() ? (
                                         <span className="inline-flex items-center gap-1.5">
-                                            {filteredParcels.length} result{filteredParcels.length === 1 ? "" : "s"} for "{generalSearch.trim()}" across all parcels
-                                            {phoneSearching && <Loader className="w-4 h-4 animate-spin text-[#ea690c]" />}
+                                            {filteredParcels.length} result{filteredParcels.length === 1 ? "" : "s"} for "{generalSearch.trim()}"
+                                            {loading && <Loader className="w-4 h-4 animate-spin text-[#ea690c]" />}
                                         </span>
                                     ) : (
                                         <>Showing {filteredParcels.length} of {pagination.totalElements} parcel(s)</>
@@ -712,6 +595,7 @@ export const ParcelSearch = (): JSX.Element => {
                                             const newSize = parseInt(e.target.value);
                                             loadParcelsIfNeeded({}, 0, newSize, true);
                                         }}
+                                        defaultValue={200}
                                         className="text-xs border border-[#d1d1d1] rounded px-2 py-1"
                                     >
                                         <option value={200}>200</option>
@@ -879,7 +763,6 @@ export const ParcelSearch = (): JSX.Element => {
                                                                             setSelectedParcel(parcel);
                                                                             setNewShelfLocation(parcel.shelfId || parcel.shelfNumber || "");
                                                                             setEditingShelf(false);
-                                                                            setShowCosts(false);
                                                                             setActiveDelivery(null);
                                                                             if (parcel.parcelAssigned) {
                                                                                 setActiveDeliveryLoading(true);
@@ -1254,545 +1137,26 @@ export const ParcelSearch = (): JSX.Element => {
                     onEditShelf={() => { setEditingShelf(true); setShowActionMenu(false); }}
                     onRequestDelivery={() => { setRequestDelivery(true); setDeliveryAddress(selectedParcel.receiverAddress || ""); setDeliveryCostInput(selectedParcel.deliveryCost ? String(selectedParcel.deliveryCost) : ""); setDeliveryPin(locationFromParcel(selectedParcel)); setShowActionMenu(false); }}
                     onEditPin={() => { setDeliveryPin(locationFromParcel(selectedParcel)); setEditingPin(true); setShowActionMenu(false); }}
-                    onCancelDelivery={async () => { setShowActionMenu(false); const res = await frontdeskService.updateParcel(selectedParcel.parcelId, { homeDelivery: false, deliveryCost: 0, receiverAddress: "" }); if (res.success) { showToast("Home delivery cancelled", "success"); await refreshParcels({}, pagination.page, pagination.size); setSelectedParcel(null); } else showToast(res.message || "Failed", "error"); }}
+                    onCancelDelivery={async () => { setShowActionMenu(false); const res = await frontdeskService.updateParcel(selectedParcel.parcelId, { homeDelivery: false, deliveryCost: 0, receiverAddress: "" }); if (res.success) { showToast("Home delivery cancelled", "success"); await refreshParcels(); setSelectedParcel(null); } else showToast(res.message || "Failed", "error"); }}
+                    onSaved={async () => { await refreshParcels(); }}
                     showActionMenu={showActionMenu}
                     onToggleActionMenu={() => setShowActionMenu(p => !p)}
                     actionMenuRef={actionMenuRef}
                 />
             )}
-            {/* DELETED inline modal — replaced by ParcelDetailModal component below */}
-            {false && selectedParcel && !editingShelf && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <Card className="w-full max-w-2xl border border-[#d1d1d1] bg-white shadow-lg max-h-[90vh] overflow-y-auto">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-lg font-bold text-neutral-800">Parcel Details</h3>
-                                <button
-                                    onClick={() => setSelectedParcel(null)}
-                                    className="text-[#9a9a9a] hover:text-neutral-800"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <div className="space-y-6">
-                                {/* Basic Information */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Basic Information</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Parcel ID</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.parcelId}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Status</p>
-                                            <Badge className={
-                                                selectedParcel.delivered
-                                                    ? "bg-green-100 text-green-800"
-                                                    : selectedParcel.parcelAssigned
-                                                        ? "bg-blue-100 text-blue-800"
-                                                        : selectedParcel.pod
-                                                            ? "bg-purple-100 text-purple-800"
-                                                            : "bg-gray-100 text-gray-800"
-                                            }>
-                                                {selectedParcel.delivered
-                                                    ? "Delivered"
-                                                    : selectedParcel.parcelAssigned
-                                                        ? "Assigned"
-                                                        : selectedParcel.pod
-                                                            ? "POD"
-                                                            : "Registered"}
-                                            </Badge>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Shelf Location</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.shelfName || selectedParcel.shelfNumber || "Not set"}</p>
-                                        </div>
-                                        {selectedParcel.fragile !== undefined && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Fragile</p>
-                                                <Badge className={selectedParcel.fragile ? "bg-orange-100 text-orange-800" : "bg-gray-100 text-gray-800"}>
-                                                    {selectedParcel.fragile ? "Yes" : "No"}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Recipient Information */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Recipient Information</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Recipient Name</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.receiverName || "N/A"}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-[#5d5d5d] mb-1">Phone Number</p>
-                                            <p className="font-semibold text-neutral-800 text-sm">
-                                                {selectedParcel.recieverPhoneNumber ? formatPhoneNumber(selectedParcel.recieverPhoneNumber) : "N/A"}
-                                            </p>
-                                        </div>
-                                        {selectedParcel.receiverAddress && (
-                                            <div className="col-span-2">
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Delivery Address</p>
-                                                <p className="text-sm text-neutral-700">{selectedParcel.receiverAddress}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Sender Information */}
-                                {(selectedParcel.senderName || selectedParcel.senderPhoneNumber) && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Sender Information</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            {selectedParcel.senderName && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Sender Name</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.senderName}</p>
-                                                </div>
-                                            )}
-                                            {selectedParcel.senderPhoneNumber && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Sender Phone</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">
-                                                        {formatPhoneNumber(selectedParcel.senderPhoneNumber)}
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Driver Information */}
-                                {selectedParcel.driverName && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Driver Information</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Driver Name</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.driverName}</p>
-                                            </div>
-                                            {selectedParcel.driverPhoneNumber && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Driver Phone</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">
-                                                        {formatPhoneNumber(selectedParcel.driverPhoneNumber)}
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {selectedParcel.vehicleNumber && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Vehicle Number</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.vehicleNumber}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* NEW: Rider Information */}
-                                {selectedParcel.riderInfo && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Rider Information</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Rider Name</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.riderInfo.riderName}</p>
-                                            </div>
-                                            {selectedParcel.riderInfo.riderPhoneNumber && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Rider Phone</p>
-                                                    <p className="font-semibold text-neutral-800 text-sm">{formatPhoneNumber(selectedParcel.riderInfo.riderPhoneNumber)}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Inbound & Storage — always visible */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Costs</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {selectedParcel.inboundCost !== undefined && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Inbound Cost</p>
-                                                <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.inboundCost.toFixed(2)}</p>
-                                            </div>
-                                        )}
-                                        {selectedParcel.storageCost !== undefined && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Storage Cost</p>
-                                                <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.storageCost.toFixed(2)}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Delivery & Pickup — collapsible */}
-                                <div className="border border-[#d1d1d1] rounded-lg overflow-hidden">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCosts(prev => !prev)}
-                                        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-                                    >
-                                        <h4 className="text-sm font-semibold text-neutral-800">Delivery & Pickup Fees</h4>
-                                        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showCosts ? "rotate-180" : ""}`} />
-                                    </button>
-                                    {showCosts && (
-                                        <div className="grid grid-cols-2 gap-4 p-4">
-                                            {selectedParcel.deliveryCost !== undefined && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Delivery Fee</p>
-                                                    <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.deliveryCost.toFixed(2)}</p>
-                                                </div>
-                                            )}
-                                            {selectedParcel.pickUpCost !== undefined && (
-                                                <div>
-                                                    <p className="text-xs text-[#5d5d5d] mb-1">Pickup Cost</p>
-                                                    <p className="font-semibold text-[#ea690c] text-sm">GHC {selectedParcel.pickUpCost.toFixed(2)}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Item Description */}
-                                {selectedParcel.parcelDescription && (
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Item Description</h4>
-                                        <p className="text-sm text-neutral-700">{selectedParcel.parcelDescription}</p>
-                                    </div>
-                                )}
-
-                                {/* Additional Information */}
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-800 mb-3 pb-2 border-b border-[#d1d1d1]">Additional Information</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {selectedParcel.hasCalled !== undefined && selectedParcel.hasCalled !== null && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Has Called</p>
-                                                <Badge className={selectedParcel.hasCalled ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                                                    {selectedParcel.hasCalled ? "Yes" : "No"}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                        {selectedParcel.inboudPayed !== undefined && selectedParcel.inboudPayed !== null && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Inbound Paid</p>
-                                                <Badge className={selectedParcel.inboudPayed ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                                                    {selectedParcel.inboudPayed ? "Yes" : "No"}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                        {selectedParcel.homeDelivery !== undefined && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Home Delivery</p>
-                                                <Badge className={selectedParcel.homeDelivery ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}>
-                                                    {selectedParcel.homeDelivery ? "Yes" : "No"}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                        {selectedParcel.registeredDate && (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Registered Date</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">
-                                                    {new Date(selectedParcel.registeredDate).toLocaleString()}
-                                                </p>
-                                            </div>
-                                        )}
-                                        {typeof selectedParcel.officeId === 'string' ? (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Office ID</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.officeId}</p>
-                                            </div>
-                                        ) : selectedParcel.officeId ? (
-                                            <div>
-                                                <p className="text-xs text-[#5d5d5d] mb-1">Office</p>
-                                                <p className="font-semibold text-neutral-800 text-sm">{selectedParcel.officeId.name}</p>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                </div>
-
-                                {/* Pickup Status and Action */}
-                                <div className="flex items-center justify-between gap-4">
-                                    <div className="flex items-center gap-3">
-                                        {selectedParcel.pickedUp ? (
-                                            <Badge className="bg-green-100 text-green-800">Picked Up</Badge>
-                                        ) : (
-                                            <Badge className="bg-yellow-100 text-yellow-800">Not Picked Up</Badge>
-                                        )}
-                                        <span className="text-sm text-[#5d5d5d]">
-                                            Has Called: {selectedParcel.hasCalled ? "Yes" : "No"}
-                                        </span>
-                                    </div>
-
-                                    {!selectedParcel.pickedUp && (
-                                        <div>
-                                            <Button
-                                                onClick={() => {
-                                                    setPickupIsOwner(true);
-                                                    setPickupName("");
-                                                    setPickupPhone("");
-                                                    setPickupParcel(selectedParcel);
-                                                    setSelectedParcel(null);
-                                                    setShowPickupModal(true);
-                                                }}
-                                                className="bg-[#ea690c] text-white hover:bg-[#ea690c]/90"
-                                            >
-                                                Mark Picked Up
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="pt-4 border-t border-[#d1d1d1] flex gap-3">
-                                    <Button
-                                        onClick={() => setShowPrintPreview(true)}
-                                        variant="outline"
-                                        className="border border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
-                                    >
-                                        <PrinterIcon className="w-4 h-4 mr-2" />
-                                        Print Label
-                                    </Button>
-                                    <div className="relative flex-1" ref={actionMenuRef}>
-                                        <Button
-                                            onClick={() => setShowActionMenu(prev => !prev)}
-                                            variant="outline"
-                                            className="w-full border border-[#ea690c] text-[#ea690c] hover:bg-orange-50"
-                                        >
-                                            <MoreHorizontal className="w-4 h-4 mr-2" />
-                                            Actions
-                                            <ChevronDown className="w-4 h-4 ml-2" />
-                                        </Button>
-                                        {showActionMenu && (
-                                            <div className="absolute bottom-full mb-1 left-0 w-full bg-white border border-[#d1d1d1] rounded-lg shadow-lg z-10 overflow-hidden">
-                                                <button
-                                                    onClick={() => { setEditingShelf(true); setShowActionMenu(false); }}
-                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-800 hover:bg-gray-50 text-left"
-                                                >
-                                                    <Edit className="w-4 h-4 text-[#ea690c]" />
-                                                    Update Shelf Location
-                                                </button>
-                                                {!selectedParcel.delivered && !selectedParcel.parcelAssigned && !selectedParcel.homeDelivery && (
-                                                    <button
-                                                        onClick={() => { setRequestDelivery(true); setDeliveryAddress(selectedParcel.receiverAddress || ""); setDeliveryCostInput(selectedParcel.deliveryCost ? String(selectedParcel.deliveryCost) : ""); setShowActionMenu(false); }}
-                                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-800 hover:bg-gray-50 text-left"
-                                                    >
-                                                        <Home className="w-4 h-4 text-blue-500" />
-                                                        Request Home Delivery
-                                                    </button>
-                                                )}
-                                                {selectedParcel.homeDelivery && !selectedParcel.delivered && !selectedParcel.parcelAssigned && (
-                                                    <button
-                                                        onClick={async () => { setShowActionMenu(false); const res = await frontdeskService.updateParcel(selectedParcel.parcelId, { homeDelivery: false, deliveryCost: 0, receiverAddress: "" }); if (res.success) { showToast("Home delivery cancelled", "success"); await refreshParcels({}, pagination.page, pagination.size); setSelectedParcel(null); } else showToast(res.message || "Failed", "error"); }}
-                                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 text-left"
-                                                    >
-                                                        <X className="w-4 h-4" />
-                                                        Cancel Home Delivery
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <Button
-                                        onClick={() => setSelectedParcel(null)}
-                                        variant="outline"
-                                        className="border border-[#d1d1d1]"
-                                    >
-                                        Close
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
 
             {/* Print Label Preview Modal */}
             {showPrintPreview && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-                    <style>{`
-                        @media print {
-                            body * { visibility: hidden; }
-                            #parcel-search-print, #parcel-search-print * { visibility: visible; }
-                            #parcel-search-print {
-                                position: absolute;
-                                left: 0;
-                                top: 0;
-                                width: 100%;
-                            }
-                            .page-break { page-break-after: always; }
-                            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                            @page { size: A4 portrait; margin: 6mm; }
-                        }
-                    `}</style>
-                    <div className="bg-white rounded-xl shadow-xl border border-[#d1d1d1] w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-white border-b border-[#d1d1d1] p-4 flex items-center justify-between">
-                            <h3 className="text-lg font-bold text-neutral-800">
-                                Print {checkedParcels.size > 0 ? `${checkedParcels.size} Parcel Label${checkedParcels.size > 1 ? 's' : ''}` : 'Parcel Label'}
-                            </h3>
-                            <div className="flex gap-2">
-                                <Button onClick={handlePrint} className="flex items-center gap-2 bg-[#ea690c] text-white hover:bg-[#ea690c]/90">
-                                    <PrinterIcon className="h-4 w-4" />
-                                    Print
-                                </Button>
-                                <Button onClick={() => setShowPrintPreview(false)} variant="outline" className="border border-[#d1d1d1]">
-                                    Close
-                                </Button>
-                            </div>
-                        </div>
-                        <div className="p-6 space-y-6" ref={printRef} id="parcel-search-print">
-                            {checkedParcels.size > 0 ? (
-                                filteredParcels
-                                    .filter(p => checkedParcels.has(p.parcelId))
-                                    .map((parcel, idx, arr) => (
-                                        <div key={parcel.parcelId}>
-                                            <SearchParcelLabel parcel={parcel} />
-                                            {idx < arr.length - 1 && (
-                                                <div className="page-break border-t border-dashed border-gray-300 my-2" />
-                                            )}
-                                        </div>
-                                    ))
-                            ) : selectedParcel ? (
-                                <SearchParcelLabel parcel={selectedParcel} />
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const SearchParcelLabel: React.FC<{ parcel: import("../../services/frontdeskService").ParcelResponse }> = ({ parcel }) => {
-    const totalAmount = (parcel.inboundCost || 0) + (parcel.deliveryCost || 0) + (parcel.pickUpCost || 0);
-
-    const qrValue = `${window.location.origin}/p/${parcel.parcelId}`;
-
-    return (
-        <div className="bg-white border-2 border-black p-2">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-1.5">
-                <div className="w-10" />
-                <div className="flex items-center gap-2">
-                    <img src="/logo-1.png" alt="M&M Logo" className="h-8 w-8 object-contain" crossOrigin="anonymous" />
-                    <div>
-                        <h1 className="text-sm font-bold text-black leading-tight">Mealex &amp; Mailex (M&amp;M)</h1>
-                        <p className="text-xs text-black">Parcel Delivery System</p>
-                    </div>
-                </div>
-                <div className="flex flex-col items-center">
-                    <QRCodeSVG value={qrValue} size={72} level="H" includeMargin={false} />
-                    <p className="text-[9px] text-black mt-0.5">Scan to Track</p>
-                </div>
-            </div>
-
-            {/* Tracking Number */}
-            <div className="text-center mb-1.5 bg-black text-white py-1 px-3">
-                <p className="text-[9px] font-semibold">TRACKING NUMBER</p>
-                <p className="text-sm font-bold tracking-wider">{parcel.barCode || parcel.parcelId}</p>
-            </div>
-
-            {/* Sender & Receiver */}
-            <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                <div className="border-2 border-black p-1">
-                    <p className="text-xs text-black"><span className="font-bold">SENDER:</span> {parcel.senderName || "—"}</p>
-                    <p className="text-xs text-black"><span className="font-bold">CONTACT:</span> {parcel.senderPhoneNumber || "—"}</p>
-                </div>
-                <div className="border-2 border-black p-1">
-                    <p className="text-xs text-black"><span className="font-bold">RECEIVER:</span> {parcel.receiverName || "—"}</p>
-                    <p className="text-xs text-black"><span className="font-bold">CONTACT:</span> {parcel.recieverPhoneNumber || "—"}</p>
-                </div>
-            </div>
-
-            {/* Delivery Address */}
-            {parcel.receiverAddress && (
-                <div className="border-2 border-black p-1 mb-1.5">
-                    <p className="text-xs text-black"><span className="font-bold">DELIVERY ADDRESS:</span> {parcel.receiverAddress}</p>
-                </div>
-            )}
-
-            {/* Item Description */}
-            {parcel.parcelDescription && (
-                <div className="border-2 border-black p-1 mb-1.5">
-                    <p className="text-xs text-black"><span className="font-bold">ITEM DESCRIPTION:</span> {parcel.parcelDescription}</p>
-                </div>
-            )}
-
-            {/* Driver / Vehicle */}
-            {(parcel.driverName || parcel.vehicleNumber) && (
-                <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                    {parcel.vehicleNumber && (
-                        <div className="border-2 border-black p-1">
-                            <p className="text-xs text-black"><span className="font-bold">VEHICLE:</span> {parcel.vehicleNumber}</p>
-                        </div>
-                    )}
-                    {parcel.driverName && (
-                        <div className="border-2 border-black p-1">
-                            <p className="text-xs text-black"><span className="font-bold">DRIVER:</span> {parcel.driverName}</p>
-                            {parcel.driverPhoneNumber && <p className="text-xs text-black">{parcel.driverPhoneNumber}</p>}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Payment Details */}
-            <div className="border-2 border-black p-1 mb-1.5">
-                <p className="text-xs font-bold text-black mb-0.5">PAYMENT DETAILS</p>
-                <div className="text-xs">
-                    {(parcel.inboundCost || 0) > 0 && (
-                        <div className="flex justify-between">
-                            <span className="text-black">Transportation Cost:</span>
-                            <span className="font-semibold text-black">GHC {(parcel.inboundCost || 0).toFixed(2)}</span>
-                        </div>
-                    )}
-                    {(parcel.deliveryCost || 0) > 0 && (
-                        <div className="flex justify-between">
-                            <span className="text-black">Delivery Cost:</span>
-                            <span className="font-semibold text-black">GHC {(parcel.deliveryCost || 0).toFixed(2)}</span>
-                        </div>
-                    )}
-                    {(parcel.pickUpCost || 0) > 0 && (
-                        <div className="flex justify-between">
-                            <span className="text-black">Pickup Cost:</span>
-                            <span className="font-semibold text-black">GHC {(parcel.pickUpCost || 0).toFixed(2)}</span>
-                        </div>
-                    )}
-                    <div className="flex justify-between border-t-2 border-black pt-0.5 mt-0.5">
-                        <span className="font-bold text-black">TOTAL AMOUNT:</span>
-                        <span className="font-bold text-black">GHC {totalAmount.toFixed(2)}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* POD Badge */}
-            {parcel.pod && (
-                <div className="text-center mb-1.5">
-                    <span className="inline-block bg-black text-white px-3 py-0.5 text-xs font-bold">POD PARCEL</span>
-                </div>
-            )}
-
-            {/* Barcode */}
-            <div className="flex justify-center mb-1">
-                <Barcode
-                    value={parcel.barCode || parcel.parcelId}
-                    width={1.4}
-                    height={36}
-                    fontSize={9}
-                    margin={0}
-                    displayValue={true}
-                    background="white"
-                    lineColor="black"
+                <PrintLabelModal
+                    parcels={
+                        checkedParcels.size > 0
+                            ? filteredParcels.filter(p => checkedParcels.has(p.parcelId))
+                            : selectedParcel ? [selectedParcel] : []
+                    }
+                    title={checkedParcels.size > 0 ? `Print ${checkedParcels.size} Label${checkedParcels.size > 1 ? 's' : ''}` : 'Print Parcel Label'}
+                    onClose={() => setShowPrintPreview(false)}
                 />
-            </div>
-
-            {/* Footer */}
-            <div className="pt-1 border-t border-black text-center">
-                <p className="text-[9px] text-black">Date: {new Date().toLocaleDateString()} | Time: {new Date().toLocaleTimeString()} | M&amp;M Parcel Services</p>
-            </div>
+            )}
         </div>
     );
 };
@@ -1810,6 +1174,7 @@ interface ParcelDetailModalProps {
     onRequestDelivery: () => void;
     onCancelDelivery: () => void;
     onEditPin: () => void;
+    onSaved: () => void;
     showActionMenu: boolean;
     onToggleActionMenu: () => void;
     actionMenuRef: React.RefObject<HTMLDivElement>;
@@ -1817,12 +1182,62 @@ interface ParcelDetailModalProps {
 
 const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
     parcel, activeDelivery, activeDeliveryLoading, onClose, onMarkPickup, onPrint, onEditShelf,
-    onRequestDelivery, onCancelDelivery, onEditPin,
+    onRequestDelivery, onCancelDelivery, onEditPin, onSaved,
     showActionMenu, onToggleActionMenu, actionMenuRef,
 }) => {
+    const { showToast } = useToast();
+    const { userRole } = useStation();
+    const { shelves } = useShelf();
     const pin = locationFromParcel(parcel);
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+    const [editMode, setEditMode] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [editForm, setEditForm] = useState({
+        receiverName:        parcel.receiverName || "",
+        recieverPhoneNumber: parcel.recieverPhoneNumber || "",
+        receiverAddress:     parcel.receiverAddress || "",
+        parcelDescription:   parcel.parcelDescription || "",
+        senderName:          parcel.senderName || "",
+        senderPhoneNumber:   parcel.senderPhoneNumber || "",
+        shelfNumber:         parcel.shelfId || parcel.shelfNumber || "",
+        inboundCost:         parcel.inboundCost?.toString() || "",
+        pickUpCost:          parcel.pickUpCost?.toString() || "",
+        fragile:             parcel.fragile || false,
+        pod:                 parcel.pod || false,
+    });
     const images: string[] = parcel.imageUrls ?? parcel.images ?? [];
+    const canEdit = userRole === "MANAGER" || userRole === "FRONTDESK";
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const selectedShelf = shelves.find(s => s.name === editForm.shelfNumber);
+            const res = await frontdeskService.updateParcel(parcel.parcelId, {
+                receiverName:        editForm.receiverName || undefined,
+                recieverPhoneNumber: editForm.recieverPhoneNumber || undefined,
+                receiverAddress:     editForm.receiverAddress || undefined,
+                parcelDescription:   editForm.parcelDescription || undefined,
+                senderName:          editForm.senderName || undefined,
+                senderPhoneNumber:   editForm.senderPhoneNumber || undefined,
+                shelfNumber:         selectedShelf?.id || editForm.shelfNumber || undefined,
+                inboundCost:         editForm.inboundCost ? parseFloat(editForm.inboundCost) : undefined,
+                pickUpCost:          editForm.pickUpCost ? parseFloat(editForm.pickUpCost) : undefined,
+                fragile:             editForm.fragile,
+                pod:                 editForm.pod,
+            });
+            if (res.success) {
+                showToast("Parcel updated successfully", "success");
+                setEditMode(false);
+                onSaved();
+            } else {
+                showToast(res.message || "Failed to update parcel", "error");
+            }
+        } catch {
+            showToast("Failed to update parcel", "error");
+        } finally {
+            setSaving(false);
+        }
+    };
 
     // Lock body scroll while open
     useEffect(() => {
@@ -1925,48 +1340,127 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
                         {/* Recipient */}
                         <div className="px-5 py-4">
                             <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Recipient</p>
-                            <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-                                <Field label="Name" value={parcel.receiverName} />
-                                <Field label="Phone" value={parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : undefined} />
-                                {parcel.receiverAddress && <Field label="Address" value={parcel.receiverAddress} span />}
-                                {parcel.homeDelivery && (
-                                    <div className="col-span-2">
-                                        <p className="text-[11px] text-neutral-400 mb-0.5">Delivery pin</p>
-                                        {pin ? (
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <MapPin className="w-3.5 h-3.5 text-[#ea690c] shrink-0" />
-                                                <span className="text-sm text-neutral-800">{pin.name}</span>
-                                                <a
-                                                    href={`https://www.google.com/maps/search/?api=1&query=${pin.lat},${pin.lng}`}
-                                                    target="_blank" rel="noreferrer"
-                                                    className="text-xs text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-800"
-                                                >
-                                                    View on map
-                                                </a>
-                                                {!parcel.delivered && (
-                                                    <button onClick={onEditPin} className="text-xs font-medium text-[#ea690c] hover:underline">Change</button>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="text-sm text-amber-700">No pin yet; riders get directions from the address text</span>
-                                                {!parcel.delivered && (
-                                                    <button onClick={onEditPin} className="text-xs font-medium text-[#ea690c] hover:underline">Add pin</button>
-                                                )}
-                                            </div>
-                                        )}
+                            {editMode ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Name</p>
+                                        <input value={editForm.receiverName} onChange={e => setEditForm(p => ({ ...p, receiverName: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
                                     </div>
-                                )}
-                            </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Phone</p>
+                                        <input value={editForm.recieverPhoneNumber} onChange={e => setEditForm(p => ({ ...p, recieverPhoneNumber: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                    <div className="col-span-2 space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Delivery Address</p>
+                                        <input value={editForm.receiverAddress} onChange={e => setEditForm(p => ({ ...p, receiverAddress: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                    <Field label="Name" value={parcel.receiverName} />
+                                    <Field label="Phone" value={parcel.recieverPhoneNumber ? formatPhoneNumber(parcel.recieverPhoneNumber) : undefined} />
+                                    {parcel.receiverAddress && <Field label="Address" value={parcel.receiverAddress} span />}
+                                    {parcel.homeDelivery && (
+                                        <div className="col-span-2">
+                                            <p className="text-[11px] text-neutral-400 mb-0.5">Delivery pin</p>
+                                            {pin ? (
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <MapPin className="w-3.5 h-3.5 text-[#ea690c] shrink-0" />
+                                                    <span className="text-sm text-neutral-800">{pin.name}</span>
+                                                    <a
+                                                        href={`https://www.google.com/maps/search/?api=1&query=${pin.lat},${pin.lng}`}
+                                                        target="_blank" rel="noreferrer"
+                                                        className="text-xs text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-800"
+                                                    >
+                                                        View on map
+                                                    </a>
+                                                    {!parcel.delivered && (
+                                                        <button onClick={onEditPin} className="text-xs font-medium text-[#ea690c] hover:underline">Change</button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-sm text-amber-700">No pin yet; riders get directions from the address text</span>
+                                                    {!parcel.delivered && (
+                                                        <button onClick={onEditPin} className="text-xs font-medium text-[#ea690c] hover:underline">Add pin</button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Sender */}
-                        {(parcel.senderName || parcel.senderPhoneNumber) && (
-                            <div className="px-5 py-4">
-                                <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Sender</p>
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-                                    <Field label="Name" value={parcel.senderName} />
-                                    <Field label="Phone" value={parcel.senderPhoneNumber ? formatPhoneNumber(parcel.senderPhoneNumber) : undefined} />
+                        <div className="px-5 py-4">
+                            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-3">Sender</p>
+                            {editMode ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Name</p>
+                                        <input value={editForm.senderName} onChange={e => setEditForm(p => ({ ...p, senderName: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Phone</p>
+                                        <input value={editForm.senderPhoneNumber} onChange={e => setEditForm(p => ({ ...p, senderPhoneNumber: e.target.value }))}
+                                            className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                </div>
+                            ) : (
+                                (parcel.senderName || parcel.senderPhoneNumber) ? (
+                                    <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                        <Field label="Name" value={parcel.senderName} />
+                                        <Field label="Phone" value={parcel.senderPhoneNumber ? formatPhoneNumber(parcel.senderPhoneNumber) : undefined} />
+                                    </div>
+                                ) : <p className="text-xs text-neutral-400">No sender info</p>
+                            )}
+                        </div>
+
+                        {/* Description — editable */}
+                        {editMode && (
+                            <div className="px-5 py-4 space-y-4">
+                                <div>
+                                    <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-2">Parcel Description</p>
+                                    <textarea value={editForm.parcelDescription} onChange={e => setEditForm(p => ({ ...p, parcelDescription: e.target.value }))}
+                                        rows={2}
+                                        className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c] resize-none" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Inbound Cost (GHC)</p>
+                                        <input type="number" step="0.01" value={editForm.inboundCost} onChange={e => setEditForm(p => ({ ...p, inboundCost: e.target.value }))}
+                                            placeholder="0.00" className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Pick Up Cost (GHC)</p>
+                                        <input type="number" step="0.01" value={editForm.pickUpCost} onChange={e => setEditForm(p => ({ ...p, pickUpCost: e.target.value }))}
+                                            placeholder="0.00" className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]" />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Shelf Location</p>
+                                    <select value={editForm.shelfNumber} onChange={e => setEditForm(p => ({ ...p, shelfNumber: e.target.value }))}
+                                        className="w-full border border-neutral-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#ea690c]">
+                                        <option value="">No shelf</option>
+                                        {shelves.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={editForm.fragile} onChange={e => setEditForm(p => ({ ...p, fragile: e.target.checked }))}
+                                            className="w-4 h-4 accent-[#ea690c]" />
+                                        <span className="text-sm text-neutral-700">Fragile</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={editForm.pod} onChange={e => setEditForm(p => ({ ...p, pod: e.target.checked }))}
+                                            className="w-4 h-4 accent-[#ea690c]" />
+                                        <span className="text-sm text-neutral-700">POD</span>
+                                    </label>
                                 </div>
                             </div>
                         )}
@@ -2042,43 +1536,68 @@ const ParcelDetailModal: React.FC<ParcelDetailModalProps> = ({
                     </div>
 
                     {/* Footer */}
-                    <div className="px-5 py-3 border-t border-neutral-200 shrink-0 flex items-center gap-2">
-                        {!parcel.pickedUp && (
-                            <button onClick={onMarkPickup} className="h-8 px-3 text-xs font-medium bg-[#ea690c] text-white hover:bg-[#d45d0a] transition-colors">
-                                Mark Picked Up
-                            </button>
-                        )}
-                        <button onClick={onPrint} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
-                            <PrinterIcon className="w-3.5 h-3.5" /> Print Label
-                        </button>
-                        <div className="relative" ref={actionMenuRef}>
-                            <button onClick={onToggleActionMenu} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
-                                <MoreHorizontal className="w-3.5 h-3.5" /> Actions <ChevronDown className="w-3 h-3 ml-0.5" />
-                            </button>
-                            {showActionMenu && (
-                                <div className="absolute bottom-full mb-1 left-0 min-w-[190px] bg-white border border-neutral-200 shadow-lg z-10 overflow-hidden">
-                                    <button onClick={onEditShelf} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
-                                        <Edit className="w-3.5 h-3.5 text-neutral-400" /> Update Shelf
+                    <div className="px-5 py-3 border-t border-neutral-200 shrink-0 flex items-center gap-2 flex-wrap">
+                        {editMode ? (
+                            <>
+                                <button
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                    className="h-8 px-4 text-xs font-semibold bg-[#ea690c] text-white hover:bg-[#d45d0a] transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    {saving ? <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> Saving...</> : "Save Changes"}
+                                </button>
+                                <button
+                                    onClick={() => { setEditMode(false); setEditForm({ receiverName: parcel.receiverName || "", recieverPhoneNumber: parcel.recieverPhoneNumber || "", receiverAddress: parcel.receiverAddress || "", parcelDescription: parcel.parcelDescription || "", senderName: parcel.senderName || "", senderPhoneNumber: parcel.senderPhoneNumber || "", shelfNumber: parcel.shelfId || parcel.shelfNumber || "", inboundCost: parcel.inboundCost?.toString() || "", pickUpCost: parcel.pickUpCost?.toString() || "", fragile: parcel.fragile || false, pod: parcel.pod || false }); }}
+                                    className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-neutral-50 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                {!parcel.pickedUp && (
+                                    <button onClick={onMarkPickup} className="h-8 px-3 text-xs font-medium bg-[#ea690c] text-white hover:bg-[#d45d0a] transition-colors">
+                                        Mark Picked Up
                                     </button>
-                                    {!parcel.delivered && !parcel.parcelAssigned && !parcel.homeDelivery && (
-                                        <button onClick={onRequestDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
-                                            <Home className="w-3.5 h-3.5 text-neutral-400" /> Request Home Delivery
-                                        </button>
-                                    )}
-                                    {parcel.homeDelivery && !parcel.delivered && (
-                                        <button onClick={onEditPin} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
-                                            <MapPin className="w-3.5 h-3.5 text-neutral-400" /> {pin ? "Change Delivery Pin" : "Set Delivery Pin"}
-                                        </button>
-                                    )}
-                                    {parcel.homeDelivery && !parcel.delivered && !parcel.parcelAssigned && (
-                                        <button onClick={onCancelDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
-                                            <X className="w-3.5 h-3.5 text-neutral-400" /> Cancel Home Delivery
-                                        </button>
+                                )}
+                                {canEdit && (
+                                    <button onClick={() => setEditMode(true)} className="h-8 px-3 text-xs font-medium border border-[#ea690c] text-[#ea690c] hover:bg-orange-50 transition-colors flex items-center gap-1.5">
+                                        <Edit className="w-3.5 h-3.5" /> Edit
+                                    </button>
+                                )}
+                                <button onClick={onPrint} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
+                                    <PrinterIcon className="w-3.5 h-3.5" /> Print Label
+                                </button>
+                                <div className="relative" ref={actionMenuRef}>
+                                    <button onClick={onToggleActionMenu} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center gap-1.5">
+                                        <MoreHorizontal className="w-3.5 h-3.5" /> Actions <ChevronDown className="w-3 h-3 ml-0.5" />
+                                    </button>
+                                    {showActionMenu && (
+                                        <div className="absolute bottom-full mb-1 left-0 min-w-[190px] bg-white border border-neutral-200 shadow-lg z-10 overflow-hidden">
+                                            <button onClick={onEditShelf} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                                <Edit className="w-3.5 h-3.5 text-neutral-400" /> Update Shelf
+                                            </button>
+                                            {!parcel.delivered && !parcel.parcelAssigned && !parcel.homeDelivery && (
+                                                <button onClick={onRequestDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                                    <Home className="w-3.5 h-3.5 text-neutral-400" /> Request Home Delivery
+                                                </button>
+                                            )}
+                                            {parcel.homeDelivery && !parcel.delivered && (
+                                                <button onClick={onEditPin} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                                    <MapPin className="w-3.5 h-3.5 text-neutral-400" /> {pin ? "Change Delivery Pin" : "Set Delivery Pin"}
+                                                </button>
+                                            )}
+                                            {parcel.homeDelivery && !parcel.delivered && !parcel.parcelAssigned && (
+                                                <button onClick={onCancelDelivery} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                                                    <X className="w-3.5 h-3.5 text-neutral-400" /> Cancel Home Delivery
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                        <button onClick={onClose} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-500 hover:bg-neutral-50 transition-colors ml-auto">Close</button>
+                                <button onClick={onClose} className="h-8 px-3 text-xs font-medium border border-neutral-300 text-neutral-500 hover:bg-neutral-50 transition-colors ml-auto">Close</button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>

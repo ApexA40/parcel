@@ -238,6 +238,7 @@ interface ParcelSearchFilters {
     isParcelAssigned?: boolean;
     driverId?: string;
     hasCalled?: string;
+    search?: string;
     limit?: string;
     page?: string;
 }
@@ -259,6 +260,18 @@ interface Address {
     name: string;
     cost: number;
 }
+
+/** Normalize raw API parcel object to match ParcelResponse field names */
+const normalizeParcel = (p: any): any => ({
+    ...p,
+    pod: p.pod ?? p.POD ?? false,
+    itemCost: p.itemCost ?? p.ItemCost ?? 0,
+});
+
+const normalizePage = (data: any) => ({
+    ...data,
+    content: (data?.content || []).map(normalizeParcel),
+});
 
 class FrontdeskService {
     private apiClient: AxiosInstance;
@@ -412,6 +425,9 @@ class FrontdeskService {
             if (filters.hasCalled) {
                 params.append('hasCalled', filters.hasCalled);
             }
+            if (filters.search) {
+                params.append('search', filters.search);
+            }
             if (filters.limit) {
                 params.append('limit', filters.limit);
             }
@@ -426,7 +442,7 @@ class FrontdeskService {
             return {
                 success: true,
                 message: 'Parcels retrieved successfully',
-                data: response.data,
+                data: normalizePage(response.data),
             };
         } catch (error: any) {
             console.error('Search parcels error:', error);

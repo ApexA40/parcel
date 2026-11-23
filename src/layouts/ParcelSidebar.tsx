@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, InboxIcon, SearchIcon, Layers, Edit, LogOut, ZapIcon, CarIcon, ArrowDownToLine, ArrowUpFromLine, Settings, HelpCircle, SlidersHorizontal } from "lucide-react";
+import { X, InboxIcon, SearchIcon, Layers, Edit, LogOut, ZapIcon, CarIcon, ArrowDownToLine, ArrowUpFromLine, Settings, HelpCircle } from "lucide-react";
 import { useStation } from "../contexts/StationContext";
 import { useBranding } from "../contexts/BrandingContext";
 
@@ -10,17 +10,16 @@ interface SidebarProps {
 }
 
 const navItems = [
-    { label: "Parcel Search",      path: "/parcel/search",          icon: SearchIcon,        roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Parcel Intake",      path: "/parcel/intake",          icon: InboxIcon,         roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Smart Search",       path: "/parcel/smart-search",    icon: ZapIcon,           roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Incoming Parcels",   path: "/parcel/incoming",        icon: ArrowDownToLine,   roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Outgoing Parcels",   path: "/parcel/outgoing",        icon: ArrowUpFromLine,   roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Driver Tracker",     path: "/parcel/driver-tracker",  icon: CarIcon,           roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Shelf",             path: "/parcel/shelf",           icon: Layers,            roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Edit Parcels",       path: "/parcel/edit",            icon: Edit,              roles: ["MANAGER"] },
-    { label: "Branch Settings",    path: "/parcel/settings",        icon: SlidersHorizontal, roles: ["MANAGER"] },
-    { label: "Preferences",        path: "/parcel/preferences",     icon: Settings,          roles: ["FRONTDESK", "MANAGER"] },
-    { label: "Help",               path: "/parcel/help",            icon: HelpCircle,        roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Parcel Search", path: "/parcel/search", icon: SearchIcon, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Parcel Intake", path: "/parcel/intake", icon: InboxIcon, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Incoming Parcels", path: "/parcel/incoming", icon: ArrowDownToLine, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Outgoing Parcels", path: "/parcel/outgoing", icon: ArrowUpFromLine, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Driver Tracker", path: "/parcel/driver-tracker", icon: CarIcon, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Shelf", path: "/parcel/shelf", icon: Layers, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Smart Search", path: "/parcel/smart-search", icon: ZapIcon, roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Edit Parcels",  path: "/parcel/edit",         icon: Edit,        roles: ["MANAGER"] },
+    { label: "Settings",      path: "/parcel/settings",     icon: Settings,    roles: ["FRONTDESK", "MANAGER"] },
+    { label: "Help",          path: "/parcel/help",         icon: HelpCircle,  roles: ["FRONTDESK", "MANAGER"] },
 ];
 
 export const ParcelSidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
@@ -76,7 +75,7 @@ export const ParcelSidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
                                 className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 ${isActive
                                     ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/30"
                                     : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:translate-x-1"
-                                }`}
+                                    }`}
                             >
                                 <div className={`p-1.5 rounded-lg transition-colors ${isActive ? "bg-white/20" : "bg-gray-100 dark:bg-gray-800 group-hover:bg-orange-50 dark:group-hover:bg-orange-900/20"}`}>
                                     <Icon size={18} className={isActive ? "" : "text-gray-600 dark:text-gray-400 group-hover:text-orange-600"} />
