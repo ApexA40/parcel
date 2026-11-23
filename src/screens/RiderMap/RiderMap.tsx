@@ -8,6 +8,13 @@ import adminService, { RiderLocation } from "../../services/adminService";
 import frontdeskService from "../../services/frontdeskService";
 import userService, { fromBackendRole } from "../../services/userService";
 import { ACCRA_CENTER, loadGoogleMaps, MAPS_KEY_REJECTED, onGoogleMapsAuthFailure } from "../../utils/googleMaps";
+import { API_V2 } from "../../config/api";
+
+/** "+233 24 123 4567", "233241234567" and "0241234567" all become "0241234567". */
+const normalizePhone = (p?: string) => {
+    const d = (p ?? "").replace(/\D/g, "");
+    return d.startsWith("233") ? `0${d.slice(3)}` : d;
+};
 import { runPool } from "../../utils/asyncPool";
 import { parseGpsTime } from "./trackUtils";
 import { RouteHistoryPanel } from "./RouteHistoryPanel";
@@ -129,8 +136,26 @@ export const RiderMap = (): JSX.Element => {
     const refresh = useCallback(async (list: RiderRow[], includeNoDevice: boolean) => {
         if (list.length === 0) return;
         setRefreshing(true);
+        // Updated backend: one call for every rider. Anyone it doesn't return is asked for individually.
+        const bulk: Array<[string, RiderState]> = [];
+        let remaining = list;
+        if (API_V2) {
+            const res = await adminService.getRiderLocations();
+            if (res.success && res.data) {
+                const byPhone = new Map(res.data.map((l) => [normalizePhone(l.riderPhoneNumber), l]));
+                const byId = new Map(res.data.map((l) => [l.riderId, l]));
+                remaining = [];
+                list.forEach((r) => {
+                    const loc = byId.get(r.userId) ?? byPhone.get(normalizePhone(r.phoneNumber));
+                    if (!loc) return remaining.push(r);
+                    if (!loc.deviceImei) return bulk.push([r.userId, { kind: "no-device" }]);
+                    if (loc.located === false || loc.lat == null || loc.lng == null) return bulk.push([r.userId, { kind: "no-signal", loc }]);
+                    bulk.push([r.userId, { kind: "located", loc, at: parseGpsTime(loc.gpsTime) ?? Date.now() }]);
+                });
+            }
+        }
         const results = await runPool(
-            list.map((r) => async (): Promise<[string, RiderState] | null> => {
+            remaining.map((r) => async (): Promise<[string, RiderState] | null> => {
                 // Riders without a device rarely change; only re-check them on a manual refresh.
                 if (!includeNoDevice && states[r.userId]?.kind === "no-device") return null;
                 const res = await adminService.getRiderLocation(r.phoneNumber);
@@ -149,7 +174,7 @@ export const RiderMap = (): JSX.Element => {
         );
         setStates((prev) => {
             const next = { ...prev };
-            results.forEach((x) => { if (x) next[x[0]] = x[1]; });
+            [...bulk, ...results].forEach((x) => { if (x) next[x[0]] = x[1]; });
             return next;
         });
         setLastUpdated(Date.now());

@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import authService from './authService';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, API_V2 } from '../config/api';
 
 const API_BASE_URL_FRONTDESK = API_ENDPOINTS.FRONTDESK;
 
@@ -750,7 +750,19 @@ class FrontdeskService {
         lines?: Array<{ parcelId: string; systemAmount: number; collectedAmount: number; variance: number; varianceReason?: string; varianceNote?: string }>;
     }>): Promise<ApiResponse> {
         try {
-            // Convert to format expected by API (strings for payedAmount and reconciledAt)
+            if (API_V2) {
+                // Updated backend: ReconciliationBatchRequest { items: [...] } with numbers.
+                const items = reconciliationData.map(item => ({
+                    assignmentId: item.assignmentId,
+                    reconciledAt: Number(item.reconciledAt),
+                    payedAmount: Number(item.payedAmount),
+                    ...(item.lines ? { expectedAmount: item.expectedAmount, varianceAmount: item.varianceAmount, lines: item.lines } : {}),
+                }));
+                const response = await this.apiClient.post<{ message: string }>('/reconcilation-parcels', { items });
+                return { success: true, message: response.data?.message || 'Reconciliation completed successfully' };
+            }
+
+            // Current backend: strings for payedAmount and reconciledAt
             const formattedData = reconciliationData.map(item => ({
                 assignmentId: item.assignmentId,
                 reconciledAt: String(item.reconciledAt),

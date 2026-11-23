@@ -9,6 +9,70 @@ import {
     locationsWithOffices, serializeAssignment, serializeParcel, only, USER_FIELDS, riderLocationNow, riderTrackPoints, MockParcel,
 } from "./mockData";
 import API_BASE_URL from "../config/api";
+import { analyzeOffTask, checkDeliveries, normalizePoints, summarize, type DeliveryStop } from "../screens/RiderMap/trackUtils";
+
+/** Builds a DeliveryCheckResponse (updated backend) from the sample track and assignments. */
+const serverDeliveryCheck = (rider: (typeof RIDERS)[number], begin: number, end: number) => {
+    const points = normalizePoints(riderTrackPoints(rider.userId, begin, end));
+    const stops: DeliveryStop[] = ASSIGNMENTS
+        .filter((a) => a.riderId === rider.userId)
+        .flatMap((a) => a.parcels.map((p) => ({
+            id: `${a.assignmentId}:${p.parcelId}`,
+            parcelId: p.parcelId,
+            receiverName: p.receiverName,
+            locationName: p.receiverLocationName,
+            lat: p.receiverLatitude,
+            lng: p.receiverLongitude,
+            assignedAt: a.assignedAt,
+            completedAt: a.completedAt,
+            status: a.status,
+            assignmentId: a.assignmentId,
+        })))
+        .filter((st) => (st.completedAt != null ? st.completedAt >= begin && st.completedAt <= end : (st.assignedAt ?? 0) <= end && !["DELIVERED", "RETURNED"].includes(st.status)));
+    const checks = points.length ? checkDeliveries(points, stops, { start: begin, end }) : stops.map((stop) => ({ kind: stop.lat == null ? "no-location" : "no-data", stop } as const));
+    const summary = summarize(points);
+    const off = points.length ? analyzeOffTask(points, checks, summary.stops, {}) : null;
+    const RESULT = { visited: "REACHED", "not-visited": "NOT_REACHED", pending: "NOT_FINISHED", "no-location": "NO_PIN", "no-data": "NO_GPS" } as const;
+    const deliveries = checks.map((c) => {
+        const st = c.stop as DeliveryStop & { assignmentId?: string };
+        const marked = "markedAwayM" in c ? c.markedAwayM : undefined;
+        return {
+            assignmentId: st.assignmentId, parcelId: st.parcelId, receiverName: st.receiverName, receiverLocationName: st.locationName,
+            receiverLatitude: st.lat, receiverLongitude: st.lng, status: st.status, completedAt: st.completedAt,
+            result: RESULT[c.kind],
+            arrivedAt: c.kind === "visited" ? c.arrivedAt : undefined,
+            leftAt: c.kind === "visited" ? c.leftAt : undefined,
+            minutesThere: c.kind === "visited" ? Math.round((c.leftAt - c.arrivedAt) / 60_000) : undefined,
+            closestDistanceM: "closestM" in c && c.closestM != null && Number.isFinite(c.closestM) ? Math.round(c.closestM) : undefined,
+            closestAt: c.kind === "not-visited" ? c.closestAt : undefined,
+            markedDistanceFromDropoffM: marked != null ? Math.round(marked) : undefined,
+            markedAway: marked != null,
+        };
+    });
+    const count = (r: string) => deliveries.filter((d) => d.result === r).length;
+    return {
+        riderId: rider.userId,
+        riderName: rider.name,
+        summary: {
+            deliveries: deliveries.length, reached: count("REACHED"), notReached: count("NOT_REACHED"), notFinished: count("NOT_FINISHED"),
+            noPin: count("NO_PIN"), noGps: count("NO_GPS"), markedAway: deliveries.filter((d) => d.markedAway).length,
+            distanceKm: Math.round(summary.distanceKm * 10) / 10, movingMinutes: Math.round(summary.movingMs / 60_000), stoppedMinutes: Math.round(summary.stoppedMs / 60_000),
+        },
+        deliveries,
+        offTask: off
+            ? {
+                judged: off.judged, reason: off.reason, directKm: off.directKm, distanceKm: summary.distanceKm,
+                offRouteMinutes: Math.round(off.offRouteMs / 60_000), offRouteKm: off.offRouteKm,
+                detours: off.detours.map((d) => {
+                    const [fromLabel, toLabel] = d.leg.split(" → ");
+                    return { start: d.start, end: d.end, fromLabel, toLabel, maxOffRouteM: Math.round(d.maxOffM), kmRidden: Math.round(d.km * 10) / 10 };
+                }),
+                offTaskStops: off.unexplainedStops.map((st) => ({ start: st.start, end: st.end, lat: st.lat, lng: st.lng, minutes: Math.round((st.end - st.start) / 60_000) })),
+                offTaskStopMinutes: Math.round(off.unexplainedStops.reduce((t, st) => t + st.end - st.start, 0) / 60_000),
+            }
+            : { judged: false, reason: "No GPS points in this period." },
+    };
+};
 
 type Handler = (ctx: { params: URLSearchParams; body: any; match: RegExpMatchArray; config: InternalAxiosRequestConfig }) => unknown;
 interface Route { method: string; pattern: RegExp; handler: Handler; }
@@ -157,7 +221,8 @@ on("post", /^\/api-frontdesk\/assign-parcels$/, ({ body }) => {
     return ok(`${parcels.length} parcel(s) assigned`);
 });
 const markPaid: Handler = ({ body }) => {
-    const items = (Array.isArray(body) ? body : [body]);
+    // Updated backend sends { items: [...] }; the current one a single object or a list.
+    const items = Array.isArray(body?.items) ? body.items : Array.isArray(body) ? body : [body];
     const ids: string[] = items.map((x: any) => (typeof x === "string" ? x : x?.assignmentId));
     ASSIGNMENTS.forEach((a) => {
         const item: any = items.find((x: any) => x?.assignmentId === a.assignmentId);
@@ -339,6 +404,30 @@ on("get", /^\/api-admin\/rider-performance-dashboard$/, ({ params }) => {
         };
     }).sort((a, b) => b.revenue - a.revenue).map((r, i) => ({ rank: i + 1, ...r }));
     return { earningsTrend: [], monthlyEarnings: [], riderLeaderboard: rows };
+});
+
+// Updated backend: every rider at once; riders without a device come back with located=false and no IMEI.
+on("get", /^\/api-admin\/riders\/locations$/, () =>
+    RIDERS.map((r) => {
+        const res = riderLocationNow(r.userId);
+        return res.status === 200
+            ? res.body
+            : { riderId: r.userId, riderName: r.name, riderPhoneNumber: r.phoneNumber, located: false };
+    })
+);
+
+// Updated backend: server-side delivery and off-task check, worked out here with the same rules as the UI.
+on("get", /^\/api-admin\/riders\/delivery-check$/, ({ params }) => {
+    const parse = (v: string | null) => {
+        const m = v?.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+        return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : NaN;
+    };
+    const begin = parse(params.get("beginTime"));
+    const end = parse(params.get("endTime"));
+    if (!Number.isFinite(begin) || !Number.isFinite(end)) throw { status: 400, message: "Times must be in UTC format: yyyy-MM-dd HH:mm:ss" };
+    const rider = RIDERS.find((r) => r.phoneNumber === params.get("phoneNumber"));
+    if (!rider) throw { status: 404, message: "Rider not found" };
+    return serverDeliveryCheck(rider, begin, end);
 });
 
 // Rider GPS: 422 when no device is assigned, 404 for unknown phone numbers.

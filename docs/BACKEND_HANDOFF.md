@@ -20,6 +20,37 @@ To see the exact request and response shapes the frontend expects, run the front
 
 ---
 
+## Status on `backend-test` (checked 23 Nov 2026)
+
+The API description at `https://backend-test.mandmservicescorp.org/shortly/v3/api-docs` was compared with this document. The frontend's test build (`npm run build:test`, which sets `VITE_API_VERSION=2`) uses the new shapes. The production build still uses the current backend's shapes until these changes reach `backend-new`.
+
+**In place:**
+- **A:** delivery pin fields on parcels, parcel creation and parcel updates.
+- **B:** `GET /riders/locations` returns every rider at once.
+- **C:** the missing endpoints, plus location delete.
+- **D and E:** server-side `delivery-check` and its daily summary; station coordinates; the position where each delivery was marked done.
+- **F:** `routePlan` on assignments.
+- **G5:** station delete, and station `code` can be edited.
+- **J:** pickup charge.
+- **K1 and K2:** reconciliation lines, `varianceAmount`, and who reconciled.
+
+**Changed in a way the frontend had to follow:** these work in the test build.
+- `POST /reconcilation-parcels` takes `{ "items": [ … ] }` with numeric `reconciledAt` and `payedAmount`.
+- `UserRegistrationRequest` takes a single `officeId`, and `departmentRole` was removed.
+
+**Please confirm these are intended:**
+- `POST /api-company/register`, `/verify-email` and `/resend-verification` were removed. The frontend's Signup and Verify Email pages use them.
+- `companyId` was removed from most records and from the login response, and `SUPERADMIN` from the user roles. Is multi-company support being dropped?
+- The `search` filter was removed from `GET /api-admin/parcels` and `GET /api-frontdesk/parcels`. The frontend doesn't use it today.
+
+**Not yet:**
+- **G1–G4:** notifications, the settings currently saved only in the browser, the finance and tenant endpoints, and rider earnings.
+- **H:** fuel management and fuel accountability.
+- **I:** motorbike maintenance.
+- **K3:** the variance report and rider shortfall balance.
+
+---
+
 ## Part A: Delivery location on parcels (required)
 
 ### Why

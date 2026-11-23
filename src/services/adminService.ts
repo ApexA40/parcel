@@ -119,6 +119,42 @@ export interface RiderPerformanceDashboard {
   riderLeaderboard?: RiderLeaderboardEntry[];
 }
 
+/** GET /api-admin/riders/delivery-check (DeliveryCheckResponse, updated backend). */
+export interface ServerDeliveryCheck {
+  riderId?: string;
+  riderName?: string;
+  summary?: Record<string, number>;
+  deliveries?: Array<{
+    assignmentId?: string;
+    parcelId: string;
+    receiverName?: string;
+    receiverLocationName?: string;
+    receiverLatitude?: number;
+    receiverLongitude?: number;
+    status?: string;
+    completedAt?: number;
+    result?: "REACHED" | "NOT_REACHED" | "NOT_FINISHED" | "NO_PIN" | "NO_GPS";
+    arrivedAt?: number;
+    leftAt?: number;
+    minutesThere?: number;
+    closestDistanceM?: number;
+    closestAt?: number;
+    markedDistanceFromDropoffM?: number;
+    markedAway?: boolean;
+  }>;
+  offTask?: {
+    judged?: boolean;
+    reason?: string;
+    directKm?: number;
+    distanceKm?: number;
+    offRouteMinutes?: number;
+    offRouteKm?: number;
+    detours?: Array<{ start: number; end: number; fromLabel?: string; toLabel?: string; maxOffRouteM?: number; kmRidden?: number }>;
+    offTaskStops?: Array<{ start: number; end: number; lat: number; lng: number; minutes?: number }>;
+    offTaskStopMinutes?: number;
+  };
+}
+
 /** GET /api-admin/riders/location (RiderLocationResponse in the backend spec). */
 export interface RiderLocation {
   riderId: string;
@@ -305,6 +341,28 @@ class AdminService {
       return { success: true, data: response.data };
     } catch (error: any) {
       return { success: false, message: error.response?.data?.message || "Failed to load rider performance." };
+    }
+  }
+
+  /** Every rider's position in one call (updated backend, API_V2). Managers get their office. */
+  async getRiderLocations(officeId?: string): Promise<ApiResponse<RiderLocation[]> & { status?: number }> {
+    try {
+      const q = officeId ? `?officeId=${encodeURIComponent(officeId)}` : "";
+      const response = await this.apiClient.get<RiderLocation[]>(`/riders/locations${q}`);
+      return { success: true, status: response.status, data: Array.isArray(response.data) ? response.data : [] };
+    } catch (error: any) {
+      return { success: false, status: error.response?.status, message: error.response?.data?.message || "Failed to load rider locations." };
+    }
+  }
+
+  /** Server-side delivery and off-task check for one rider (updated backend, API_V2). Times as for the track. */
+  async getDeliveryCheck(phoneNumber: string, beginTime: string, endTime: string): Promise<ApiResponse<ServerDeliveryCheck> & { status?: number }> {
+    try {
+      const params = new URLSearchParams({ phoneNumber, beginTime, endTime });
+      const response = await this.apiClient.get<ServerDeliveryCheck>(`/riders/delivery-check?${params.toString()}`);
+      return { success: true, status: response.status, data: response.data };
+    } catch (error: any) {
+      return { success: false, status: error.response?.status, message: error.response?.data?.message || "Failed to run the delivery check." };
     }
   }
 

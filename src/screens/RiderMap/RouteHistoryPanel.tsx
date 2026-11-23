@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Pause, Play, RotateCcw, Loader, MapPin, CheckCircle2, XCircle, MapPinOff, AlertTriangle, Clock, Route, ShieldCheck } from "lucide-react";
 import { Button } from "../../components/ui/button";
-import adminService from "../../services/adminService";
+import adminService, { type ServerDeliveryCheck } from "../../services/adminService";
+import { API_V2 } from "../../config/api";
 import frontdeskService from "../../services/frontdeskService";
 import { decodePolyline, type LatLng } from "../../utils/routePlan";
 import {
     CORRIDOR_M, PLANNED_ROAD_CORRIDOR_M, DeliveryCheck, DeliveryStop, EXPLAINED_STOP_M, MIN_DETOUR_MS, OffTaskReport, Stop, TimedPoint, VISIT_RADIUS_M,
-    analyzeOffTask, checkDeliveries, formatDistance, formatDuration,
+    analyzeOffTask, checkDeliveries, formatDistance, formatDuration, fromServerCheck,
     indexAt, normalizePoints, positionAt, summarize, toApiTime, validateRange,
 } from "./trackUtils";
 
@@ -75,6 +76,8 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
     const [stopsError, setStopsError] = useState<string | null>(null);
     /** Route(s) the manager confirmed for these deliveries, joined in planning order. */
     const [planned, setPlanned] = useState<{ path: LatLng[]; road: boolean; count: number } | null>(null);
+    /** The backend's own delivery check (updated backend). When present it replaces the in-browser check. */
+    const [serverCheck, setServerCheck] = useState<ServerDeliveryCheck | null>(null);
 
     const range = useMemo(() => {
         const now = Date.now();
@@ -90,11 +93,13 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
         setLoading(true);
         setError(null);
         setPlaying(false);
-        const [res, del] = await Promise.all([
+        const [res, del, chk] = await Promise.all([
             adminService.getRiderTrack(rider.phoneNumber, toApiTime(range.start), toApiTime(range.end)),
             frontdeskService.getRiderAssignments(rider.userId),
+            API_V2 ? adminService.getDeliveryCheck(rider.phoneNumber, toApiTime(range.start), toApiTime(range.end)) : Promise.resolve(null),
         ]);
         setLoading(false);
+        setServerCheck(chk?.success && chk.data ? chk.data : null);
         if (del.success && Array.isArray(del.data)) {
             // Deliveries finished in the range, plus ones still open that were assigned before it ended.
             const inRange = toStops(del.data).filter((s) =>
@@ -146,10 +151,11 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
     }, [preset, rider.phoneNumber]);
 
     const summary = useMemo(() => (points ? summarize(points) : null), [points]);
+    const server = useMemo(() => (points && serverCheck ? fromServerCheck(serverCheck, points) : null), [points, serverCheck]);
     const checks = useMemo<DeliveryCheck[]>(
-        () => (points && stops ? checkDeliveries(points, stops, range) : []),
+        () => server?.checks ?? (points && stops ? checkDeliveries(points, stops, range) : []),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [points, stops]
+        [server, points, stops]
     );
     const tally = useMemo(() => {
         const t = { visited: 0, "not-visited": 0, pending: 0, "no-location": 0, "no-data": 0, markedAway: 0 };
@@ -160,12 +166,12 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
         return t;
     }, [checks]);
     const offTask = useMemo<OffTaskReport | null>(
-        () => (points && summary && stops
+        () => server?.offTask ?? (points && summary && stops
             ? analyzeOffTask(points, checks, summary.stops, planned
                 ? { plannedPath: planned.path, corridorM: planned.road ? PLANNED_ROAD_CORRIDOR_M : CORRIDOR_M }
                 : {})
             : null),
-        [points, summary, stops, checks, planned]
+        [server, points, summary, stops, checks, planned]
     );
     const isOffTaskStop = (st: Stop) => !!offTask?.unexplainedStops.some((u) => u.start === st.start);
     const first = points?.[0]?.t ?? 0;
@@ -311,7 +317,12 @@ export const RouteHistoryPanel = ({ rider, map, onClose }: Props) => {
                     {/* Deliveries vs movement */}
                     <div className="p-3 border-b border-[#ececec]">
                         <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-semibold text-neutral-700">Deliveries · {checks.length}</p>
+                            <p className="text-xs font-semibold text-neutral-700">
+                                Deliveries · {checks.length}
+                                <span className="ml-1.5 font-normal text-[10px] text-[#9a9a9a]" title={server ? "Result from the backend's delivery check" : "Worked out in the browser from the GPS track"}>
+                                    {server ? "checked by server" : "checked in browser"}
+                                </span>
+                            </p>
                             {checks.length > 0 && (
                                 <p className="text-[11px] text-[#5d5d5d]">
                                     <span className="text-green-700 font-medium">{tally.visited} reached</span>

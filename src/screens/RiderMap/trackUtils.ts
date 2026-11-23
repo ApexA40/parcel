@@ -1,3 +1,4 @@
+import type { ServerDeliveryCheck } from "../../services/adminService";
 /**
  * Helpers for rider GPS history: API time formats, range limits, route summary,
  * stop detection and the interpolated position used by playback.
@@ -386,4 +387,64 @@ export const analyzeOffTask = (
         offRouteMs: detours.reduce((s, d) => s + (d.end - d.start), 0),
         offRouteKm: detours.reduce((s, d) => s + d.km, 0),
     };
+};
+
+// ── Server-side check (updated backend: GET /api-admin/riders/delivery-check) ──
+
+
+/**
+ * Turns the backend's delivery check into the shapes the history panel draws, so the server's
+ * verdict is shown when available and the in-browser check is only a fallback.
+ * Detours come back as times; their point indexes are found on the loaded track for drawing.
+ */
+export const fromServerCheck = (
+    res: ServerDeliveryCheck,
+    points: TimedPoint[],
+): { checks: DeliveryCheck[]; offTask: OffTaskReport } => {
+    const checks = (res.deliveries ?? []).map((d): DeliveryCheck => {
+        const stop: DeliveryStop = {
+            id: `${d.assignmentId ?? ""}:${d.parcelId}`,
+            parcelId: d.parcelId,
+            receiverName: d.receiverName,
+            locationName: d.receiverLocationName,
+            lat: d.receiverLatitude ?? undefined,
+            lng: d.receiverLongitude ?? undefined,
+            completedAt: d.completedAt ?? undefined,
+            status: d.status ?? "",
+        };
+        const markedAwayM = d.markedAway ? d.markedDistanceFromDropoffM ?? MARKED_AWAY_M : undefined;
+        const closestM = d.closestDistanceM ?? Infinity;
+        switch (d.result) {
+            case "REACHED":
+                return { kind: "visited", stop, arrivedAt: d.arrivedAt ?? 0, leftAt: d.leftAt ?? d.arrivedAt ?? 0, closestM: d.closestDistanceM ?? 0, markedAwayM };
+            case "NOT_REACHED":
+                return { kind: "not-visited", stop, closestM, closestAt: d.closestAt ?? 0, markedAwayM };
+            case "NOT_FINISHED":
+                return { kind: "pending", stop, closestM: d.closestDistanceM ?? undefined };
+            case "NO_PIN":
+                return { kind: "no-location", stop };
+            default:
+                return { kind: "no-data", stop };
+        }
+    });
+    const o = res.offTask ?? {};
+    const offTask: OffTaskReport = {
+        judged: !!o.judged,
+        reason: o.reason,
+        anchors: [],
+        detours: (o.detours ?? []).map((d) => ({
+            start: d.start,
+            end: d.end,
+            maxOffM: d.maxOffRouteM ?? 0,
+            km: d.kmRidden ?? 0,
+            leg: [d.fromLabel, d.toLabel].filter(Boolean).join(" → ") || "Between drop-offs",
+            from: Math.max(0, indexAt(points, d.start)),
+            to: Math.max(0, indexAt(points, d.end)),
+        })),
+        unexplainedStops: (o.offTaskStops ?? []).map((s) => ({ lat: s.lat, lng: s.lng, start: s.start, end: s.end })),
+        directKm: o.directKm ?? 0,
+        offRouteMs: (o.offRouteMinutes ?? 0) * MINUTE,
+        offRouteKm: o.offRouteKm ?? 0,
+    };
+    return { checks, offTask };
 };
