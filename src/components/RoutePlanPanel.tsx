@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Loader, MapPinOff, RefreshCw, Route, AlertTriangle } from "lucide-react";
 import { Button } from "./ui/button";
-import { loadGoogleMaps } from "../utils/googleMaps";
+import { loadGoogleMaps, onGoogleMapsAuthFailure } from "../utils/googleMaps";
 import {
     LatLng, PlanStop, RoutePlan, encodePolyline, estimatePlan, formatMinutes, planRoute, planWithGoogle,
 } from "../utils/routePlan";
@@ -92,7 +92,15 @@ export const RoutePlanPanel = ({ parcels, station, onChange }: Props) => {
             })
             .catch(() => { /* no Google: the estimate is used and the map area explains */ })
             .finally(() => { if (!cancelled) optimise(); });
-        return () => { cancelled = true; };
+        // Key rejected after loading: drop Google and re-plan with the built-in estimate.
+        const stop = onGoogleMapsAuthFailure(() => {
+            if (cancelled) return;
+            directions.current = null;
+            map.current = null;
+            setMapReady(false);
+            optimise();
+        });
+        return () => { cancelled = true; stop(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -151,7 +159,7 @@ export const RoutePlanPanel = ({ parcels, station, onChange }: Props) => {
             <div className="relative h-[280px] md:h-[420px] rounded-lg border border-[#d1d1d1] overflow-hidden bg-gray-50">
                 <div ref={mapEl} className="absolute inset-0" />
                 {!mapReady && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 text-xs text-[#5d5d5d]">
+                    <div className="absolute inset-0 z-10 bg-gray-50 flex flex-col items-center justify-center text-center p-4 text-xs text-[#5d5d5d]">
                         <Route className="w-6 h-6 text-gray-300 mb-1" />
                         Map unavailable. The planned order is listed on the right.
                     </div>

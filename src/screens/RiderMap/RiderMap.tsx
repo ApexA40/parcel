@@ -7,7 +7,7 @@ import { useLocation as useLocations } from "../../contexts/LocationContext";
 import adminService, { RiderLocation } from "../../services/adminService";
 import frontdeskService from "../../services/frontdeskService";
 import userService, { fromBackendRole } from "../../services/userService";
-import { ACCRA_CENTER, loadGoogleMaps } from "../../utils/googleMaps";
+import { ACCRA_CENTER, loadGoogleMaps, MAPS_KEY_REJECTED, onGoogleMapsAuthFailure } from "../../utils/googleMaps";
 import { runPool } from "../../utils/asyncPool";
 import { parseGpsTime } from "./trackUtils";
 import { RouteHistoryPanel } from "./RouteHistoryPanel";
@@ -193,7 +193,8 @@ export const RiderMap = (): JSX.Element => {
                 setMapReady(true);
             })
             .catch((e: Error) => !cancelled && setMapError(e.message || "Google Maps couldn't load."));
-        return () => { cancelled = true; };
+        const stop = onGoogleMapsAuthFailure(() => !cancelled && setMapError(MAPS_KEY_REJECTED));
+        return () => { cancelled = true; stop(); };
     }, []);
 
     const openInfo = useCallback((r: RiderRow) => {
@@ -367,7 +368,7 @@ export const RiderMap = (): JSX.Element => {
                                     : <MapLegend title="Riders" items={LIVE_LEGEND} />
                             )}
                             {mapError && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-50 text-center p-6">
+                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-gray-50 text-center p-6">
                                     <MapPin className="w-8 h-8 text-gray-300" />
                                     <p className="text-sm font-medium text-neutral-700">The map couldn't load</p>
                                     <p className="text-xs text-[#5d5d5d] max-w-xs">{mapError} Rider positions are still listed here.</p>

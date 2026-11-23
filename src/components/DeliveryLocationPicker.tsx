@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin, Search, Loader, X, Crosshair, AlertTriangle } from "lucide-react";
 import { Button } from "./ui/button";
-import { ACCRA_CENTER, loadGoogleMaps } from "../utils/googleMaps";
+import { ACCRA_CENTER, loadGoogleMaps, onGoogleMapsAuthFailure } from "../utils/googleMaps";
 
 /** Where a parcel is going. Sent to the backend as receiverLatitude / receiverLongitude etc. */
 export interface DeliveryLocation {
@@ -106,7 +106,14 @@ export const DeliveryLocationPicker = ({ value, onChange, near = ACCRA_CENTER, o
                 setLoadError(e.message || "Google Maps couldn't load.");
                 onAvailabilityChange?.(false);
             });
-        return () => { cancelled = true; };
+        // A rejected key loads fine and fails later; treat it like Maps being unavailable so intake isn't blocked.
+        const stop = onGoogleMapsAuthFailure(() => {
+            if (cancelled) return;
+            setReady(false);
+            setLoadError("Google rejected the Maps key, so location search is unavailable.");
+            onAvailabilityChange?.(false);
+        });
+        return () => { cancelled = true; stop(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
