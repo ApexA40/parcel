@@ -52,6 +52,8 @@ import { FinancialReports } from "./screens/Admin/FinancialReports/FinancialRepo
 import { AdminReconciliation } from "./screens/Admin/AdminReconciliation/AdminReconciliation";
 import { AdminReconciliationAnalytics } from "./screens/Admin/AdminReconciliationAnalytics/AdminReconciliationAnalytics";
 import { Settings } from "./screens/Settings/Settings";
+import { BranchSettings } from "./screens/BranchSettings/BranchSettings";
+import { CounterCashUp } from "./screens/CounterCashUp/CounterCashUp";
 import { Help } from "./screens/Help/Help";
 import { TenantSettings } from "./screens/Admin/TenantSettings/TenantSettings";
 import { Billing } from "./screens/Admin/Billing/Billing";
@@ -79,6 +81,7 @@ import { PartnerPortal } from "./screens/PartnerPortal/PartnerPortal";
 import { ParcelScan } from "./screens/ParcelScan/ParcelScan";
 import { AddressManagement } from "./screens/AddressManagement/AddressManagement";
 import { AdminFinancialDashboard } from "./screens/Admin/AdminFinancialDashboard";
+import { RiderMap } from "./screens/RiderMap";
 
 const PARCEL_ROLES = ["FRONTDESK", "MANAGER"];
 const DELIVERY_ROLES = ["MANAGER", "CALLER"];
@@ -136,6 +139,8 @@ export const App = (): JSX.Element => {
                               <Route path="/parcel/assignments" element={<ProtectedRoute allowedRoles={["MANAGER"]}><ParcelLayout><ParcelSelection /></ParcelLayout></ProtectedRoute>} />
                               <Route path="/parcel/settings" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><Settings /></ParcelLayout></ProtectedRoute>} />
                               <Route path="/parcel/preferences" element={<Navigate to="/parcel/settings" replace />} />
+                              <Route path="/parcel/cash-up" element={<ProtectedRoute allowedRoles={["MANAGER"]}><ParcelLayout><CounterCashUp /></ParcelLayout></ProtectedRoute>} />
+                              <Route path="/parcel/branch-settings" element={<ProtectedRoute allowedRoles={["MANAGER"]}><ParcelLayout><BranchSettings /></ParcelLayout></ProtectedRoute>} />
                               <Route path="/parcel/help" element={<ProtectedRoute allowedRoles={PARCEL_ROLES}><ParcelLayout><Help /></ParcelLayout></ProtectedRoute>} />
 
                               {/* Parcel flow sub-pages (layout-less, keep MainLayout for now) */}
@@ -153,6 +158,7 @@ export const App = (): JSX.Element => {
                               <Route path="/delivery/reconciliation-confirmation" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ReconciliationConfirmation /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/analytics" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ReconciliationAnalytics /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/rider-detail" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><RiderDetail /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/rider-map" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><RiderMap /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/financial" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><FinancialDashboard /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/fuel-requests" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><AdminFuelRequests /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/call-center" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><PreDeliveryQueue /></DeliveryLayout></ProtectedRoute>} />
@@ -167,6 +173,8 @@ export const App = (): JSX.Element => {
                               <Route path="/delivery/edit" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><ParcelEdit /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/settings" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><Settings /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/preferences" element={<Navigate to="/delivery/settings" replace />} />
+                              <Route path="/delivery/cash-up" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><CounterCashUp /></DeliveryLayout></ProtectedRoute>} />
+                              <Route path="/delivery/branch-settings" element={<ProtectedRoute allowedRoles={["MANAGER"]}><DeliveryLayout><BranchSettings /></DeliveryLayout></ProtectedRoute>} />
                               <Route path="/delivery/help" element={<ProtectedRoute allowedRoles={DELIVERY_ROLES}><DeliveryLayout><Help /></DeliveryLayout></ProtectedRoute>} />
 
                               {/* ════════════════════════════════
@@ -183,6 +191,7 @@ export const App = (): JSX.Element => {
                               <Route path="/admin/financial" element={<Navigate to="/admin/dashboard" replace />} />
                               <Route path="/admin/financial-reports" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><FinancialReports /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/system-logs" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><SystemLogs /></AdminLayout></ProtectedRoute>} />
+                              <Route path="/admin/rider-map" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><RiderMap /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/fuel-requests" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><AdminFuelRequests /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><TenantSettings /></AdminLayout></ProtectedRoute>} />
                               <Route path="/admin/billing" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminLayout><Billing /></AdminLayout></ProtectedRoute>} />
