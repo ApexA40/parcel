@@ -934,6 +934,7 @@ When a customer collects a parcel at the station ("Mark Picked Up"), they pay wh
 
 **Mark Picked Up** (Parcel Search and Smart Search) now shows:
 - **The amount due**, broken down into inbound, storage, pickup fee, and the item value on POD parcels (collected for the sender). Delivery cost isn't charged, because the customer came in.
+- **A pickup fee field.** It starts from the parcel's own `pickUpCost`, or, if the parcel has none, from the station's pickup charge when that is switched on (Part J). Staff can change it, or set it to 0 to waive it.
 - **A payment step:** Cash or Mobile money, the amount received (defaults to the amount due), and the MoMo transaction ID for mobile money.
 - **A reason for any difference:** Customer paid less / Charge waived by manager / Already paid (e.g. by the sender) / Overpaid / Other. "Other" needs a note.
 
@@ -952,19 +953,21 @@ These are new, optional fields on `PickedUpRequest`. The existing fields stay as
   "parcelId": "PF241591",
   "whoPickedUpName": "Esi Appiah",
   "whoPickedUpTelephoneNumber": "0558296186",
-  "amountDue": 20,
-  "amountPaid": 15,
+  "pickUpCost": 10,
+  "amountDue": 30,
+  "amountPaid": 25,
   "varianceAmount": -5,
   "paymentMethod": "CASH",
   "momoReference": null,
   "varianceReason": "Customer paid less",
   "varianceNote": "Will bring the rest tomorrow",
-  "charges": [ { "key": "inbound", "label": "Inbound", "amount": 20 } ]
+  "charges": [ { "key": "inbound", "label": "Inbound", "amount": 20 }, { "key": "pickup", "label": "Pickup fee", "amount": 10 } ]
 }
 ```
 
 | Field | Notes |
 |---|---|
+| `pickUpCost` | The pickup fee charged at the counter. It's sent only when a fee applies: the parcel's own fee, or the station's pickup charge (Part J), possibly edited by staff. **Save it to the parcel's `pickUpCost` first**, then compute `amountDue`. If it's left out, use the parcel's `pickUpCost`, or the station's charge when enabled. |
 | `amountDue` | What the frontend worked out: inbound + storage + pickup fee + POD item value. **Recompute it on the server** from the parcel and store the server's figure; reject with 400 if it differs from the sent one by more than GHC 0.01, since that means the parcel changed. |
 | `amountPaid` | What the customer handed over. Can be 0, for example when the charge was waived or already paid. |
 | `varianceAmount` | `amountPaid − amountDue`. Negative means short. |
